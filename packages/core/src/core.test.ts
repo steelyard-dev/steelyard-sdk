@@ -1,3 +1,5 @@
+// Copyright (c) Mercato contributors. MIT License.
+// Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it } from "vitest";
 import {
   COMMERCE_READ_VERSION,

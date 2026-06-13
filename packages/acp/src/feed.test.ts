@@ -1,3 +1,5 @@
+// Copyright (c) Mercato contributors. MIT License.
+// Copyright (c) Steelyard contributors. MIT License.
 import { createServer, type Server as NodeServer } from "node:http";
 import { request } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
