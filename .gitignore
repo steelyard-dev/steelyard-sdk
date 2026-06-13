@@ -1,0 +1,45 @@
+# Planning / brief / agent-only artifacts (not public docs)
+VISION.md
+GOAL.md
+
+# Vendored upstream protocol specs (large, mirror of public repos; re-fetch on demand)
+protocols/
+
+# Internal docs derived from mercato (not public until reviewed for the public README)
+docs/
+
+# Node / TypeScript / monorepo build outputs
+node_modules/
+dist/
+build/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Test outputs
+.vitest-cache/
+
+# Env files (NEVER commit secrets — Stripe keys, Anthropic keys, etc.)
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*~
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Temp
+/tmp/
+*.tmp
