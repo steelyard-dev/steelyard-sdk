@@ -1,0 +1,21 @@
+{
+  "name": "@steelyard/example-coffee-shop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Coffee shop example merchant for Steelyard.",
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@steelyard/acp": "workspace:*",
+    "@steelyard/client": "workspace:*",
+    "@steelyard/core": "workspace:*",
+    "@steelyard/mcp": "workspace:*",
+    "@steelyard/ucp": "workspace:*"
+  }
+}

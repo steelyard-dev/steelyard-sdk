@@ -33,6 +33,27 @@ importers:
         specifier: ^2.1.5
         version: 2.1.9(@types/node@22.19.21)
 
+  examples/coffee-shop:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+      '@steelyard/acp':
+        specifier: workspace:*
+        version: link:../../packages/acp
+      '@steelyard/client':
+        specifier: workspace:*
+        version: link:../../packages/client
+      '@steelyard/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@steelyard/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
+      '@steelyard/ucp':
+        specifier: workspace:*
+        version: link:../../packages/ucp
+
   packages/acp:
     dependencies:
       '@steelyard/core':
