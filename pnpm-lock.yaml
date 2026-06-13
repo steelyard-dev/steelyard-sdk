@@ -45,6 +45,25 @@ importers:
         specifier: ^3.0.1
         version: 3.0.1(ajv@8.20.0)
 
+  packages/client:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
+      '@steelyard/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@steelyard/acp':
+        specifier: workspace:*
+        version: link:../acp
+      '@steelyard/mcp':
+        specifier: workspace:*
+        version: link:../mcp
+      '@steelyard/ucp':
+        specifier: workspace:*
+        version: link:../ucp
+
   packages/core:
     dependencies:
       zod:
