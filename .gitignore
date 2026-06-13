@@ -7,8 +7,9 @@ AGENTS.md
 # not meant for the public README. See CLAUDE.md "Private docs" for the rule.
 private-docs/
 
-# Vendored upstream protocol specs (large, mirror of public repos; re-fetch on demand)
-protocols/
+# Vendored upstream protocol specs (large, mirror of public repos; re-fetch on demand).
+# Leading slash anchors to repo root only — must NOT match docs/protocols/.
+/protocols/
 
 # Node / TypeScript / monorepo build outputs
 node_modules/
