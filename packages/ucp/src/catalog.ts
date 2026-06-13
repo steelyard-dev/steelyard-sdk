@@ -1,10 +1,18 @@
 // Copyright (c) Steelyard contributors. MIT License.
+import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
+import addFormats from "ajv-formats";
 import type { Manifest, Offer, Price } from "@steelyard/core";
 import {
   UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,
-  UCP_VERSION
+  UCP_VERSION,
+  type UcpValidationResult
 } from "./discovery.js";
+import {
+  ALL_SCHEMAS,
+  CATALOG_LOOKUP_SCHEMA_ID,
+  CATALOG_SEARCH_SCHEMA_ID
+} from "./spec-schemas.js";
 
 export interface UcpPrice {
   amount: number;
@@ -35,9 +43,28 @@ export interface UcpVariant {
   tags: string[];
 }
 
+/**
+ * Lookup-only variant: identical to {@link UcpVariant} plus the spec-required
+ * `inputs` array correlating request identifiers to the variant per
+ * `catalog_lookup.json#/$defs/lookup_variant`.
+ */
+export interface UcpLookupVariant extends UcpVariant {
+  inputs: { id: string; match: "exact" }[];
+}
+
+export interface UcpLookupProduct extends Omit<UcpProduct, "variants"> {
+  variants: UcpLookupVariant[];
+}
+
 export interface UcpCatalogResponse {
   ucp: ReturnType<typeof responseUcp>;
   products: UcpProduct[];
+}
+
+/** Lookup responses carry products whose variants include `inputs` correlation. */
+export interface UcpLookupResponse {
+  ucp: ReturnType<typeof responseUcp>;
+  products: UcpLookupProduct[];
 }
 
 export interface UcpProductResponse {
@@ -45,26 +72,137 @@ export interface UcpProductResponse {
   product: UcpProduct;
 }
 
+// AJV instance loaded with the full UCP schema graph that catalog responses
+// transitively reference. The vendored spec at protocols/ucp/source/schemas/
+// is the source of truth; spec-schemas.ts owns the import list.
+const ajv = new Ajv2020({ allErrors: true, strict: false });
+addFormats(ajv);
+ALL_SCHEMAS.forEach((schema) => ajv.addSchema(schema));
+
+const validateSearchResponseFn = loadValidator(
+  `${CATALOG_SEARCH_SCHEMA_ID}#/$defs/search_response`,
+  "search_response"
+);
+const validateLookupResponseFn = loadValidator(
+  `${CATALOG_LOOKUP_SCHEMA_ID}#/$defs/lookup_response`,
+  "lookup_response"
+);
+const validateGetProductResponseFn = loadValidator(
+  `${CATALOG_LOOKUP_SCHEMA_ID}#/$defs/get_product_response`,
+  "get_product_response"
+);
+
 export function searchCatalog(manifest: Manifest, body: unknown): UcpCatalogResponse {
   const request = asRecord(body);
   const query = typeof request.query === "string" ? request.query.trim().toLowerCase() : "";
   const offers = query
     ? manifest.catalog.offers.filter((offer) => offerMatchesQuery(offer, query))
     : manifest.catalog.offers;
-  return { ucp: responseUcp(), products: offers.map((offer) => offerToProduct(manifest, offer)) };
+  const response: UcpCatalogResponse = {
+    ucp: responseUcp(),
+    products: offers.map((offer) => offerToProduct(manifest, offer))
+  };
+  assertValidSearchResponse(response);
+  return response;
 }
 
-export function lookupCatalog(manifest: Manifest, body: unknown): UcpCatalogResponse {
+export function lookupCatalog(manifest: Manifest, body: unknown): UcpLookupResponse {
   const ids = readIds(body);
   const selected = manifest.catalog.offers.filter((offer) => ids.includes(offer.id));
-  return { ucp: responseUcp(), products: selected.map((offer) => offerToProduct(manifest, offer)) };
+  const response: UcpLookupResponse = {
+    ucp: responseUcp(),
+    products: selected.map((offer) => offerToLookupProduct(manifest, offer))
+  };
+  assertValidLookupResponse(response);
+  return response;
 }
 
 export function getProduct(manifest: Manifest, body: unknown): UcpProduct | undefined {
   const request = asRecord(body);
   const id = typeof request.id === "string" ? request.id : "";
   const offer = manifest.catalog.offers.find((item) => item.id === id);
-  return offer ? offerToProduct(manifest, offer) : undefined;
+  if (!offer) return undefined;
+  const response: UcpProductResponse = {
+    ucp: responseUcp(),
+    product: offerToProduct(manifest, offer)
+  };
+  assertValidGetProductResponse(response);
+  return response.product;
+}
+
+/**
+ * Validates a UCP catalog `search_response` against the vendored
+ * shopping/catalog_search.json#/$defs/search_response schema.
+ */
+export function validateSearchResponse(payload: unknown): UcpValidationResult {
+  const valid = validateSearchResponseFn(payload);
+  return { valid, errors: validateSearchResponseFn.errors };
+}
+
+/**
+ * Validates a UCP catalog `lookup_response` against the vendored
+ * shopping/catalog_lookup.json#/$defs/lookup_response schema.
+ */
+export function validateLookupResponse(payload: unknown): UcpValidationResult {
+  const valid = validateLookupResponseFn(payload);
+  return { valid, errors: validateLookupResponseFn.errors };
+}
+
+/**
+ * Validates a UCP catalog `get_product_response` against the vendored
+ * shopping/catalog_lookup.json#/$defs/get_product_response schema.
+ */
+export function validateGetProductResponse(payload: unknown): UcpValidationResult {
+  const valid = validateGetProductResponseFn(payload);
+  return { valid, errors: validateGetProductResponseFn.errors };
+}
+
+/** Throws if the search response does not conform to the vendored spec. */
+export function assertValidSearchResponse(response: unknown): void {
+  const result = validateSearchResponse(response);
+  if (!result.valid) {
+    throw new Error(
+      `UCP catalog search response failed spec validation: ${formatErrors(result.errors)}`
+    );
+  }
+}
+
+/** Throws if the lookup response does not conform to the vendored spec. */
+export function assertValidLookupResponse(response: unknown): void {
+  const result = validateLookupResponse(response);
+  if (!result.valid) {
+    throw new Error(
+      `UCP catalog lookup response failed spec validation: ${formatErrors(result.errors)}`
+    );
+  }
+}
+
+/** Throws if the get_product response does not conform to the vendored spec. */
+export function assertValidGetProductResponse(response: unknown): void {
+  const result = validateGetProductResponse(response);
+  if (!result.valid) {
+    throw new Error(
+      `UCP catalog get_product response failed spec validation: ${formatErrors(result.errors)}`
+    );
+  }
+}
+
+function loadValidator(schemaRef: string, label: string): ValidateFunction {
+  const validator = ajv.getSchema(schemaRef);
+  /* c8 ignore next 3 — defensive: this fires at module load if the schema
+     graph in spec-schemas.ts ever lost a required schema. Module would fail
+     to import, so no test can reach this state once the module is loaded. */
+  if (!validator) {
+    throw new Error(`Unable to load UCP ${label} validator at ${schemaRef}`);
+  }
+  return validator;
+}
+
+function formatErrors(errors: ErrorObject[] | null | undefined): string {
+  /* c8 ignore next — defensive: AJV always populates errors when valid=false,
+     so this fallback only fires if AJV's API contract is broken. */
+  if (!errors || errors.length === 0) return "(no AJV errors reported)";
+  return ajv.errorsText(errors, { separator: "; " });
 }
 
 function responseUcp() {
@@ -110,6 +248,18 @@ function offerToProduct(manifest: Manifest, offer: Offer): UcpProduct {
     ],
     tags
   };
+}
+
+function offerToLookupProduct(manifest: Manifest, offer: Offer): UcpLookupProduct {
+  const product = offerToProduct(manifest, offer);
+  // The lookup spec requires `inputs` on each variant: which request identifier
+  // resolved to this variant, with match semantics. Since v0 only resolves by
+  // offer id, each variant correlates to its own id with `match: "exact"`.
+  const variantsWithInputs: UcpLookupVariant[] = product.variants.map((variant) => ({
+    ...variant,
+    inputs: [{ id: offer.id, match: "exact" }]
+  }));
+  return { ...product, variants: variantsWithInputs };
 }
 
 function firstPrice(offer: Offer, fallbackCurrency: string): UcpPrice {

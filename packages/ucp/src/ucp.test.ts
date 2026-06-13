@@ -9,14 +9,21 @@ import {
   UCP_SHOPPING_SERVICE,
   UCP_VERSION,
   UCP_WELL_KNOWN_PATH,
+  assertValidGetProductResponse,
+  assertValidLookupResponse,
+  assertValidSearchResponse,
   assertValidUcpDiscovery,
   buildUcpDiscovery,
   createUcpHandler,
   getProduct,
   lookupCatalog,
   searchCatalog,
+  validateGetProductResponse,
+  validateLookupResponse,
+  validateSearchResponse,
   validateUcpDiscovery,
   type UcpCatalogResponse,
+  type UcpLookupResponse,
   type UcpProductResponse
 } from "./index.js";
 
@@ -134,6 +141,64 @@ describe("catalog mapping", () => {
   });
 });
 
+describe("catalog response spec validation", () => {
+  it("validates real searchCatalog output against catalog_search.json#/$defs/search_response", () => {
+    const response = searchCatalog(manifest, { query: "double" });
+    expect(validateSearchResponse(response).valid).toBe(true);
+    expect(() => assertValidSearchResponse(response)).not.toThrow();
+  });
+
+  it("validates real lookupCatalog output against catalog_lookup.json#/$defs/lookup_response", () => {
+    const response = lookupCatalog(manifest, { ids: ["double"] });
+    expect(validateLookupResponse(response).valid).toBe(true);
+    expect(() => assertValidLookupResponse(response)).not.toThrow();
+  });
+
+  it("validates real getProduct flow against catalog_lookup.json#/$defs/get_product_response", () => {
+    // getProduct() returns only the product, but the underlying validator
+    // wraps it in { ucp, product } and asserts it. We exercise both the
+    // standalone validator and the assert helper here.
+    const product = getProduct(manifest, { id: "double" });
+    expect(product).toBeDefined();
+    const wrapped = { ucp: searchCatalog(manifest, { query: "double" }).ucp, product };
+    expect(validateGetProductResponse(wrapped).valid).toBe(true);
+    expect(() => assertValidGetProductResponse(wrapped)).not.toThrow();
+  });
+
+  it("rejects search responses missing the required `products` array", () => {
+    const tampered = { ucp: searchCatalog(manifest, {}).ucp };
+    expect(validateSearchResponse(tampered).valid).toBe(false);
+    expect(() => assertValidSearchResponse(tampered)).toThrow(
+      /UCP catalog search response failed spec validation/
+    );
+  });
+
+  it("rejects lookup responses whose variants are missing the `inputs` correlation", () => {
+    const good = lookupCatalog(manifest, { ids: ["double"] });
+    // Drop `inputs` from the first variant — spec requires it per lookup_variant.
+    const tamperedProducts = good.products.map((product) => ({
+      ...product,
+      variants: product.variants.map(({ inputs: _drop, ...rest }) => rest)
+    }));
+    const tampered = { ...good, products: tamperedProducts };
+
+    const result = validateLookupResponse(tampered);
+    expect(result.valid).toBe(false);
+    expect(result.errors?.some((err) => /inputs/.test(err.message ?? ""))).toBe(true);
+    expect(() => assertValidLookupResponse(tampered)).toThrow(
+      /UCP catalog lookup response failed spec validation.*inputs/
+    );
+  });
+
+  it("rejects get_product responses missing the required `product` field", () => {
+    const tampered = { ucp: searchCatalog(manifest, {}).ucp };
+    expect(validateGetProductResponse(tampered).valid).toBe(false);
+    expect(() => assertValidGetProductResponse(tampered)).toThrow(
+      /UCP catalog get_product response failed spec validation/
+    );
+  });
+});
+
 describe("createUcpHandler", () => {
   it("serves discovery and catalog endpoints over HTTP", async () => {
     server = createServer(createUcpHandler(manifest, { baseUrl: "https://public.example" }));
@@ -152,7 +217,9 @@ describe("createUcpHandler", () => {
     ]);
 
     const lookup = await httpRequest(`${base}/api/catalog/lookup`, "POST", { ids: ["double"] });
-    expect((lookup.body as UcpCatalogResponse).products[0]!.id).toBe("double");
+    const lookupBody = lookup.body as UcpLookupResponse;
+    expect(lookupBody.products[0]!.id).toBe("double");
+    expect(lookupBody.products[0]!.variants[0]!.inputs).toEqual([{ id: "double", match: "exact" }]);
 
     const product = await httpRequest(`${base}/api/catalog/product`, "POST", { id: "single" });
     expect((product.body as UcpProductResponse).product.id).toBe("single");

@@ -1,10 +1,19 @@
 export {
+  assertValidGetProductResponse,
+  assertValidLookupResponse,
+  assertValidSearchResponse,
   getProduct,
   lookupCatalog,
-  searchCatalog
+  searchCatalog,
+  validateGetProductResponse,
+  validateLookupResponse,
+  validateSearchResponse
 } from "./catalog.js";
 export type {
   UcpCatalogResponse,
+  UcpLookupProduct,
+  UcpLookupResponse,
+  UcpLookupVariant,
   UcpPrice,
   UcpProduct,
   UcpProductResponse,
