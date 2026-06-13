@@ -35,6 +35,7 @@ export interface AcpVariant {
   availability: AcpAvailability;
   categories?: { value: string; taxonomy: "merchant" }[];
   media?: AcpMedia[];
+  seller?: AcpSeller;
 }
 
 export interface AcpProduct {
@@ -48,6 +49,11 @@ export interface AcpProduct {
 
 export interface AcpFeed {
   products: AcpProduct[];
+}
+
+export interface AcpSeller {
+  name?: string;
+  links?: { type: string; title?: string; url: string }[];
 }
 
 export interface AcpValidationResult {
@@ -64,6 +70,7 @@ ajv.addSchema(acpFeedSchema, acpFeedSchemaId);
 const validateProductsResponse = loadProductsResponseValidator();
 
 export function buildAcpFeed(manifest: Manifest): AcpFeed {
+  const seller = mapSeller(manifest);
   const feed = {
     products: manifest.catalog.offers.map((offer) => {
       const media = mapMedia(offer.images);
@@ -83,7 +90,8 @@ export function buildAcpFeed(manifest: Manifest): AcpFeed {
             price: formatPrice(offer.pricing),
             availability: mapAvailability(offer.availability),
             categories: offer.categories.map((value) => ({ value, taxonomy: "merchant" as const })),
-            media
+            media,
+            seller
           }
         ]
       };
@@ -155,4 +163,17 @@ function mapMedia(images: string[]): AcpMedia[] | undefined {
 
 function mapDescription(description?: string): AcpDescription | undefined {
   return description ? { plain: description } : undefined;
+}
+
+function mapSeller(manifest: Manifest): AcpSeller {
+  return {
+    name: manifest.identity.name,
+    links: manifest.policies
+      .filter((policy) => policy.url)
+      .map((policy) => ({
+        type: `${policy.type}_policy`,
+        title: policy.type,
+        url: policy.url!
+      }))
+  };
 }

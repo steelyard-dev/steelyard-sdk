@@ -62,6 +62,10 @@ describe("buildAcpFeed", () => {
     expect(feed.products[0]!.variants[0]!.categories).toEqual([
       { value: "espresso", taxonomy: "merchant" }
     ]);
+    expect(feed.products[0]!.variants[0]!.seller).toEqual({
+      name: "Acme Coffee",
+      links: []
+    });
     expect(variant.price).toBeUndefined();
     expect(variant.availability).toEqual({ available: false, status: "out_of_stock" });
     expect(validateAcpFeed(feed).valid).toBe(true);
@@ -91,7 +95,8 @@ describe("buildAcpFeed", () => {
           price: undefined,
           availability: { available: false, status: "unknown" },
           categories: [],
-          media: undefined
+          media: undefined,
+          seller: { name: "Minimal", links: [] }
         }
       ]
     });
