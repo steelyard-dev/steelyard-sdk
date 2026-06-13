@@ -43,7 +43,7 @@ The public v1 surface required by `GOAL.md` is:
 | `schemas.ts` | Port with pruning | Keep Zod schemas for merchant identity, offer, price, policy, and manifest. Drop ingestion/surface/content-only schemas. |
 | `types.ts` | Port with rewrite | Keep typed config inputs and exported domain types. Drop resolver-specific and Mercato marker types unless they are needed by v1. |
 | `surface.ts` | Drop | Mercato generates a broad MCP-oriented surface descriptor, including content Q&A and buy-link tools. Steelyard v1 adapters expose fixed read-side MCP/ACP/UCP capabilities, so this would be duplicate surface area. |
-| `errors.ts` | Port with rewrite | Keep the idea of structured errors, but replace Mercato's open classes with the closed v1 `ErrorCode` set from A7. Drop `NotImplementedError` entirely. |
+| `errors.ts` | Port with rewrite | Keep the idea of structured errors, but replace Mercato's open classes with the closed v1 `ErrorCode` set from A7. Drop Mercato's unimplemented-code-path error entirely. |
 | `snapshot.ts` | Drop for v1 core | Stable hashing is useful for hosted or cached manifests, but v1 acceptance does not require snapshots or persistence. Reintroduce later only if a real adapter needs it. |
 
 ## Field-Level Decision
@@ -93,8 +93,8 @@ Steelyard v1 exports the closed A7 `ErrorCode` set:
 - `network_error`
 - `internal_error`
 
-Mercato's `NotImplementedError` is explicitly not ported because the Steelyard
-v1 principle forbids reachable stubs. Mercato's `ValidationError` and
+Mercato's unimplemented-code-path error is explicitly not ported because the
+Steelyard v1 principle forbids reachable stubs. Mercato's `ValidationError` and
 `DiscoveryError` concepts are covered by structured validation results and the
 closed client error taxonomy.
 
