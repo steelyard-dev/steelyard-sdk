@@ -47,26 +47,30 @@ export async function runAgent(
     return 1;
   }
 
-  const apiKey = env.ANTHROPIC_API_KEY;
-  if (apiKey) {
-    try {
-      const answer = await answerWithAnthropic(
-        merchant,
-        parsed.prompt,
-        apiKey,
-        env.ANTHROPIC_MODEL ?? DEFAULT_ANTHROPIC_MODEL,
-        deps.createAnthropic
-      );
-      output.stdout(answer);
-      return 0;
-    } catch (error) {
-      output.stdout(`(LLM provider failed: ${(error as Error).message}; falling back to naive parser)`);
+  try {
+    const apiKey = env.ANTHROPIC_API_KEY;
+    if (apiKey) {
+      try {
+        const answer = await answerWithAnthropic(
+          merchant,
+          parsed.prompt,
+          apiKey,
+          env.ANTHROPIC_MODEL ?? DEFAULT_ANTHROPIC_MODEL,
+          deps.createAnthropic
+        );
+        output.stdout(answer);
+        return 0;
+      } catch (error) {
+        output.stdout(`(LLM provider failed: ${(error as Error).message}; falling back to naive parser)`);
+      }
+    } else {
+      output.stdout("(running without LLM; export ANTHROPIC_API_KEY for natural-language prompts)");
     }
-  } else {
-    output.stdout("(running without LLM; export ANTHROPIC_API_KEY for natural-language prompts)");
-  }
 
-  return runNaive(merchant, parsed.prompt, output);
+    return await runNaive(merchant, parsed.prompt, output);
+  } finally {
+    await closeMerchant(merchant);
+  }
 }
 
 export function parseNaivePrompt(prompt: string):
@@ -164,6 +168,14 @@ function formatError(error: SteelyardError): string {
 
 function isError(value: unknown): value is SteelyardError {
   return !!value && typeof value === "object" && typeof (value as { error?: unknown }).error === "string";
+}
+
+async function closeMerchant(merchant: Merchant): Promise<void> {
+  try {
+    await merchant.close?.();
+  } catch {
+    return;
+  }
 }
 
 const consoleOutput: AgentOutput = {

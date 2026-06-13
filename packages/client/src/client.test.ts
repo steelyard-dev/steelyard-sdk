@@ -63,6 +63,7 @@ describe("Steelyard.connect", () => {
     expect((await merchant.getManifest() as { identity: { name: string } }).identity.name).toBe("Acme Coffee");
     expect((await merchant.getPolicies() as unknown[])).toHaveLength(6);
     expect(await merchant.getOffer("missing")).toMatchObject({ error: "not_found" });
+    await expect(merchant.close?.()).resolves.toBeUndefined();
   });
 
   it("detects ACP feeds and reconstructs offers from ProductsResponse", async () => {

@@ -23,6 +23,7 @@ export interface Merchant {
   getOffer(id: string): Promise<Offer | SteelyardError>;
   getManifest(): Promise<Manifest | SteelyardError>;
   getPolicies(): Promise<Policies | SteelyardError>;
+  close?(): Promise<void>;
 }
 
 type DetectionResult = Merchant | SteelyardError | undefined;
@@ -120,6 +121,9 @@ function mcpMerchant(client: Client, url: URL): Merchant {
         const resource = await client.readResource({ uri: "commerce://policies" });
         return JSON.parse(resourceText(resource)) as Policies;
       }, "not_found");
+    },
+    async close() {
+      await closeQuietly(client);
     }
   };
 }

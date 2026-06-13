@@ -50,16 +50,44 @@ describe("runAgent", () => {
 
   it("uses the naive list path when no Anthropic key is set", async () => {
     const out = capture();
+    let closed = false;
     const code = await runAgent(
       ["--merchant", "http://merchant", "what does this shop sell"],
       {},
       out,
-      { connect: async () => merchant }
+      { connect: async () => ({ ...merchant, close: async () => { closed = true; } }) }
     );
 
     expect(code).toBe(0);
+    expect(closed).toBe(true);
     expect(out.stdoutText()).toContain("running without LLM");
     expect(out.stdoutText()).toContain("Single Espresso");
+  });
+
+  it("waits for naive merchant calls before closing the merchant", async () => {
+    const out = capture();
+    let closed = false;
+    const slowMerchant: Merchant = {
+      ...merchant,
+      search: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        return closed ? { error: "internal_error" } : offers;
+      },
+      close: async () => {
+        closed = true;
+      }
+    };
+
+    const code = await runAgent(
+      ["--merchant", "http://merchant", "what does this shop sell"],
+      {},
+      out,
+      { connect: async () => slowMerchant }
+    );
+
+    expect(code).toBe(0);
+    expect(closed).toBe(true);
+    expect(out.stdoutText()).toContain("Double Espresso");
   });
 
   it("supports naive offer and policies prompts", async () => {
