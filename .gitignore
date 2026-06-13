@@ -5,9 +5,6 @@ GOAL.md
 # Vendored upstream protocol specs (large, mirror of public repos; re-fetch on demand)
 protocols/
 
-# Internal docs derived from mercato (not public until reviewed for the public README)
-docs/
-
 # Node / TypeScript / monorepo build outputs
 node_modules/
 dist/

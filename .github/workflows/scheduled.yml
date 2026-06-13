@@ -1,0 +1,50 @@
+name: Scheduled Live
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    name: Coffee-shop protocol parity and agent demo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r build
+      - run: pnpm --filter @steelyard/example-coffee-shop test
+      - name: Boot coffee-shop merchant
+        run: |
+          PORT=3000 pnpm --filter @steelyard/example-coffee-shop start >/tmp/steelyard-coffee.log 2>&1 &
+          echo $! >/tmp/steelyard-coffee.pid
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3000/.well-known/ucp >/tmp/steelyard-ucp.json; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/steelyard-coffee.log
+          exit 1
+      - name: Run agent demo against each protocol
+        run: |
+          node packages/agent/dist/cli.js --merchant http://127.0.0.1:3000/mcp "what does this shop sell"
+          node packages/agent/dist/cli.js --merchant http://127.0.0.1:3000/acp/feed "what does this shop sell"
+          node packages/agent/dist/cli.js --merchant http://127.0.0.1:3000/.well-known/ucp "what does this shop sell"
+      - name: Stop coffee-shop merchant
+        if: always()
+        run: |
+          if [ -f /tmp/steelyard-coffee.pid ]; then
+            kill "$(cat /tmp/steelyard-coffee.pid)" 2>/dev/null || true
+          fi
