@@ -21,6 +21,10 @@ coverage/
 # Test outputs
 .vitest-cache/
 
+# mkdocs build output + cache
+site/
+.cache/
+
 # Env files (NEVER commit secrets — Stripe keys, Anthropic keys, etc.)
 .env
 .env.*

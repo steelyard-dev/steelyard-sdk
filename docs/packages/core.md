@@ -1,0 +1,37 @@
+# `@steelyard/core`
+
+The schema, types, and constants every other package depends on.
+
+```bash
+npm install @steelyard/core
+```
+
+## Exports
+
+### Functions
+
+- [`defineCommerce(config)`](../concepts/define-commerce.md) — parse, normalize, and return a `Manifest`. Throws `ZodError` on invalid input.
+- `validate(input)` — non-throwing validation. Returns `{ valid: true, value: Manifest } | { valid: false, errors: ZodIssue[] }`.
+
+### Types
+
+- `CommerceConfig` — the user-facing input to `defineCommerce`.
+- `Manifest` — the normalized output. What every adapter consumes.
+- `MerchantIdentity`, `Offer`, `Price`, `Policy`, `Policies` — components of the manifest.
+- `ErrorCode` — the closed union of error strings (see [Error taxonomy](../concepts/errors.md)).
+- `ValidationResult` — the discriminated union returned by `validate()`.
+
+### Constants
+
+- `COMMERCE_READ_VERSION = "0.1"` — the capability version every adapter advertises. See [Versioning](../concepts/versioning.md).
+- `ERROR_CODES` — array of every valid `ErrorCode` value; useful for exhaustive switches.
+
+## Runtime dependencies
+
+Just `zod` for schema validation. **No** runtime dependency on Stripe, the
+Anthropic SDK, the AI SDK, or any payment-adapter code. A CI lint rule
+enforces this — `@steelyard/core` is protocol-agnostic by construction.
+
+## What's next
+
+- :material-package-variant-closed: [`@steelyard/mcp`](mcp.md), [`@steelyard/acp`](acp.md), [`@steelyard/ucp`](ucp.md) — the protocol adapters that consume a `Manifest`.
