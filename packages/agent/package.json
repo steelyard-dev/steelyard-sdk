@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
-    "@steelyard/client": "workspace:*",
-    "@steelyard/core": "workspace:*"
+    "@steelyard/client": "workspace:^",
+    "@steelyard/core": "workspace:^"
   }
 }

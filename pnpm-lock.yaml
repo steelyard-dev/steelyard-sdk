@@ -57,7 +57,7 @@ importers:
   packages/acp:
     dependencies:
       '@steelyard/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       ajv:
         specifier: ^8.17.1
@@ -72,10 +72,10 @@ importers:
         specifier: ^0.71.0
         version: 0.71.2(zod@3.25.76)
       '@steelyard/client':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../client
       '@steelyard/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
 
   packages/client:
@@ -84,17 +84,17 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
       '@steelyard/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@steelyard/acp':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../acp
       '@steelyard/mcp':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../mcp
       '@steelyard/ucp':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../ucp
 
   packages/core:
@@ -109,13 +109,13 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
       '@steelyard/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
 
   packages/ucp:
     dependencies:
       '@steelyard/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       ajv:
         specifier: ^8.17.1

@@ -26,6 +26,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@steelyard/core": "workspace:*"
+    "@steelyard/core": "workspace:^"
   }
 }

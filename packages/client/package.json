@@ -26,11 +26,11 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@steelyard/core": "workspace:*"
+    "@steelyard/core": "workspace:^"
   },
   "devDependencies": {
-    "@steelyard/acp": "workspace:*",
-    "@steelyard/mcp": "workspace:*",
-    "@steelyard/ucp": "workspace:*"
+    "@steelyard/acp": "workspace:^",
+    "@steelyard/mcp": "workspace:^",
+    "@steelyard/ucp": "workspace:^"
   }
 }
