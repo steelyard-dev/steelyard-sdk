@@ -152,7 +152,7 @@ function acpMerchant(url: URL, initialFeed: unknown): Merchant {
 
 function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL): Merchant {
   const endpoint = restEndpoint(doc) ?? new URL("/api", discoveryUrl).toString();
-  const identity = { name: doc.merchant?.name ?? discoveryUrl.host, domain: doc.merchant?.domain ?? discoveryUrl.host };
+  const identity = { name: doc.merchant?.name ?? discoveryUrl.host, domain: doc.merchant?.domain };
   const post = (path: string, body: unknown) => fetchJson(new URL(`${endpoint.replace(/\/$/, "")}${path}`), {
     method: "POST",
     body: JSON.stringify(body),
@@ -276,7 +276,7 @@ function acpPoliciesFromFeed(feed: unknown): Policies {
 
 function merchantIdentityFromAcp(feed: unknown, url: URL) {
   const name = isAcpFeed(feed) ? feed.products[0]?.variants[0]?.seller?.name : undefined;
-  return { name: name ?? url.host, domain: url.host };
+  return { name: name ?? url.host };
 }
 
 function ucpProductsToOffers(products: unknown[]): Offer[] {
