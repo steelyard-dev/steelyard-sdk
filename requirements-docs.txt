@@ -1,6 +1,8 @@
 # Steelyard docs — Python deps for mkdocs-material.
 # Build:   pip install -r requirements-docs.txt && mkdocs serve
 # Deploy:  mkdocs gh-deploy --force
-mkdocs>=1.6,<2
-mkdocs-material>=9.5,<10
-pymdown-extensions>=10
+#
+# Versions pinned exactly so CI behavior matches local.
+mkdocs==1.6.1
+mkdocs-material==9.7.6
+pymdown-extensions==10.21
