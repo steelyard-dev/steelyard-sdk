@@ -1,0 +1,26 @@
+{
+  "name": "steelyard",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TypeScript SDK for defining read-side commerce once and serving it over MCP, ACP, and UCP.",
+  "license": "MIT",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.9",
+    "@types/node": "^22.9.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.5"
+  }
+}
