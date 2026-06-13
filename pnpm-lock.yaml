@@ -60,6 +60,18 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/ucp:
+    dependencies:
+      '@steelyard/core':
+        specifier: workspace:*
+        version: link:../core
+      ajv:
+        specifier: ^8.17.1
+        version: 8.20.0
+      ajv-formats:
+        specifier: ^3.0.1
+        version: 3.0.1(ajv@8.20.0)
+
 packages:
 
   '@ampproject/remapping@2.3.0':
