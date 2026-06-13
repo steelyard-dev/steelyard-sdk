@@ -1,6 +1,11 @@
 # Planning / brief / agent-only artifacts (not public docs)
 VISION.md
 GOAL.md
+AGENTS.md
+
+# Private docs: architecture notes, protocol mapping, loom scripts, anything
+# not meant for the public README. See CLAUDE.md "Private docs" for the rule.
+private-docs/
 
 # Vendored upstream protocol specs (large, mirror of public repos; re-fetch on demand)
 protocols/

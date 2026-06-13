@@ -133,14 +133,8 @@ if ("error" in merchant) {
 const offers = await merchant.search("");
 ```
 
-`Steelyard.connect()` probes MCP first, then ACP, then UCP. Protocol mismatch, version mismatch, network errors, not-found cases, and unexpected adapter failures use the closed v1 error taxonomy documented in [docs/PROTOCOL.md](docs/PROTOCOL.md).
+`Steelyard.connect()` probes MCP first, then ACP, then UCP. The closed v1 error taxonomy is `not_found`, `version_mismatch`, `protocol_mismatch`, `network_error`, `internal_error` (exported from `@steelyard/core` as `ERROR_CODES`).
 
 ## Port Note
 
 Steelyard is a clean spin-off from `../mercato/`. The keep/drop audit is in [packages/core/PORT_AUDIT.md](packages/core/PORT_AUDIT.md): v1 keeps the read-side manifest, validation, and protocol adapter ideas, and drops ingestion, platform connectors, hosted cloud UI, carts, checkout, payment execution, and order mutation.
-
-## Docs
-
-- [Architecture](docs/ARCHITECTURE.md)
-- [Protocol contract](docs/PROTOCOL.md)
-- [Protocol mapping](docs/PROTOCOLS.md)
