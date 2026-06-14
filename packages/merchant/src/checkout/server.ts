@@ -22,6 +22,7 @@ import {
   applyUcpComplete,
   applyUcpCreate,
   applyUcpUpdate,
+  assertValidUcpCheckout,
   type Checkout as UcpCheckout,
   type SelectedPaymentInstrument
 } from "@steelyard/protocol/ucp/checkout";
@@ -200,7 +201,7 @@ function createAcpRoutes(ctx: MerchantCheckoutContext): AcpRoutes {
             now: ctx.clock(),
             pspResult
           });
-          return { next: withPspReference(completed.next, pspResult) as StoredCheckout };
+          return { next: completed.next as StoredCheckout };
         });
         return { status, body: next };
       });
@@ -240,7 +241,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
           currency: checkoutCurrency(ctx.manifest),
           links: []
         });
-        const next = withUcpPaymentHandlers(result.next, ctx.opts.psp);
+        const next = withUcpPaymentHandlers(withUcpCatalogDetails(ctx.manifest, result.next), ctx.opts.psp);
         await ctx.opts.store.put(next as StoredCheckout);
         return { status: 200, body: next };
       });
@@ -256,8 +257,9 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
         const policy = await ctx.evaluatePolicy("ucp", body);
         if (policy) return policy;
         const result = applyUcpUpdate(current as UcpCheckout, body as Partial<UcpCheckout>, { now: ctx.clock() });
-        await ctx.opts.store.put(result.next as StoredCheckout);
-        return { status: 200, body: result.response };
+        const next = withUcpCatalogDetails(ctx.manifest, result.next);
+        await ctx.opts.store.put(next as StoredCheckout);
+        return { status: 200, body: next };
       });
     },
     async completeCheckout(req, res) {
@@ -492,6 +494,43 @@ function withUcpPaymentHandlers(checkout: Record<string, unknown>, psp: PspAdapt
       }
     }
   };
+}
+
+function withUcpCatalogDetails(manifest: Manifest, checkout: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(checkout.line_items)) return checkout;
+  let checkoutTotal = 0;
+  const lineItems = checkout.line_items.map((value, index) => {
+    const line = asRecord(value);
+    const item = asRecord(line.item);
+    const id = stringValue(item.id, `item_${index + 1}`);
+    const offer = manifest.catalog.offers.find((candidate) => candidate.id === id);
+    const quantity = integerValue(line.quantity, 1);
+    const unitAmount = firstPriceAmount(offer) ?? integerValue(item.price, 0);
+    const lineTotal = unitAmount * quantity;
+    checkoutTotal += lineTotal;
+    return {
+      ...line,
+      id: stringValue(line.id, `line_${index + 1}`),
+      item: {
+        ...item,
+        id,
+        title: offer?.title ?? stringValue(item.title, id),
+        price: unitAmount
+      },
+      quantity,
+      totals: [{ type: "total", display_text: "Total", amount: lineTotal }]
+    };
+  });
+  const next = {
+    ...checkout,
+    line_items: lineItems,
+    totals: [
+      { type: "subtotal", display_text: "Subtotal", amount: checkoutTotal },
+      { type: "total", display_text: "Total", amount: checkoutTotal }
+    ]
+  };
+  assertValidUcpCheckout(next);
+  return next;
 }
 
 function withPspReference(session: Record<string, unknown>, pspResult: PspCaptureResult): Record<string, unknown> {

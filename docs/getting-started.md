@@ -28,9 +28,7 @@ pnpm --filter @steelyard/example-coffee-shop start
 You should see something like:
 
 ```
-MCP merchant listening at http://127.0.0.1:3000/protocol/mcp
-ACP feed serving at      http://127.0.0.1:3000/protocol/acp/feed
-UCP discovery at         http://127.0.0.1:3000/.well-known/protocol/ucp
+Steelyard coffee shop listening on http://127.0.0.1:3000
 ```
 
 **Same `defineCommerce({...})` config, three live protocol endpoints.** This
@@ -43,18 +41,18 @@ In a second terminal:
 ```bash
 # With Anthropic (best answers)
 export ANTHROPIC_API_KEY=sk-ant-...
-npx @steelyard/agent --merchant http://127.0.0.1:3000/protocol/mcp \
+npx @steelyard/agent --merchant http://127.0.0.1:3000/mcp \
   "what does this shop sell"
 
 # Without an LLM key — naive parser still answers
-npx @steelyard/agent --merchant http://127.0.0.1:3000/protocol/mcp \
+npx @steelyard/agent --merchant http://127.0.0.1:3000/mcp \
   "what does this shop sell"
 ```
 
 Either way, the agent connects, fetches the offers, and prints an answer.
 
 !!! tip "Switch protocols, same answer"
-    Re-run the command pointing at `/protocol/acp/feed` or `/.well-known/protocol/ucp`. The
+    Re-run the command pointing at `/acp/feed` or `/.well-known/ucp`. The
     agent returns the **identical offer list** because all three endpoints
     are emitted from the same config.
 

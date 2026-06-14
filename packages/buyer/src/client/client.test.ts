@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { buildAcpFeed, createAcpFeedHandler } from "@steelyard/protocol/acp";
+import { buildAcpFeed } from "@steelyard/protocol/acp";
 import { defineCommerce, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
 import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
 import {
@@ -87,7 +87,9 @@ describe("Steelyard.connect", () => {
     expect(merchant.supports("checkout")).toBe(false);
     await expectMerchantBasics(merchant);
     expect((await merchant.lookup("single") as { title: string }).title).toBe("Single Espresso");
-    expect((await merchant.getManifest() as { identity: { name: string } }).identity.name).toBe("Acme Coffee");
+    expect(await merchant.getManifest()).toMatchObject({
+      identity: { name: "Acme Coffee", domain: "coffee.example", currencies: ["USD"] }
+    });
     expect((await merchant.getPolicies() as unknown[])).toHaveLength(6);
     expect(await merchant.getOffer("missing")).toMatchObject({ error: "not_found" });
     await expect(merchant.purchase(purchaseIntent("mcp", `${base}/mcp`), { port: {} as never })).rejects.toMatchObject({
@@ -114,7 +116,9 @@ describe("Steelyard.connect", () => {
     ]);
     expect((await merchant.lookup("single") as { title: string }).title).toBe("Single Espresso");
     expect((await merchant.search("double") as { id: string }[]).map((offer) => offer.id)).toEqual(["double"]);
-    expect((await merchant.getManifest() as { identity: { name: string } }).identity.name).toBe("Acme Coffee");
+    expect(await merchant.getManifest()).toMatchObject({
+      identity: { name: "Acme Coffee", domain: "coffee.example", currencies: ["USD"] }
+    });
     expect((await merchant.getPolicies() as { type: string }[]).map((policy) => policy.type)).toEqual([
       "shipping",
       "returns",
@@ -171,7 +175,9 @@ describe("Steelyard.connect", () => {
     expect((merchant.supports as (capability: string) => boolean)("unknown")).toBe(false);
     await expectMerchantBasics(merchant);
     expect((await merchant.lookup("single") as { title: string }).title).toBe("Single Espresso");
-    expect((await merchant.getManifest() as { identity: { name: string } }).identity.name).toBe("Acme Coffee");
+    expect(await merchant.getManifest()).toMatchObject({
+      identity: { name: "Acme Coffee", domain: "coffee.example", currencies: ["USD"] }
+    });
     expect(await merchant.getOffer("missing")).toEqual({
       error: "not_found",
       error_detail: "HTTP 404"
@@ -387,7 +393,6 @@ async function expectMerchantBasics(merchant: Merchant): Promise<void> {
 
 async function startMerchantServer(): Promise<string> {
   const mcp = createMcpHttpHandler(manifest);
-  const acp = createAcpFeedHandler(manifest);
   const ucp = createUcpHandler(manifest);
   server = createServer((req, res) => {
     if (req.url?.startsWith("/mcp")) {
@@ -395,7 +400,11 @@ async function startMerchantServer(): Promise<string> {
       return;
     }
     if (req.url?.startsWith("/acp/feed")) {
-      acp(req, res);
+      sendJson(res, {
+        ...buildAcpFeed(manifest),
+        merchant: { domain: "coffee.example" },
+        capabilities: { services: ["read"] }
+      });
       return;
     }
     void ucp(req, res);

@@ -82,15 +82,15 @@ the emitted server, assert the capability shape, exercise `list_offers` and
 `get_offer`, and read both resources end-to-end. See
 [`packages/protocol/src/mcp/mcp.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/protocol/src/mcp/mcp.test.ts).
 
-## What's not on the wire (yet)
+## What's not on the wire
 
-The MCP catalog tools above are the v1 read surface. The following are
-**v2** and intentionally absent from the v1 capability:
+The MCP catalog tools above are read-side only. ACP and UCP have v0.3 checkout
+support, but MCP checkout is intentionally absent from this release:
 
 - `create_cart`, `checkout`, `get_receipt` — payment execution requires
-  wallet delegation + idempotency + SCA design.
-- A `commerce.checkout` capability flag — will be additive on top of
-  `commerce.read`.
+  a protocol-specific checkout design.
+- A `commerce.checkout` capability flag — future MCP checkout would be
+  additive on top of `commerce.read`.
 
 ## What's next
 

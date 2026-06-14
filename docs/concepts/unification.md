@@ -9,7 +9,7 @@ pick.
 | Protocol | Backers | Shipped | What it is |
 |----------|---------|---------|------------|
 | **ACP** | OpenAI, Stripe, Meta | 2025-09-29 → 2026-04-17 (6 specs in 6 months) | A feed + cart + delegated-payment protocol |
-| **UCP** | Google, Shopify | 2026-04-08 release used by Steelyard v1 | A discovery + service-bound capability protocol |
+| **UCP** | Google, Shopify | 2026-04-17 vendored snapshot | A discovery + service-bound capability protocol |
 | **MCP** | Anthropic | `@modelcontextprotocol/sdk` ≥ 1.29 | The agent runtime substrate; ACP and UCP both bind to it |
 
 Each protocol assumes its own commerce vocabulary, its own product shape, its
@@ -57,20 +57,16 @@ What does not differ is the source of truth.
 - **A unified buyer SDK.** `@steelyard/buyer/client` connects to a merchant, sniffs
   which protocol it speaks, and returns the **same** `Merchant` handle
   regardless. Methods like `search()` and `getOffer()` return identical
-  results across all three.
+  results across all three, and ACP/UCP merchants can also expose checkout.
 
-## What v1 doesn't do
+## Current limits
 
-- **No payment execution.** ACP's checkout primitive, UCP's payment handlers,
-  and any wallet delegation are deferred to v2. They need a careful design
-  for trust boundaries, idempotency, SCA/3DS, and consent — and we want to
-  ship the read-side first to build that design on real usage.
-- **No store of merchant state.** v1 is a library, not a backend. The
+- **MCP checkout is not implemented.** MCP remains read-side in v0.3.
+- **No hosted merchant backend.** Steelyard is a library, not a backend. The
   merchant runs `defineCommerce()` in its own process; Steelyard doesn't
   proxy or cache for you.
-- **No buyer SDK against arbitrary non-Steelyard merchants.** v1 buyer
-  detection is tuned for Steelyard's emit conventions. Hardening it to
-  read any ACP/UCP/MCP commerce server in the wild is v1.1.
+- **Buyer detection is tuned for Steelyard emit conventions.** Hardening it to
+  read every arbitrary ACP/UCP/MCP commerce server in the wild is future work.
 
 ## What's next
 

@@ -52,6 +52,17 @@ import {
 } from "@steelyard/protocol/ucp";
 ```
 
+Checkout validators are exported from `@steelyard/protocol/ucp/checkout`:
+
+```ts
+import {
+  applyUcpCreate,
+  applyUcpUpdate,
+  applyUcpComplete,
+  assertValidUcpCheckout
+} from "@steelyard/protocol/ucp/checkout";
+```
+
 ### Discovery
 
 - `buildUcpDiscovery(manifest, { baseUrl })` — produces the discovery doc.
@@ -81,4 +92,5 @@ tampering (drop `inputs` from a lookup variant — must throw). Coverage:
 ## What's next
 
 - :material-protocol: [UCP protocol reference](../protocols/ucp.md).
+- :material-cart: [UCP checkout](../protocols/ucp-checkout.md).
 - :material-shopping-search: [`@steelyard/buyer/client`](client.md) — the unified buyer SDK.

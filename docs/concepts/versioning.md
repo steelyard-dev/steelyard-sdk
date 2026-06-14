@@ -1,6 +1,6 @@
 # Versioning
 
-Steelyard v1 follows a **pre-1.0 minor-match** rule for the read-side
+Steelyard follows a **pre-1.0 minor-match** rule for the read-side
 capability version it advertises.
 
 ## The capability
@@ -34,8 +34,8 @@ to put them.
 
 ## Why pre-1.0
 
-Steelyard v1 ships at `commerce.read.version = "0.1"` even though the npm
-packages are `0.1.0`. The two are not the same thing:
+Steelyard currently ships `commerce.read.version = "0.1"` even though package
+versions can move independently. The two are not the same thing:
 
 - **Package version** (`0.1.0`) — the npm version of the SDK. Follows
   standard semver for the TypeScript public API.
@@ -43,19 +43,16 @@ packages are `0.1.0`. The two are not the same thing:
   names, response shapes, error taxonomy, manifest schema. This is what
   the buyer SDK negotiates over the protocol handshake.
 
-The capability version stays at `0.1` until the read-side surface
-**stabilizes**. When we ship v2 (with payment execution), the read-side
-capability will bump to `0.2` if any of these change in a backward-incompatible
-way:
+The capability version stays at `0.1` until the read-side surface stabilizes.
+It will bump to `0.2` if any of these change in a backward-incompatible way:
 
 - The tool names emitted by `@steelyard/protocol/mcp`
 - The `ProductsResponse` shape emitted by `@steelyard/protocol/acp`
 - The UCP discovery + catalog response shape
 - The closed error taxonomy in `@steelyard/core`
 
-A v2 release that **only** adds a new capability (e.g. `commerce.checkout`)
-will bump the package version but not the read-side capability. New
-capabilities are additive.
+A release that only adds a new capability can bump the package version without
+bumping the read-side capability. New capabilities are additive.
 
 ## When does Steelyard go to `1.0`?
 
@@ -72,6 +69,6 @@ migration guide.
 ## What's next
 
 - :material-alert-circle: [Error taxonomy](errors.md) — `version_mismatch`
-  is one of the closed v1 errors.
+  is one of the closed client errors.
 - :material-protocol: [MCP](../protocols/mcp.md#capability-handshake) — how
   the capability is advertised on the MCP `initialize` call.

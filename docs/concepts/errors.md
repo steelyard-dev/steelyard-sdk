@@ -1,6 +1,7 @@
 # Error taxonomy
 
-`@steelyard/buyer/client` surfaces failures as a closed v1 error set. The shape:
+`@steelyard/buyer/client` surfaces connection and read failures as a closed
+error set. The shape:
 
 ```typescript
 type ErrorPayload = {
@@ -21,7 +22,7 @@ Exported from `@steelyard/core` as `ERROR_CODES`:
 | `network_error` | Connection failure to the merchant. DNS, TCP, TLS, or HTTP-level failure. |
 | `internal_error` | Unexpected adapter-side failure. Logged on the server. Should never appear on the happy path. |
 
-These five are the entirety of v1. Adapters MAY include an `error_detail`
+These five are the current client-level error codes. Adapters MAY include an `error_detail`
 string for human-readable specifics, but consumers branch on the
 `error` code.
 
@@ -33,7 +34,7 @@ string for human-readable specifics, but consumers branch on the
   rich `messages` array are mapped down to one of these five. The buyer SDK
   is protocol-agnostic; downstream consumers don't have to learn three
   vocabularies.
-- **A versioned contract.** Adding a new code in v1 is a breaking change
+- **A versioned contract.** Adding a new code is a breaking change
   (minor bump under the [pre-1.0 rule](versioning.md)). Removing one or
   changing the meaning is a major bump.
 
@@ -42,7 +43,7 @@ string for human-readable specifics, but consumers branch on the
 ```typescript
 import { Steelyard, type Merchant } from "@steelyard/buyer/client";
 
-const result = await Steelyard.connect("https://merchant.example/protocol/mcp");
+const result = await Steelyard.connect("https://merchant.example/mcp");
 
 if ("error" in result) {
   switch (result.error) {

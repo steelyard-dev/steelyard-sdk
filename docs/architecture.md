@@ -8,6 +8,7 @@ graph TD
   mcp["@steelyard/protocol/mcp<br/><i>tools + resources<br/>@modelcontextprotocol/sdk</i>"]
   acp["@steelyard/protocol/acp<br/><i>ProductsResponse<br/>AJV spec validation</i>"]
   ucp["@steelyard/protocol/ucp<br/><i>discovery + catalog<br/>AJV spec validation</i>"]
+  merchant["@steelyard/merchant<br/><i>ACP/UCP checkout assembly</i>"]
   client["@steelyard/buyer/client<br/><i>auto-detect buyer SDK</i>"]
   agent["@steelyard/agent<br/><i>LLM-driven CLI</i>"]
   example["examples/coffee-shop<br/><i>private; not published</i>"]
@@ -16,7 +17,12 @@ graph TD
   core --> acp
   core --> ucp
   core --> client
+  core --> merchant
+  acp --> merchant
+  ucp --> merchant
   mcp --> client
+  acp --> client
+  ucp --> client
   client --> agent
   core --> example
   mcp --> example
@@ -68,6 +74,7 @@ emit time:
 | `@steelyard/protocol/acp` | AJV2020 | `protocols/acp/spec/2026-04-17/json-schema/schema.feed.json` |
 | `@steelyard/protocol/ucp` (discovery) | AJV2020 | `protocols/ucp/source/schemas/ucp.json` + transitive deps |
 | `@steelyard/protocol/ucp` (catalog) | AJV2020 | `protocols/ucp/source/schemas/shopping/catalog_*.json` |
+| `@steelyard/protocol/{acp,ucp}/checkout` | AJV2020 | Vendored checkout schemas |
 | `@steelyard/protocol/mcp` | — | Uses the official `@modelcontextprotocol/sdk`; conformance is by construction |
 
 Bugs that would produce non-conformant output throw at emit time with the
@@ -79,7 +86,7 @@ The protocol spec repos are vendored at `protocols/{acp,ucp,mcp}/` and
 pinned to known-good versions:
 
 - **ACP:** `2026-04-17` (json-schema, openapi, openrpc)
-- **UCP:** `2026-04-08` (schemas + shopping service definition)
+- **UCP:** `2026-04-17` (schemas + shopping service definition)
 - **MCP:** runtime is `@modelcontextprotocol/sdk` ≥ 1.29
 
 Bumping a spec version is a deliberate change: re-vendor, run the full test

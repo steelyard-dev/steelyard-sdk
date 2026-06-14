@@ -18,7 +18,7 @@ The HTTP handler serves a GET endpoint that returns
 `application/feed+acp-products+json`:
 
 ```bash
-curl -s http://localhost:3000/protocol/acp/feed | jq '.products | length'
+curl -s http://localhost:3000/acp/feed | jq '.products | length'
 # 3
 ```
 
@@ -71,10 +71,20 @@ ACP feed failed ProductsResponse validation:
   data/products/0 must have required property 'variants'
 ```
 
-## What's not in v1
+## Checkout
 
-- **`create_cart` / checkout flows** — v2.
-- **`payment_token_delegation`** — v2.
+v0.3 supports ACP checkout through the merchant and buyer packages. The protocol
+feed can advertise checkout with:
+
+```json
+{ "capabilities": { "services": ["read", "checkout"] } }
+```
+
+See [ACP checkout](acp-checkout.md) for the route flow, idempotency keys, and
+receipt state mapping.
+
+## Current limits
+
 - **Multi-variant products with options** — single-variant emit only;
   multi-variant arrives when the conceptual model lands.
 

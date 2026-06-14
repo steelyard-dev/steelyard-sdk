@@ -1,6 +1,14 @@
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      "@steelyard/merchant/checkout": fileURLToPath(new URL("../merchant/src/checkout/index.ts", import.meta.url)),
+      "@steelyard/merchant/mandate": fileURLToPath(new URL("../merchant/src/mandate/index.ts", import.meta.url)),
+      "@steelyard/merchant/psp": fileURLToPath(new URL("../merchant/src/psp/index.ts", import.meta.url))
+    }
+  },
   test: {
     include: ["src/**/*.test.ts"],
     coverage: {

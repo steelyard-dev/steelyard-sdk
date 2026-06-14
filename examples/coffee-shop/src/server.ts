@@ -1,12 +1,11 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { createAcpFeedHandler } from "@steelyard/protocol/acp";
+import { buildAcpFeed } from "@steelyard/protocol/acp";
 import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
 import { createUcpHandler } from "@steelyard/protocol/ucp";
 import { coffeeShopManifest } from "./catalog.js";
 
 export function createCoffeeShopHandler() {
   const mcp = createMcpHttpHandler(coffeeShopManifest);
-  const acp = createAcpFeedHandler(coffeeShopManifest);
   const ucp = createUcpHandler(coffeeShopManifest);
 
   return function handle(req: IncomingMessage, res: ServerResponse): void {
@@ -15,7 +14,12 @@ export function createCoffeeShopHandler() {
       return;
     }
     if (req.url?.startsWith("/acp/feed")) {
-      acp(req, res);
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({
+        ...buildAcpFeed(coffeeShopManifest),
+        merchant: { domain: "coffee.example" },
+        capabilities: { services: ["read"] }
+      }));
       return;
     }
     void ucp(req, res);

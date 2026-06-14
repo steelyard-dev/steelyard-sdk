@@ -32,7 +32,7 @@ resources wired. You attach it to any transport.
 
 A streamable-HTTP `RequestListener` you pass to Node's `http.createServer`.
 This is what the [coffee-shop example](https://github.com/interfacelabs/steelyard-sdk/tree/main/examples/coffee-shop)
-mounts at `/protocol/mcp`.
+mounts at `/mcp`.
 
 ### `runMcpStdio(server)`
 

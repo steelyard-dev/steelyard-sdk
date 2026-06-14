@@ -17,11 +17,11 @@ The bin is exposed as `steelyard-agent`.
 ```bash
 # With Anthropic (richest answers)
 export ANTHROPIC_API_KEY=sk-ant-...
-steelyard-agent --merchant http://localhost:3000/protocol/mcp "what does this shop sell"
+steelyard-agent --merchant http://localhost:3000/mcp "what does this shop sell"
 
 # Without an LLM — the naive parser handles a small grammar
-steelyard-agent --merchant http://localhost:3000/protocol/acp/feed "show policies"
-steelyard-agent --merchant http://localhost:3000/.well-known/protocol/ucp "tell me about offer double"
+steelyard-agent --merchant http://localhost:3000/acp/feed "show policies"
+steelyard-agent --merchant http://localhost:3000/.well-known/ucp "tell me about offer double"
 ```
 
 The agent will:
@@ -36,15 +36,15 @@ The agent will:
    `(LLM provider failed: ...; falling back to naive parser)` and continue.
    The demo never dies on a single provider failure.
 
-## Why a single LLM provider in v1
+## Why a single LLM provider
 
 A multi-provider matrix (OpenAI, Google, etc. via Vercel AI SDK) was
-considered for v1 and explicitly cut. Reason: three release-blocking
+explicitly cut. Reason: three release-blocking
 external dependencies tripled the maintenance and CI surface for marginal
 demo gain.
 
-v0.2+ will add a thin provider interface if there's demand. The naive
-parser fallback ensures the agent reaches a receipt even without any
+A thin provider interface can be added if there's demand. The naive
+parser fallback ensures the agent reaches an answer even without any
 LLM provider at all.
 
 ## Verification

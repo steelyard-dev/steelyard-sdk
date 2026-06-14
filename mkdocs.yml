@@ -50,20 +50,32 @@ nav:
   - Home: index.md
   - Getting started:
     - Quickstart: getting-started.md
+    - Your first purchase: guides/your-first-purchase.md
+    - Migrating from v0.2: guides/migrating-from-v0.2.md
+    - Stripe test mode: guides/stripe-test-mode.md
   - Concepts:
     - The unification thesis: concepts/unification.md
     - defineCommerce: concepts/define-commerce.md
+    - Idempotency: concepts/idempotency.md
+    - Mandates: concepts/mandates.md
+    - Approval and 3DS: concepts/approval-and-3ds.md
+    - Reservations: concepts/reservations.md
     - Versioning: concepts/versioning.md
     - Error taxonomy: concepts/errors.md
   - Protocols:
     - MCP: protocols/mcp.md
     - ACP: protocols/acp.md
+    - ACP checkout: protocols/acp-checkout.md
     - UCP: protocols/ucp.md
+    - UCP checkout: protocols/ucp-checkout.md
   - Packages:
     - "Wallet (junior surface)": packages/buyer-wallet.md
+    - "Buyer purchase API": packages/buyer-purchase.md
     - "Policy (engine)": packages/buyer-policy.md
     - "Vault (engine)": packages/buyer-vault.md
     - "@steelyard/core": packages/core.md
+    - "@steelyard/merchant/checkout": packages/merchant-checkout.md
+    - "@steelyard/merchant/policy": packages/merchant-policy.md
     - "@steelyard/protocol/mcp": packages/mcp.md
     - "@steelyard/protocol/acp": packages/acp.md
     - "@steelyard/protocol/ucp": packages/ucp.md

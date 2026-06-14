@@ -12,6 +12,9 @@ npm install @steelyard/core
 
 - [`defineCommerce(config)`](../concepts/define-commerce.md) — parse, normalize, and return a `Manifest`. Throws `ZodError` on invalid input.
 - `validate(input)` — non-throwing validation. Returns `{ valid: true, value: Manifest } | { valid: false, errors: ZodIssue[] }`.
+- `newIdempotencyKey()` from `@steelyard/core/idempotency` — creates a purchase-safe idempotency key.
+- `mapAcpToOrderState()` and `mapUcpCheckoutStatus()` from `@steelyard/core/order-state` — normalize protocol states into buyer receipt states.
+- `totalAmount()` and `canonicalMerchantAudience()` from `@steelyard/core/purchase` — shared checkout helpers.
 
 ### Types
 
@@ -20,6 +23,7 @@ npm install @steelyard/core
 - `MerchantIdentity`, `Offer`, `Price`, `Policy`, `Policies` — components of the manifest.
 - `ErrorCode` — the closed union of error strings (see [Error taxonomy](../concepts/errors.md)).
 - `ValidationResult` — the discriminated union returned by `validate()`.
+- `PurchaseIntent`, `Receipt`, `WalletDriverPort`, `OrderState` — v0.3 purchase primitives.
 
 ### Constants
 
@@ -31,6 +35,13 @@ npm install @steelyard/core
 Just `zod` for schema validation. **No** runtime dependency on Stripe, the
 Anthropic SDK, the AI SDK, or any payment-adapter code. A CI lint rule
 enforces this — `@steelyard/core` is protocol-agnostic by construction.
+
+## Subpaths
+
+- `@steelyard/core/policy-yaml`
+- `@steelyard/core/order-state`
+- `@steelyard/core/idempotency`
+- `@steelyard/core/purchase`
 
 ## What's next
 

@@ -12,7 +12,7 @@ npm install @steelyard/buyer @steelyard/core
 ```typescript
 import { Steelyard, type Merchant } from "@steelyard/buyer/client";
 
-const result = await Steelyard.connect("https://acme.example/protocol/mcp");
+const result = await Steelyard.connect("https://acme.example/mcp");
 
 if ("error" in result) {
   // version_mismatch, protocol_mismatch, network_error, internal_error
@@ -24,6 +24,10 @@ const offers   = await merchant.search("espresso");
 const offer    = await merchant.getOffer("double");
 const manifest = await merchant.getManifest();
 const policies = await merchant.getPolicies();
+
+if (merchant.supports("checkout")) {
+  const receipt = await merchant.purchase(intent, { port, idempotencyKey: "purchase_123" });
+}
 ```
 
 ## How it works
@@ -32,10 +36,9 @@ const policies = await merchant.getPolicies();
 
 1. **MCP** — opens a streamable HTTP connection, calls `initialize`, sniffs
    `serverInfo.capabilities.commerce` (or the `steelyard/commerce` extension).
-2. **ACP** — fetches a presumed `/protocol/acp/feed` endpoint, checks for an
-   `application/feed+acp-products+json` content type.
-3. **UCP** — fetches a presumed `/.well-known/protocol/ucp` endpoint, checks the
-   discovery shape against `ucp.json#/$defs/business_schema`.
+2. **ACP** — fetches the supplied feed URL and looks for ACP `products`.
+3. **UCP** — fetches `/.well-known/ucp` when the supplied URL is not already
+   the well-known path, then checks the discovery shape.
 
 The **first match wins**. The returned `Merchant` carries the protocol it
 detected (`merchant.protocol = "mcp" | "acp" | "ucp"`) plus the
@@ -49,8 +52,14 @@ identical-shape methods regardless of source.
 | `getOffer(id)` | `Offer \| { error: "not_found" }` | |
 | `getManifest()` | `Manifest` | The full identity + offers + policies snapshot. |
 | `getPolicies()` | `Policy[]` | |
+| `supports(capability)` | `boolean` | `read`, `checkout`, `checkout:steelyard`, or `discounts`. |
+| `purchase(intent, opts)` | `Receipt` | ACP/UCP only. MCP throws `MerchantNoCheckout`. |
 | `close?()` | `Promise<void>` | Releases any open transport. Always call when done with MCP merchants. |
 | `protocol` | `"mcp" \| "acp" \| "ucp"` | Which protocol the SDK detected. |
+
+`Steelyard.connect(url, { delegatePaymentUrl })` passes the delegate-payment
+endpoint to ACP and UCP drivers when the merchant advertises handlers that
+require direct vault-token delegation.
 
 ## Version handshake
 

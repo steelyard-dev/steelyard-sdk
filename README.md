@@ -1,13 +1,16 @@
 # Steelyard
 
-Steelyard is a TypeScript SDK for defining a commerce catalog once, serving it over MCP, ACP, and UCP, and letting buyers gate purchases through a local Wallet.
+Steelyard is a TypeScript SDK for defining a commerce catalog once, serving it
+over MCP, ACP, and UCP, and letting buyers gate purchases through a local
+encrypted Wallet.
 
-v1 is intentionally read-side only: catalog discovery, offer listing, offer lookup, manifest, and policies. Carts, checkout, payment execution, receipts, and order mutation are out of scope.
+The current surface is read-side across MCP, ACP, and UCP, plus v0.3 checkout
+for ACP and UCP. MCP checkout remains out of scope for this release.
 
 ## Install
 
 ```sh
-npm install @steelyard/core @steelyard/protocol @steelyard/buyer
+npm install @steelyard/core @steelyard/protocol @steelyard/buyer @steelyard/merchant
 ```
 
 For local development:
@@ -24,7 +27,7 @@ pnpm -r test
 import { defineCommerce } from "@steelyard/core";
 
 export const manifest = defineCommerce({
-  identity: { name: "Steelyard Coffee" },
+  identity: { name: "Steelyard Coffee", domain: "coffee.example", currencies: ["USD"] },
   offers: [
     {
       id: "single",
@@ -37,6 +40,8 @@ export const manifest = defineCommerce({
 ```
 
 Pass that manifest to `@steelyard/protocol/mcp`, `@steelyard/protocol/acp`, and `@steelyard/protocol/ucp` to expose one catalog through all three protocols.
+Pass the same manifest to `@steelyard/merchant/checkout` to mount ACP and UCP
+checkout routes.
 
 ## Demo
 
@@ -50,7 +55,7 @@ PORT=3000 pnpm --filter @steelyard/example-coffee-shop start
 In another terminal:
 
 ```sh
-steelyard-agent --merchant http://127.0.0.1:3000/protocol/mcp "what does this shop sell"
+steelyard-agent --merchant http://127.0.0.1:3000/mcp "what does this shop sell"
 ```
 
 Transcript with `ANTHROPIC_API_KEY` unset:
@@ -115,19 +120,36 @@ Transcript with `ANTHROPIC_API_KEY` unset:
 ]
 ```
 
-The full coffee-shop example contains Single Espresso, Double Espresso, and Cappuccino. The integration test boots the merchant and proves MCP `list_offers`, ACP `/protocol/acp/feed`, and UCP `/api/catalog/search` return the same canonical offer list.
+The full coffee-shop example contains Single Espresso, Double Espresso, and
+Cappuccino. The integration test boots the merchant and proves MCP
+`list_offers`, ACP `/acp/feed`, and UCP `/api/catalog/search` return the same
+canonical offer list.
+
+Run an end-to-end mock purchase:
+
+```sh
+STEELYARD_ALLOW_MOCK_PSP=1 \
+STEELYARD_ALLOW_MOCK_MANDATE=1 \
+pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol acp
+
+STEELYARD_ALLOW_MOCK_PSP=1 \
+STEELYARD_ALLOW_MOCK_MANDATE=1 \
+pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol ucp
+```
 
 ## Wallet
 
 ```ts
 import { Wallet } from "@steelyard/buyer";
+import { Steelyard } from "@steelyard/buyer/client";
 
 const wallet = await Wallet.open();
+const merchant = await Steelyard.connect("https://coffee.example/acp/feed", {
+  delegatePaymentUrl: "https://psp.example/agentic_commerce/delegate_payment"
+});
+if ("error" in merchant) throw new Error(merchant.error_detail ?? merchant.error);
 
-if (await wallet.isAllowed(intent)) {
-  const payment = await wallet.pay(intent);
-  await payment.cancel(); // v0.2 releases card details; v0.3 will charge.
-}
+const receipt = await wallet.pay(intent, { merchant, idempotencyKey: "purchase_123" });
 ```
 
 Power users can still import `Steelyard` from `@steelyard/buyer/client`,
@@ -136,4 +158,6 @@ Power users can still import `Steelyard` from `@steelyard/buyer/client`,
 
 ## Port Note
 
-Steelyard is a clean spin-off from `../mercato/`. The keep/drop audit is in [packages/core/PORT_AUDIT.md](packages/core/PORT_AUDIT.md): v1 keeps the read-side manifest, validation, and protocol adapter ideas, and drops ingestion, platform connectors, hosted cloud UI, carts, checkout, payment execution, and order mutation.
+Steelyard is a clean spin-off from `../mercato/`. The public repo keeps the
+manifest, validation, protocol adapter, wallet, and checkout SDK surfaces, and
+drops ingestion, platform connectors, and hosted cloud UI.

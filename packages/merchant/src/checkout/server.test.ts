@@ -156,7 +156,7 @@ describe("createMerchantCheckout", () => {
     expect(completed.status).toBe(200);
     expect(completed.body).toMatchObject({
       status: "completed",
-      payment_details: { psp_payment_id: expect.stringMatching(/^pi_/) }
+      order: expect.objectContaining({ id: expect.stringMatching(/^order_/) })
     });
     expect(psp.captures).toHaveLength(1);
     expect(psp.captures[0]!.idempotencyKey).toBe(`psp:acp:${sessionId}:capture`);

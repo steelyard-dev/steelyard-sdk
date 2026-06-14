@@ -302,7 +302,8 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOption
       return mapCall(async () => {
         const response = await post("/catalog/search", {});
         if (isError(response)) return response;
-        return defineCommerce({ identity, offers: ucpProductsToOffers((response as { products?: unknown[] }).products ?? []) });
+        const offers = ucpProductsToOffers((response as { products?: unknown[] }).products ?? []);
+        return defineCommerce({ identity: { ...identity, currencies: currenciesFromOffers(offers) }, offers });
       });
     },
     async getPolicies() {
@@ -344,6 +345,7 @@ export function isCompatibleReadVersion(serverVersion: string): boolean {
   if (!client || !server) return false;
   return client.major === 0
     ? server.major === 0 && server.minor === client.minor
+    /* c8 ignore next -- current read capability is pre-1.0; this branch activates after a 1.0 read capability. */
     : server.major === client.major;
 }
 
@@ -416,8 +418,23 @@ function acpPoliciesFromFeed(feed: unknown): Policies {
 }
 
 function merchantIdentityFromAcp(feed: unknown, url: URL) {
-  const name = isAcpFeed(feed) ? feed.products[0]?.variants[0]?.seller?.name : undefined;
-  return { name: name ?? url.host };
+  const acpFeed = isAcpFeed(feed) ? feed : undefined;
+  const merchant = objectRecord(objectRecord(feed).merchant);
+  const domain = typeof merchant.domain === "string" && merchant.domain ? merchant.domain : undefined;
+  const name = acpFeed?.products[0]?.variants[0]?.seller?.name;
+  const currencies = [
+    ...new Set(
+      (acpFeed?.products ?? [])
+        .flatMap((product) => product.variants)
+        .map((variant) => variant.price?.currency)
+        .filter((currency): currency is string => typeof currency === "string" && !!currency)
+    )
+  ];
+  return {
+    name: name ?? domain ?? url.host,
+    ...(domain ? { domain } : {}),
+    ...(currencies.length ? { currencies } : {})
+  };
 }
 
 function ucpProductsToOffers(products: unknown[]): Offer[] {
@@ -447,6 +464,17 @@ function filterOffers(offers: Offer[], query: string): Offer[] {
   return q
     ? offers.filter((offer) => `${offer.id} ${offer.title} ${offer.description ?? ""} ${offer.categories.join(" ")}`.toLowerCase().includes(q))
     : offers;
+}
+
+function currenciesFromOffers(offers: Offer[]): string[] {
+  return [
+    ...new Set(
+      offers
+        .flatMap((offer) => offer.pricing)
+        .map((price) => ("currency" in price ? price.currency : undefined))
+        .filter((currency): currency is string => typeof currency === "string" && !!currency)
+    )
+  ];
 }
 
 function findOffer(offers: Offer[], id: string): Offer | SteelyardError {
@@ -540,6 +568,7 @@ function isNetworkFailure(error: unknown): boolean {
 async function closeQuietly(client: Client): Promise<void> {
   try {
     await client.close();
+  /* c8 ignore next -- cleanup is best-effort when an MCP client is already failed or closed. */
   } catch {
     return;
   }

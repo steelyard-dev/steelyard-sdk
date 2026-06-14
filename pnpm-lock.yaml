@@ -47,6 +47,9 @@ importers:
       '@steelyard/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@steelyard/merchant':
+        specifier: workspace:*
+        version: link:../../packages/merchant
       '@steelyard/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -96,6 +99,9 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
     devDependencies:
+      '@steelyard/merchant':
+        specifier: workspace:^
+        version: link:../merchant
       '@types/picomatch':
         specifier: ^4.0.3
         version: 4.0.3

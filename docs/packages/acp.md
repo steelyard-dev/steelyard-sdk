@@ -28,6 +28,18 @@ import {
 } from "@steelyard/protocol/acp";
 ```
 
+Checkout validators are exported from `@steelyard/protocol/acp/checkout`:
+
+```ts
+import {
+  applyCreateRequest,
+  applyUpdateRequest,
+  applyCompleteRequest,
+  assertValidCheckoutSession,
+  assertValidCheckoutSessionWithOrder
+} from "@steelyard/protocol/acp/checkout";
+```
+
 ### `buildAcpFeed(manifest)` → `AcpFeed`
 
 Maps a Steelyard `Manifest` into the ACP `ProductsResponse` shape. Throws
@@ -54,4 +66,5 @@ throw the specific spec violation). Coverage: ≥ 95% lines.
 ## What's next
 
 - :material-protocol: [ACP protocol reference](../protocols/acp.md).
+- :material-cart: [ACP checkout](../protocols/acp-checkout.md).
 - :material-shopping-search: [`@steelyard/buyer/client`](client.md) — the unified buyer SDK.

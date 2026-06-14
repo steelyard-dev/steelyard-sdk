@@ -4,7 +4,7 @@ Steelyard's UCP adapter (`@steelyard/protocol/ucp`) emits a real
 [Universal Commerce Protocol](https://protocol/ucp.dev/) discovery document
 **plus** a runtime-validated shopping-service catalog API:
 
-- **UCP version:** `2026-04-08`
+- **UCP version:** `2026-04-17`
 - **Discovery schema:** `protocols/ucp/source/schemas/ucp.json` + `service.json` + `capability.json` + `profile.json`
 - **Catalog schemas:** `protocols/ucp/source/schemas/shopping/catalog_search.json` and `catalog_lookup.json`
 - **Validator:** AJV2020 with JSON Schema 2020-12
@@ -16,10 +16,10 @@ leaves the server.
 ## Endpoints
 
 ```text
-GET  /.well-known/protocol/ucp              → UCP discovery document
-POST /api/catalog/search           → catalog search_response
-POST /api/catalog/lookup           → catalog lookup_response
-POST /api/catalog/product          → get_product_response
+GET  /.well-known/ucp        -> UCP discovery document
+POST /api/catalog/search     -> catalog search_response
+POST /api/catalog/lookup     -> catalog lookup_response
+POST /api/catalog/product    -> get_product_response
 ```
 
 The discovery doc advertises the shopping service at
@@ -34,13 +34,15 @@ The discovery doc advertises the shopping service at
     "version": "2026-04-08",
     "services": {
       "dev.ucp.shopping": [
-        { "version": "2026-04-08", "endpoint": "https://acme.example/api", "transport": "rest" },
-        { "version": "2026-04-08", "endpoint": "https://acme.example/protocol/mcp",  "transport": "mcp"  }
+        { "version": "2026-04-17", "endpoint": "https://acme.example/api", "transport": "rest" },
+        { "version": "2026-04-17", "endpoint": "https://acme.example/mcp",  "transport": "mcp"  }
       ]
     },
     "capabilities": {
-      "dev.ucp.shopping.catalog.search": [{ "version": "2026-04-08" }],
-      "dev.ucp.shopping.catalog.lookup": [{ "version": "2026-04-08" }]
+      "dev.ucp.shopping": [
+        { "id": "catalog.search", "version": "2026-04-17" },
+        { "id": "catalog.lookup", "version": "2026-04-17" }
+      ]
     }
   },
   "merchant": { "name": "Acme Coffee", "domain": "acme.example" },
@@ -95,10 +97,20 @@ UCP catalog lookup response failed spec validation:
   data/products/0/variants/0 must have required property 'inputs'
 ```
 
-## What's not in v1
+## Checkout
 
-- **Checkout, cart, order, refund** — UCP defines these but they live in v2.
-- **A2A / AP2 transports** — v1 advertises REST + MCP transports for the
+v0.3 supports UCP checkout with Steelyard mandates. Discovery can advertise
+`dev.ucp.shopping` capability `checkout` plus `net.steelyard` capability
+`checkout_mandate.v0.1`.
+
+See [UCP checkout](ucp-checkout.md) for route wiring and the AP2
+non-compliance notice.
+
+## Current limits
+
+- **Cart, refund, and order mutation APIs** — UCP defines broader shopping
+  flows; v0.3 implements checkout only.
+- **A2A / AP2 transports** — Steelyard advertises REST + MCP transports for the
   shopping service. Other transports are reachable through the discovery
   service registry as they ship.
 
