@@ -4,7 +4,8 @@ export default defineConfig({
   entry: {
     "checkout/index": "src/checkout/index.ts",
     "policy/index": "src/policy/index.ts",
-    "psp/index": "src/psp/index.ts"
+    "psp/index": "src/psp/index.ts",
+    "mandate/index": "src/mandate/index.ts"
   },
   format: ["esm", "cjs"],
   dts: true,

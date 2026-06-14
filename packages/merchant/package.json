@@ -22,6 +22,11 @@
       "types": "./dist/psp/index.d.ts",
       "import": "./dist/psp/index.js",
       "require": "./dist/psp/index.cjs"
+    },
+    "./mandate": {
+      "types": "./dist/mandate/index.d.ts",
+      "import": "./dist/mandate/index.js",
+      "require": "./dist/mandate/index.cjs"
     }
   },
   "scripts": {
