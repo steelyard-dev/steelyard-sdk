@@ -7,13 +7,23 @@
   "files": [
     "dist"
   ],
-  "exports": {},
+  "exports": {
+    "./checkout": {
+      "types": "./dist/checkout/index.d.ts",
+      "import": "./dist/checkout/index.js",
+      "require": "./dist/checkout/index.cjs"
+    }
+  },
   "scripts": {
-    "build": "echo '@steelyard/merchant: no entry points yet (policy scaffolded only)' && exit 0",
-    "test": "echo '@steelyard/merchant: no tests yet (policy scaffolded only)' && exit 0",
-    "typecheck": "echo '@steelyard/merchant: no entry points yet (policy scaffolded only)' && exit 0"
+    "build": "tsup",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@steelyard/core": "workspace:^"
+    "@steelyard/core": "workspace:^",
+    "proper-lockfile": "^4.1.2"
+  },
+  "devDependencies": {
+    "@types/proper-lockfile": "^4.1.4"
   }
 }
