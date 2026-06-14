@@ -4,8 +4,20 @@ import {
   VAULT_KEY_SERVICE,
   accountForVault,
   memoryBoxStore,
-  memoryKeystore
+  memoryKeystore,
+  passwordKeystore
 } from "./index.js";
+import { unpackVaultBox } from "./format.js";
+import { passwordKeystoreWithParams } from "./keystore.js";
+
+function fastPasswordKeystore(password: string) {
+  return passwordKeystoreWithParams({
+    password,
+    iterations: 1,
+    memory_kib: 64,
+    parallelism: 1
+  });
+}
 
 describe("BuyerVault init/open", () => {
   it("initializes an encrypted UUID-bound vault and opens it with the stored key", async () => {
@@ -49,6 +61,74 @@ describe("BuyerVault init/open", () => {
     expect(moved.uuid).toBe(vault.uuid);
     expect(moved.path).toBe("/tmp/moved.box");
     expect(moved.profile.name).toBe("Moved Vault");
+  });
+
+  it("initializes and opens a password-derived vault without writing a keychain entry", async () => {
+    const boxStore = memoryBoxStore();
+    const vault = await BuyerVault.init({
+      path: "/tmp/password.box",
+      profile: { name: "Password Vault" },
+      keystore: fastPasswordKeystore("correct horse battery staple"),
+      boxStore
+    });
+
+    const rawBox = await boxStore.read("password.box");
+    const header = JSON.parse(new TextDecoder().decode(unpackVaultBox(rawBox!).header));
+    expect(header.kdf).toMatchObject({
+      type: "argon2id",
+      iterations: 1,
+      memory_kib: 64,
+      parallelism: 1
+    });
+    expect(header.kdf.salt).toEqual(expect.any(String));
+
+    const reopened = await BuyerVault.open({
+      path: "/tmp/password.box",
+      keystore: fastPasswordKeystore("correct horse battery staple"),
+      boxStore
+    });
+    expect(reopened.uuid).toBe(vault.uuid);
+    expect(reopened.profile.name).toBe("Password Vault");
+
+    await expect(
+      BuyerVault.open({
+        path: "/tmp/password.box",
+        keystore: fastPasswordKeystore("wrong password"),
+        boxStore
+      })
+    ).rejects.toThrow();
+  });
+
+  it("rejects opening password and OS-backed vaults with the wrong keystore kind", async () => {
+    const passwordBoxStore = memoryBoxStore();
+    await BuyerVault.init({
+      path: "/tmp/password.box",
+      profile: { name: "Password Vault" },
+      keystore: fastPasswordKeystore("vault password"),
+      boxStore: passwordBoxStore
+    });
+    await expect(
+      BuyerVault.open({
+        path: "/tmp/password.box",
+        keystore: memoryKeystore(),
+        boxStore: passwordBoxStore
+      })
+    ).rejects.toThrow(/password keystore required for kdf-backed vault/);
+
+    const osLikeBoxStore = memoryBoxStore();
+    await BuyerVault.init({
+      path: "/tmp/os.box",
+      profile: { name: "OS Vault" },
+      keystore: memoryKeystore(),
+      boxStore: osLikeBoxStore
+    });
+    await expect(
+      BuyerVault.open({
+        path: "/tmp/os.box",
+        keystore: passwordKeystore({ password: "vault password" }),
+        boxStore: osLikeBoxStore
+      })
+    ).rejects.toThrow(/this vault was inited with a different keystore/);
   });
 
   it("refuses existing vaults and missing keys", async () => {

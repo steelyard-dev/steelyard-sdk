@@ -1,21 +1,27 @@
 import { randomBytes, createHash } from "node:crypto";
+import { homedir } from "node:os";
 import { dirname, basename, resolve, join } from "node:path";
 import { fileBoxStore, type BoxStore } from "./boxstore.js";
 import { openVaultBox, sealVaultBox, VAULT_KEY_BYTES } from "./crypto.js";
 import { packVaultBox, unpackVaultBox } from "./format.js";
 import { createVaultHeader, type VaultHeader } from "./header.js";
-import { VAULT_KEY_SERVICE, type Keystore } from "./keystore.js";
+import {
+  VAULT_KEY_SERVICE,
+  isPasswordKeystore,
+  osKeystore,
+  type Keystore
+} from "./keystore.js";
 
 export interface VaultInitOptions {
   profile: { name: string; email?: string };
-  path: string;
-  keystore: Keystore;
+  path?: string;
+  keystore?: Keystore;
   boxStore?: BoxStore;
 }
 
 export interface VaultOpenOptions {
   path: string;
-  keystore: Keystore;
+  keystore?: Keystore;
   boxStore?: BoxStore;
 }
 
@@ -47,20 +53,26 @@ export class BuyerVault {
   }
 
   static async init(opts: VaultInitOptions): Promise<BuyerVault> {
-    const location = vaultLocation(opts.path, opts.boxStore);
+    const keystore = opts.keystore ?? osKeystore();
+    const location = vaultLocation(opts.path ?? defaultVaultPath(), opts.boxStore);
     if (await location.boxStore.read(location.name)) {
       throw new Error(`vault file already exists at ${location.path}`);
     }
 
-    const header = createVaultHeader();
+    const passwordKey = isPasswordKeystore(keystore)
+      ? await keystore.createMasterKey()
+      : null;
+    const header = createVaultHeader({ kdf: passwordKey?.kdf ?? null });
     const account = accountForVault(header.uuid);
-    const masterKey = new Uint8Array(randomBytes(VAULT_KEY_BYTES));
+    const masterKey = passwordKey?.key ?? new Uint8Array(randomBytes(VAULT_KEY_BYTES));
     let keyStored = false;
     let boxWritten = false;
 
     try {
-      await opts.keystore.setMasterKey(VAULT_KEY_SERVICE, account, masterKey);
-      keyStored = true;
+      if (!passwordKey) {
+        await keystore.setMasterKey(VAULT_KEY_SERVICE, account, masterKey);
+        keyStored = true;
+      }
       await writeRecord(location.boxStore, location.name, header, masterKey, {
         profile: opts.profile,
         cards: [],
@@ -75,22 +87,30 @@ export class BuyerVault {
       });
     } catch (error) {
       if (boxWritten) await location.boxStore.delete(location.name);
-      if (keyStored) await opts.keystore.deleteMasterKey(VAULT_KEY_SERVICE, account);
+      if (keyStored) await keystore.deleteMasterKey(VAULT_KEY_SERVICE, account);
       masterKey.fill(0);
       throw error;
     }
   }
 
+  static async initGlobal(opts: VaultInitOptions): Promise<BuyerVault> {
+    return BuyerVault.init({ ...opts, path: opts.path ?? defaultVaultPath() });
+  }
+
+  static async initProject(opts: VaultInitOptions): Promise<BuyerVault> {
+    return BuyerVault.init({ ...opts, path: opts.path ?? projectVaultPath() });
+  }
+
   static async open(opts: VaultOpenOptions): Promise<BuyerVault> {
     const location = vaultLocation(opts.path, opts.boxStore);
+    const keystore = opts.keystore ?? osKeystore();
     const bytes = await location.boxStore.read(location.name);
     if (!bytes) throw new Error(`vault file not found at ${location.path}`);
 
     const packed = unpackVaultBox(bytes);
     const header = parseHeader(packed.header);
     const account = accountForVault(header.uuid);
-    const masterKey = await opts.keystore.getMasterKey(VAULT_KEY_SERVICE, account);
-    if (!masterKey) throw new Error(`vault key not found in keychain for uuid ${header.uuid}`);
+    const masterKey = await masterKeyForOpen(keystore, header, account);
     const record = readRecord(packed, header, masterKey);
 
     return new BuyerVault({
@@ -99,6 +119,14 @@ export class BuyerVault {
       profile: record.profile,
       masterKey
     });
+  }
+
+  static async openGlobal(opts: { keystore?: Keystore } = {}): Promise<BuyerVault> {
+    return BuyerVault.open({ path: defaultVaultPath(), keystore: opts.keystore });
+  }
+
+  static async openProject(opts: { keystore?: Keystore } = {}): Promise<BuyerVault> {
+    return BuyerVault.open({ path: projectVaultPath(), keystore: opts.keystore });
   }
 
   get profile(): { name: string; email?: string } {
@@ -125,6 +153,14 @@ export function accountForVault(uuid: string): string {
   return createHash("sha256").update(uuid).digest("hex");
 }
 
+function defaultVaultPath(): string {
+  return join(homedir(), ".steelyard", "vault.box");
+}
+
+function projectVaultPath(): string {
+  return resolve(".steelyard", "vault.box");
+}
+
 function vaultLocation(path: string, boxStore?: BoxStore): { path: string; name: string; boxStore: BoxStore } {
   const absolute = resolve(path);
   return {
@@ -132,6 +168,27 @@ function vaultLocation(path: string, boxStore?: BoxStore): { path: string; name:
     name: basename(absolute),
     boxStore: boxStore ?? fileBoxStore(dirname(absolute))
   };
+}
+
+async function masterKeyForOpen(
+  keystore: Keystore,
+  header: VaultHeader,
+  account: string
+): Promise<Uint8Array> {
+  if (header.kdf) {
+    if (!isPasswordKeystore(keystore)) {
+      throw new Error("password keystore required for kdf-backed vault");
+    }
+    return keystore.deriveMasterKey(header.kdf);
+  }
+
+  if (isPasswordKeystore(keystore)) {
+    throw new Error("this vault was inited with a different keystore");
+  }
+
+  const masterKey = await keystore.getMasterKey(VAULT_KEY_SERVICE, account);
+  if (!masterKey) throw new Error(`vault key not found in keychain for uuid ${header.uuid}`);
+  return masterKey;
 }
 
 async function writeRecord(
@@ -162,8 +219,28 @@ function readRecord(
 
 function parseHeader(bytes: Uint8Array): VaultHeader {
   const parsed = JSON.parse(new TextDecoder().decode(bytes)) as VaultHeader;
-  if (parsed.version !== 1 || parsed.alg !== "xsalsa20-poly1305" || typeof parsed.uuid !== "string") {
+  if (
+    parsed.version !== 1 ||
+    parsed.alg !== "xsalsa20-poly1305" ||
+    typeof parsed.uuid !== "string" ||
+    !validKdf(parsed.kdf)
+  ) {
     throw new Error("vault header is unsupported");
   }
   return parsed;
+}
+
+function validKdf(kdf: VaultHeader["kdf"]): boolean {
+  if (kdf === null) return true;
+  return (
+    typeof kdf === "object" &&
+    kdf.type === "argon2id" &&
+    typeof kdf.salt === "string" &&
+    Number.isInteger(kdf.iterations) &&
+    kdf.iterations > 0 &&
+    Number.isInteger(kdf.memory_kib) &&
+    kdf.memory_kib > 0 &&
+    Number.isInteger(kdf.parallelism) &&
+    kdf.parallelism > 0
+  );
 }
