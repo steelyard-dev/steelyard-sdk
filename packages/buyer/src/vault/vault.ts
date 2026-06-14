@@ -1,4 +1,4 @@
-import type { BillingAddress, BillingPayload, CardMetadata, Receipt, SpendReceipt } from "@steelyard/core";
+import type { BillingAddress, BillingPayload, CardMetadata, JsonWebKey, Receipt, SpendReceipt } from "@steelyard/core";
 import { randomBytes, createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, basename, resolve, join } from "node:path";
@@ -36,6 +36,17 @@ import {
   type SpendWindow
 } from "./ledger.js";
 import {
+  MandateKeyMissing,
+  createStoredMandateKey,
+  mandateKeyMetadata,
+  mandatePublicKey,
+  normalizeStoredMandateKey,
+  pairwiseSubject as derivePairwiseSubject,
+  signMandateJwt,
+  type MandateKeyMetadata,
+  type StoredMandateKey
+} from "./mandate.js";
+import {
   exportKeyToRecoveryFile,
   exportKeyUnsafe,
   importKeyFromRecoveryFile
@@ -58,6 +69,7 @@ interface VaultRecord {
   profile: { name: string; email?: string };
   cards: StoredCard[];
   addresses: StoredAddress[];
+  mandateKey?: StoredMandateKey;
 }
 
 export class BuyerVault {
@@ -301,6 +313,39 @@ export class BuyerVault {
     };
   }
 
+  async createMandateKey(): Promise<MandateKeyMetadata> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    if (record.mandateKey) return mandateKeyMetadata(record.mandateKey);
+    record.mandateKey = createStoredMandateKey();
+    await this.writeCurrentRecord(record);
+    return mandateKeyMetadata(record.mandateKey);
+  }
+
+  async hasMandateKey(): Promise<boolean> {
+    this.assertOpen();
+    return !!(await this.readCurrentRecord()).mandateKey;
+  }
+
+  async exportMandatePublicKey(): Promise<{ jwk: JsonWebKey; key_id: string }> {
+    this.assertOpen();
+    return mandatePublicKey(await this.requireMandateKey());
+  }
+
+  async mandatePublicKey(): Promise<{ jwk: JsonWebKey; key_id: string }> {
+    return this.exportMandatePublicKey();
+  }
+
+  async signMandate(payload: object): Promise<{ jwt: string; key_id: string }> {
+    this.assertOpen();
+    return signMandateJwt(await this.requireMandateKey(), payload);
+  }
+
+  async pairwiseSubject(audience: string): Promise<string> {
+    this.assertOpen();
+    return derivePairwiseSubject(await this.requireMandateKey(), audience);
+  }
+
   async recordSpend(receipt: SpendReceipt): Promise<void> {
     this.assertOpen();
     await this.ledger.recordSpend(receipt);
@@ -404,6 +449,12 @@ export class BuyerVault {
     await writeRecord(this.#boxStore, this.#boxName, this.#header, this.#masterKey, record);
   }
 
+  private async requireMandateKey(): Promise<StoredMandateKey> {
+    const key = (await this.readCurrentRecord()).mandateKey;
+    if (!key) throw new MandateKeyMissing();
+    return key;
+  }
+
   private assertOpen(): void {
     if (!this.#isOpen) throw new Error("vault is closed");
   }
@@ -483,13 +534,15 @@ function normalizeVaultRecord(value: unknown): VaultRecord {
   if (!record.profile || typeof record.profile.name !== "string") {
     throw new Error("vault profile is malformed");
   }
+  const mandateKey = normalizeStoredMandateKey(record.mandateKey);
   return {
     profile: {
       name: record.profile.name,
       ...(typeof record.profile.email === "string" ? { email: record.profile.email } : {})
     },
     cards: Array.isArray(record.cards) ? (record.cards as StoredCard[]) : [],
-    addresses: Array.isArray(record.addresses) ? (record.addresses as StoredAddress[]) : []
+    addresses: Array.isArray(record.addresses) ? (record.addresses as StoredAddress[]) : [],
+    ...(mandateKey ? { mandateKey } : {})
   };
 }
 

@@ -37,7 +37,14 @@ vi.mock("@napi-rs/keyring", () => ({
 }));
 
 const walletModule = await import("./index.js");
-const { Wallet, WalletApprovalRequired, WalletNotAllowed, NoCardForMerchant, KeystoreUnavailable } = walletModule;
+const {
+  Wallet,
+  WalletApprovalRequired,
+  WalletNotAllowed,
+  NoCardForMerchant,
+  KeystoreUnavailable,
+  MandateKeyMissing
+} = walletModule;
 
 const originalCwd = process.cwd();
 const originalHome = process.env.HOME;
@@ -91,6 +98,16 @@ describe("Wallet setup and open", () => {
   it("creates project wallet files, converts limits, tags the first card default, and opens round-trip", async () => {
     await withWorkspace(async (root) => {
       const wallet = await Wallet.create(createOptions());
+      await expect(wallet.hasMandateKey()).resolves.toBe(true);
+      const publicKey = await wallet.exportMandatePublicKey();
+      expect(publicKey).toMatchObject({
+        key_id: expect.stringMatching(/^mk_/),
+        jwk: { kty: "OKP", crv: "Ed25519", x: expect.any(String) }
+      });
+      expect(publicKey.jwk).not.toHaveProperty("d");
+      const vaultRaw = await readFile(join(root, ".steelyard", "vault.box"));
+      expect(Buffer.from(vaultRaw).includes(Buffer.from(String(publicKey.jwk.x)))).toBe(false);
+
       const policyRaw = await readFile(join(root, ".steelyard", "policy.yml"), "utf8");
       const policy = parseDocument(policyRaw).toJSON() as any;
       expect(policy.limits.daily).toMatchObject({ USD: 10000, JPY: 1000 });
@@ -104,9 +121,25 @@ describe("Wallet setup and open", () => {
       expect(JSON.stringify(payment.metadata)).not.toContain("4111111111111111");
 
       const reopened = await Wallet.open({ project: true });
+      await expect(reopened.hasMandateKey()).resolves.toBe(true);
+      await expect(reopened.exportMandatePublicKey()).resolves.toEqual(publicKey);
       await expect(reopened.isAllowed(intent)).resolves.toBe(true);
       await expect(reopened.decide({ ...intent, merchant: { ...intent.merchant, domain: "blocked.example" } }))
         .resolves.toEqual({ status: "denied", reason: "default deny" });
+    });
+  });
+
+  it("can skip the default mandate key and create it later", async () => {
+    await withWorkspace(async () => {
+      const wallet = await Wallet.create(createOptions({ mandateKey: false }));
+
+      await expect(wallet.hasMandateKey()).resolves.toBe(false);
+      await expect(wallet.exportMandatePublicKey()).rejects.toBeInstanceOf(MandateKeyMissing);
+
+      const created = await wallet.createMandateKey();
+      expect(created).toMatchObject({ key_id: expect.stringMatching(/^mk_/), algorithm: "Ed25519" });
+      await expect(wallet.hasMandateKey()).resolves.toBe(true);
+      await expect(wallet.exportMandatePublicKey()).resolves.toMatchObject({ key_id: created.key_id });
     });
   });
 

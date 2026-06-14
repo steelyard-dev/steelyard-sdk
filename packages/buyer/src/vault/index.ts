@@ -13,6 +13,11 @@ export {
   type SpendWindowUsage
 } from "./ledger.js";
 export {
+  MandateKeyMissing,
+  type MandateKeyMetadata,
+  type StoredMandateKey
+} from "./mandate.js";
+export {
   memoryKeystore,
   osKeystore,
   passwordKeystore,

@@ -1,6 +1,8 @@
 import { inspect } from "node:util";
+import type { JsonWebKey as NodeJsonWebKey } from "node:crypto";
+import { createPublicKey, verify } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { BuyerVault, memoryBoxStore, memoryKeystore } from "./index.js";
+import { BuyerVault, MandateKeyMissing, memoryBoxStore, memoryKeystore } from "./index.js";
 
 async function createVault() {
   const boxStore = memoryBoxStore();
@@ -12,6 +14,22 @@ async function createVault() {
     boxStore
   });
   return { vault, boxStore, keystore };
+}
+
+function verifyCompactJws(jwt: string, jwk: NodeJsonWebKey): boolean {
+  const [header, payload, signature] = jwt.split(".");
+  if (!header || !payload || !signature) return false;
+  return verify(
+    null,
+    Buffer.from(`${header}.${payload}`, "utf8"),
+    createPublicKey({ key: jwk, format: "jwk" }),
+    Buffer.from(signature, "base64url")
+  );
+}
+
+function protectedHeader(jwt: string): Record<string, unknown> {
+  const [header] = jwt.split(".");
+  return JSON.parse(Buffer.from(header!, "base64url").toString("utf8")) as Record<string, unknown>;
 }
 
 describe("BuyerVault card CRUD", () => {
@@ -223,5 +241,66 @@ describe("BuyerVault address CRUD", () => {
       vault.addAddress({ line1: "1", city: "London", postal_code: "SW1", country: "GB" })
     ).rejects.toThrow(/vault is closed/);
     await expect(vault.billing()).rejects.toThrow(/vault is closed/);
+  });
+});
+
+describe("BuyerVault mandate key", () => {
+  it("stores an Ed25519 mandate key encrypted in the vault and signs JWS payloads", async () => {
+    const { vault, boxStore, keystore } = await createVault();
+    await expect(vault.hasMandateKey()).resolves.toBe(false);
+
+    const created = await vault.createMandateKey();
+    await expect(vault.createMandateKey()).resolves.toEqual(created);
+    expect(created).toMatchObject({ algorithm: "Ed25519", key_id: expect.stringMatching(/^mk_/) });
+    await expect(vault.hasMandateKey()).resolves.toBe(true);
+
+    const publicKey = await vault.exportMandatePublicKey();
+    expect(publicKey.key_id).toBe(created.key_id);
+    expect(publicKey.jwk).toMatchObject({ kty: "OKP", crv: "Ed25519", x: expect.any(String) });
+    expect(publicKey.jwk).not.toHaveProperty("d");
+    const rawBox = await boxStore.read("vault.box");
+    expect(Buffer.from(rawBox!).includes(Buffer.from(String(publicKey.jwk.x)))).toBe(false);
+
+    const audienceA = "https://shop.example/.well-known/ucp";
+    const audienceB = "https://other.example/.well-known/ucp";
+    const subjectA = await vault.pairwiseSubject(audienceA);
+    const subjectB = await vault.pairwiseSubject(audienceB);
+    expect(subjectA).not.toBe(subjectB);
+    expect(subjectA).not.toContain("@");
+    expect(subjectA).not.toContain("jane@example.com");
+
+    const signed = await vault.signMandate({
+      "steelyard:mandate_version": "v0.1",
+      aud: audienceA,
+      sub: subjectA
+    });
+    expect(signed.key_id).toBe(created.key_id);
+    expect(protectedHeader(signed.jwt)).toEqual({ alg: "EdDSA", typ: "JWT", kid: created.key_id });
+    expect(verifyCompactJws(signed.jwt, publicKey.jwk as NodeJsonWebKey)).toBe(true);
+
+    const reopened = await BuyerVault.open({ path: "/tmp/vault.box", keystore, boxStore });
+    await expect(reopened.exportMandatePublicKey()).resolves.toEqual(publicKey);
+    const reopenedSigned = await reopened.signMandate({ aud: audienceA, sub: subjectA });
+    expect(verifyCompactJws(reopenedSigned.jwt, publicKey.jwk as NodeJsonWebKey)).toBe(true);
+
+    const other = await BuyerVault.init({
+      path: "/tmp/other.box",
+      profile: { name: "Jane Doe", email: "jane@example.com" },
+      keystore,
+      boxStore
+    });
+    await other.createMandateKey();
+    const otherSigned = await other.signMandate({ aud: audienceA, sub: subjectA });
+    expect(verifyCompactJws(otherSigned.jwt, publicKey.jwk as NodeJsonWebKey)).toBe(false);
+  });
+
+  it("throws MandateKeyMissing when no mandate key exists", async () => {
+    const { vault } = await createVault();
+
+    await expect(vault.exportMandatePublicKey()).rejects.toBeInstanceOf(MandateKeyMissing);
+    await expect(vault.signMandate({ aud: "https://shop.example/.well-known/ucp" })).rejects.toMatchObject({
+      hint: "call wallet.createMandateKey() to enable UCP purchases"
+    });
+    await expect(vault.pairwiseSubject("https://shop.example/.well-known/ucp")).rejects.toBeInstanceOf(MandateKeyMissing);
   });
 });

@@ -3,6 +3,7 @@ import type {
   BillingAddress,
   CardMetadata,
   Decision,
+  JsonWebKey,
   PurchaseIntent,
   SimpleCard,
   SimpleLimits,
@@ -17,9 +18,11 @@ import { BuyerPolicy } from "../policy/index.js";
 import { normalizeCurrency, normalizeMerchantDomain } from "../policy/normalize.js";
 import {
   BuyerVault,
+  MandateKeyMissing,
   fileBoxStore,
   osKeystore,
-  passwordKeystore
+  passwordKeystore,
+  type MandateKeyMetadata
 } from "../vault/index.js";
 import { openVaultBox, sealVaultBox } from "../vault/crypto.js";
 import { packVaultBox, unpackVaultBox } from "../vault/format.js";
@@ -39,6 +42,7 @@ export interface WalletCreateOptions {
   password?: string;
   project?: boolean;
   overwrite?: boolean;
+  mandateKey?: boolean;
 }
 
 export interface WalletOpenOptions {
@@ -85,6 +89,8 @@ export class KeystoreUnavailable extends Error {
     this.name = "KeystoreUnavailable";
   }
 }
+
+export { MandateKeyMissing };
 
 export class Payment {
   readonly metadata: PaymentMetadata;
@@ -209,6 +215,9 @@ export class Wallet {
       });
       const address = await vault.addAddress(opts.billing.address);
       if (address.id) await vault.setDefaultAddress(address.id);
+      if (opts.mandateKey !== false) {
+        await vault.createMandateKey();
+      }
       if (opts.recovery) {
         await vault.exportKeyToFile({
           path: expandHome(opts.recovery.path),
@@ -372,6 +381,18 @@ export class Wallet {
     currency: string
   ): Promise<{ pending: number; captured: number }> {
     return this.#vault.spendInWindow(window, currency);
+  }
+
+  async createMandateKey(): Promise<MandateKeyMetadata> {
+    return this.#vault.createMandateKey();
+  }
+
+  async hasMandateKey(): Promise<boolean> {
+    return this.#vault.hasMandateKey();
+  }
+
+  async exportMandatePublicKey(): Promise<{ jwk: JsonWebKey; key_id: string }> {
+    return this.#vault.exportMandatePublicKey();
   }
 
   async exportRecovery(opts: { path: string; password: string }): Promise<string> {
