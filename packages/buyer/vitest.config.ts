@@ -11,13 +11,12 @@ export default defineConfig({
         branches: 70,
         statements: 95
       },
-      include: ["src/**/*.ts"],
+      include: ["src/client/**/*.ts", "src/vault/**/*.ts"],
       exclude: [
         "src/**/*.test.ts",
-        // policy/ and vault/ are scaffolded but not yet implemented; excluded
-        // from coverage until they have real code + tests.
+        // policy/ and wallet/ stay out of coverage until they have real code + tests.
         "src/policy/**",
-        "src/vault/**"
+        "src/wallet/**"
       ]
     }
   }
