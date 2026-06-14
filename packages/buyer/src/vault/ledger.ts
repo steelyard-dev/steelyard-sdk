@@ -1,4 +1,4 @@
-import type { PurchaseIntent, Receipt, SpendLimits, SpendReceipt } from "@steelyard/core";
+import { systemClock, type PurchaseIntent, type Receipt, type SpendLimits, type SpendReceipt } from "@steelyard/core";
 import { xsalsa20poly1305 } from "@noble/ciphers/salsa.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chmod, mkdir, open, readFile, rename, stat } from "node:fs/promises";
@@ -396,7 +396,7 @@ export class VaultLedger {
     return state.reservations.get(id)?.shadow_receipt;
   }
 
-  async spendInWindow(window: SpendWindow, currency: string, at = new Date()): Promise<SpendWindowUsage> {
+  async spendInWindow(window: SpendWindow, currency: string, at = systemClock()): Promise<SpendWindowUsage> {
     const detailed = await this.spendInWindowDetailed(window, currency, at);
     return { pending: detailed.pending, captured: detailed.captured };
   }
@@ -404,7 +404,7 @@ export class VaultLedger {
   async spendInWindowDetailed(
     window: SpendWindow,
     currency: string,
-    at = new Date()
+    at = systemClock()
   ): Promise<SpendWindowDetailedUsage> {
     const state = await this.readState();
     return usageForWindow(state, window, currency, at);
@@ -748,7 +748,7 @@ async function readLegacySpendLedger(path: string): Promise<SpendReceipt[]> {
 }
 
 async function renameMigratedLegacyLedger(path: string): Promise<void> {
-  const target = `${path}.migrated-${new Date().toISOString()}`;
+  const target = `${path}.migrated-${systemClock().toISOString()}`;
   try {
     await rename(path, target);
   } catch (error) {

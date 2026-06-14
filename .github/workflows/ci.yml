@@ -54,3 +54,20 @@ jobs:
           STEELYARD_ALLOW_MOCK_PSP=1 STEELYARD_ALLOW_MOCK_MANDATE=1 pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol acp
           STEELYARD_ALLOW_MOCK_PSP=1 STEELYARD_ALLOW_MOCK_MANDATE=1 pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol ucp
           STEELYARD_ALLOW_MOCK_PSP=1 STEELYARD_ALLOW_MOCK_MANDATE=1 pnpm --filter @steelyard/example-coffee-shop buy:primitives:v03
+          STEELYARD_ALLOW_MOCK_PSP=1 STEELYARD_ALLOW_MOCK_MANDATE=1 pnpm --filter @steelyard/example-coffee-shop scan:routes
+      - name: Verify (Linux keychain)
+        if: runner.os == 'Linux' && matrix.lane == 'keychain'
+        run: |
+          eval "$(dbus-launch --sh-syntax)"
+          eval "$(echo -n '' | gnome-keyring-daemon --start --components=secrets --unlock)"
+          STEELYARD_TEST_KEYSTORE=keychain pnpm verify --lane ubuntu-keychain
+      - name: Verify
+        if: runner.os != 'Linux' || matrix.lane != 'keychain'
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            pnpm verify --lane macos-keychain
+          else
+            pnpm verify --lane ubuntu-password
+          fi
+        env:
+          STEELYARD_TEST_KEYSTORE: ${{ matrix.lane }}

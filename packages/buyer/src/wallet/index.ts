@@ -12,7 +12,7 @@ import type {
   SpendReceipt,
   WalletDriverPort
 } from "@steelyard/core";
-import { newIdempotencyKey } from "@steelyard/core";
+import { newIdempotencyKey, systemClock } from "@steelyard/core";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -154,6 +154,7 @@ export class Payment {
   #intent: PurchaseIntent;
   #cardId: string;
   #rule?: string;
+  #clock: () => Date;
   #settled = false;
 
   constructor(opts: {
@@ -162,11 +163,13 @@ export class Payment {
     card: CardMetadata;
     billing: { email?: string; address: BillingAddress };
     rule?: string;
+    clock?: () => Date;
   }) {
     this.#vault = opts.vault;
     this.#intent = opts.intent;
     this.#cardId = opts.card.id;
     this.#rule = opts.rule;
+    this.#clock = opts.clock ?? systemClock;
     this.metadata = {
       brand: opts.card.brand,
       last4: opts.card.last4,
@@ -191,7 +194,7 @@ export class Payment {
   async complete(receipt: { status: "completed" | "failed"; ref?: string }): Promise<void> {
     this.claimSettlement();
     await this.#vault.recordSpend({
-      ts: new Date().toISOString(),
+      ts: this.#clock().toISOString(),
       intent_id: this.#intent.intent_id ?? randomUUID(),
       merchant_domain: normalizeMerchantDomain(this.#intent.merchant.domain),
       amount: this.#intent.amount,
@@ -355,12 +358,13 @@ export class Wallet {
       intent,
       card,
       billing: { email: billing.email, address: billing.address },
-      rule: decision.status === "allowed" ? decision.rule : decision.matched_rule
+      rule: decision.status === "allowed" ? decision.rule : decision.matched_rule,
+      clock: systemClock
     });
   }
 
   private async purchaseWithMerchant(intent: PurchaseIntent, opts: PayOptions): Promise<Receipt> {
-    const clock = opts.clock ?? (() => new Date());
+    const clock = opts.clock ?? systemClock;
     const decision = await this.decide(intent);
     if (decision.status === "denied") throw new WalletNotAllowed(decision);
     if (decision.status === "approval_required" && !validApproval(opts.approval) && !opts.resume) {
@@ -526,7 +530,7 @@ export class Wallet {
     reservationId: string,
     opts: { decision: "complete" | "release"; receipt?: Receipt; clock?: () => Date }
   ): Promise<void> {
-    const at = opts.clock?.() ?? new Date();
+    const at = (opts.clock ?? systemClock)();
     if (opts.decision === "release") {
       await this.#vault.releaseReservation(reservationId, "reconciled_release", at);
       return;

@@ -140,10 +140,22 @@ pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol ucp
 ## Wallet
 
 ```ts
+import type { PurchaseIntent } from "@steelyard/core";
 import { Wallet } from "@steelyard/buyer";
 import { Steelyard } from "@steelyard/buyer/client";
 
 const wallet = await Wallet.open();
+const intent: PurchaseIntent = {
+  merchant: {
+    domain: "coffee.example",
+    transport_url: "https://coffee.example/acp/feed",
+    protocol: "acp"
+  },
+  offer: { id: "cappuccino", title: "Cappuccino", categories: ["coffee"] },
+  amount: 500,
+  currency: "USD"
+};
+
 const merchant = await Steelyard.connect("https://coffee.example/acp/feed", {
   delegatePaymentUrl: "https://psp.example/agentic_commerce/delegate_payment"
 });
@@ -151,6 +163,9 @@ if ("error" in merchant) throw new Error(merchant.error_detail ?? merchant.error
 
 const receipt = await wallet.pay(intent, { merchant, idempotencyKey: "purchase_123" });
 ```
+
+`PurchaseIntent.amount` is the maximum amount authorized for merchant checkout;
+reconcile the final captured amount from the returned receipt.
 
 Power users can still import `Steelyard` from `@steelyard/buyer/client`,
 `BuyerPolicy` from `@steelyard/buyer/policy`, and `BuyerVault` from

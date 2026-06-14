@@ -12,6 +12,7 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
+    "verify": "tsx packages/verify/src/cli.ts",
     "lint": "biome lint --files-ignore-unknown=true .",
     "clean": "turbo run clean && rm -rf node_modules"
   },

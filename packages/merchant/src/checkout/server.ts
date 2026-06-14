@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { IncomingMessage, RequestListener, ServerResponse } from "node:http";
 import {
   canonicalMerchantAudience,
+  systemClock,
   totalAmount,
   type Manifest,
   type Offer,
@@ -112,7 +113,7 @@ class MerchantCheckoutContext {
     readonly manifest: Manifest,
     readonly opts: MerchantCheckoutOpts
   ) {
-    this.clock = opts.clock ?? (() => new Date());
+    this.clock = opts.clock ?? systemClock;
     this.ucpAudience =
       opts.merchantAudience ??
       canonicalMerchantAudience({

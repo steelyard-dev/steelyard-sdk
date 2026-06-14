@@ -24,15 +24,20 @@ const receipt = await wallet.pay(intent, {
 
 ## What changes
 
-- Add a `merchant` option to `wallet.pay()` for real ACP/UCP checkout.
+- Add a `merchant` option to `Wallet.pay()` for real ACP/UCP checkout.
 - Configure `delegatePaymentUrl` when connecting to merchants that require
   direct delegate payment.
-- Keep `wallet.pay(intent)` only for legacy integrations that still own the
+- Keep `Wallet.pay(intent)` only for legacy integrations that still own the
   checkout call.
 - Read receipts with `wallet.listReceipts()` instead of only legacy
   `listSpend()`.
 - Create mandate keys for wallets that predate v0.3 and need UCP checkout:
   `await wallet.createMandateKey()`.
+
+`PurchaseIntent.amount` is the maximum amount the wallet is authorizing for the
+merchant checkout, not proof that the merchant captured that exact value. Use
+captured receipts to reconcile spend, and use `spendInWindow()` for limit checks
+instead of rebuilding totals from `listSpend()`.
 
 ## Ledger migration
 

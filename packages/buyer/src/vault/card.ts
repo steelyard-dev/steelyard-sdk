@@ -1,4 +1,4 @@
-import type { CardMetadata } from "@steelyard/core";
+import { systemClock, type CardMetadata } from "@steelyard/core";
 import { inspect } from "node:util";
 import { domainMatches } from "../policy/glob.js";
 import { normalizeMerchantDomain } from "../policy/normalize.js";
@@ -91,7 +91,7 @@ function normalizeExp(value: string): string {
   if (!match) throw new Error('card exp must be "MM/YY"');
   const month = Number(match[1]);
   const year = 2000 + Number(match[2]);
-  const now = new Date();
+  const now = systemClock();
   const currentYear = now.getUTCFullYear();
   const currentMonth = now.getUTCMonth() + 1;
   if (year < currentYear || (year === currentYear && month < currentMonth)) {

@@ -2,6 +2,7 @@ export { defineCommerce } from "./define.js";
 export { validate } from "./validate.js";
 export { COMMERCE_READ_VERSION } from "./schemas.js";
 export { ERROR_CODES } from "./errors.js";
+export { defaultClock, systemClock } from "./clock.js";
 export {
   canonicalMerchantAudience,
   canonicalizeForSigning,
@@ -56,3 +57,4 @@ export type {
 } from "./order-state.js";
 export type { ErrorCode } from "./errors.js";
 export type { ValidationResult } from "./validate.js";
+export type { Clock } from "./clock.js";

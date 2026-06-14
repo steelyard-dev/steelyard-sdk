@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import {
   canonicalizeForSigning,
   redactCardData,
+  systemClock,
   totalAmount,
   type BillingPayload,
   type Checkout,
@@ -32,7 +33,7 @@ export interface PaymentHandlerLike {
 export type JsonRecord = Record<string, unknown>;
 
 export function driverClock(opts: { clock?: () => Date }): () => Date {
-  return opts.clock ?? (() => new Date());
+  return opts.clock ?? systemClock;
 }
 
 export function purchaseKey(opts: { idempotencyKey?: string }, intent: PurchaseIntent): string {

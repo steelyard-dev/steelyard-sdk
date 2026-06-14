@@ -1,4 +1,4 @@
-import type { JsonWebKey } from "@steelyard/core";
+import { systemClock, type JsonWebKey } from "@steelyard/core";
 import type { JsonWebKey as NodeJsonWebKey } from "node:crypto";
 import {
   createHash,
@@ -32,7 +32,7 @@ export class MandateKeyMissing extends Error {
   }
 }
 
-export function createStoredMandateKey(at = new Date()): StoredMandateKey {
+export function createStoredMandateKey(at = systemClock()): StoredMandateKey {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
   const publicJwk = publicKey.export({ format: "jwk" }) as JsonWebKey;
   const privateJwk = privateKey.export({ format: "jwk" }) as JsonWebKey;

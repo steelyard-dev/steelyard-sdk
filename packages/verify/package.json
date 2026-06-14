@@ -1,0 +1,20 @@
+{
+  "name": "@steelyard/verify",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Mechanical verification harness for Steelyard release criteria.",
+  "type": "module",
+  "bin": {
+    "steelyard-verify": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit",
+    "verify": "tsx src/cli.ts"
+  },
+  "devDependencies": {}
+}

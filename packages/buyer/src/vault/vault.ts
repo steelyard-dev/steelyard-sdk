@@ -1,4 +1,12 @@
-import type { BillingAddress, BillingPayload, CardMetadata, JsonWebKey, Receipt, SpendReceipt } from "@steelyard/core";
+import {
+  systemClock,
+  type BillingAddress,
+  type BillingPayload,
+  type CardMetadata,
+  type JsonWebKey,
+  type Receipt,
+  type SpendReceipt
+} from "@steelyard/core";
 import { randomBytes, createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, basename, resolve, join } from "node:path";
@@ -186,7 +194,7 @@ export class BuyerVault {
       masterKey
     });
     await vault.ledger.migrateLegacyIfNeeded();
-    await vault.ledger.releaseExpiredEscalations(new Date());
+    await vault.ledger.releaseExpiredEscalations(systemClock());
     return vault;
   }
 

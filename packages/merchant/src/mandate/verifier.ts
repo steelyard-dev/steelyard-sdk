@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createHash, createPublicKey, verify as cryptoVerify, type JsonWebKey as NodeJsonWebKey } from "node:crypto";
-import { canonicalizeForSigning, type Checkout, type JsonWebKey } from "@steelyard/core";
+import { canonicalizeForSigning, systemClock, type Checkout, type JsonWebKey } from "@steelyard/core";
 
 export interface MandateEnvelope {
   "steelyard.checkout_mandate"?: string;
@@ -84,7 +84,7 @@ export function steelyardJwsVerifier(opts: SteelyardJwsVerifierOptions): Mandate
       if (typeof payload.sub !== "string" || !payload.sub) return fail("invalid_subject");
       if (payload.aud !== expectedAudience) return fail("audience_mismatch");
 
-      const now = Math.floor((opts.clock?.() ?? new Date()).getTime() / 1000);
+      const now = Math.floor((opts.clock ?? systemClock)().getTime() / 1000);
       if (typeof payload.iat !== "number" || !Number.isSafeInteger(payload.iat)) return fail("invalid_iat");
       if (payload.iat > now) return fail("issued_in_future");
       if (typeof payload.exp !== "number" || !Number.isSafeInteger(payload.exp)) return fail("invalid_exp");

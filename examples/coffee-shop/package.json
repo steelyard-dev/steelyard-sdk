@@ -11,6 +11,7 @@
     "buy:primitives": "tsx src/buy-with-primitives.ts",
     "buy:primitives:v03": "tsx src/buy-with-primitives-v03.ts",
     "dev": "tsx src/index.ts",
+    "scan:routes": "tsx scripts/scan-routes.ts",
     "smoke:stripe": "tsx scripts/smoke-stripe.ts",
     "start": "node dist/index.js",
     "test": "vitest run",

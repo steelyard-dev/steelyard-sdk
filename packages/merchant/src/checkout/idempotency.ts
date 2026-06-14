@@ -2,6 +2,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { systemClock } from "@steelyard/core";
 import { lock } from "proper-lockfile";
 
 export interface IdempotencyResponse {
@@ -28,7 +29,7 @@ export class IdempotencyConflict extends Error {
 }
 
 export function memoryIdempotencyStore(opts: { ttlSeconds?: number; clock?: () => Date } = {}): IdempotencyStore {
-  return new MemoryIdempotencyStore(opts.ttlSeconds ?? 86_400, opts.clock ?? (() => new Date()));
+  return new MemoryIdempotencyStore(opts.ttlSeconds ?? 86_400, opts.clock ?? systemClock);
 }
 
 export function fileIdempotencyStore(opts: {
@@ -36,7 +37,7 @@ export function fileIdempotencyStore(opts: {
   ttlSeconds?: number;
   clock?: () => Date;
 }): IdempotencyStore {
-  return new FileIdempotencyStore(opts.dir, opts.ttlSeconds ?? 86_400, opts.clock ?? (() => new Date()));
+  return new FileIdempotencyStore(opts.dir, opts.ttlSeconds ?? 86_400, opts.clock ?? systemClock);
 }
 
 interface CacheRecord {

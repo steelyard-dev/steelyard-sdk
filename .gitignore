@@ -21,6 +21,7 @@ coverage/
 
 # Test outputs
 .vitest-cache/
+verify-report.json
 
 # mkdocs build output + cache
 site/
