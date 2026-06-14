@@ -17,6 +17,11 @@
       "types": "./dist/policy/index.d.ts",
       "import": "./dist/policy/index.js",
       "require": "./dist/policy/index.cjs"
+    },
+    "./psp": {
+      "types": "./dist/psp/index.d.ts",
+      "import": "./dist/psp/index.js",
+      "require": "./dist/psp/index.cjs"
     }
   },
   "scripts": {
