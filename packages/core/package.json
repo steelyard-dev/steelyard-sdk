@@ -13,6 +13,26 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./policy-yaml": {
+      "types": "./dist/policy-yaml/index.d.ts",
+      "import": "./dist/policy-yaml/index.js",
+      "require": "./dist/policy-yaml/index.cjs"
+    },
+    "./order-state": {
+      "types": "./dist/order-state.d.ts",
+      "import": "./dist/order-state.js",
+      "require": "./dist/order-state.cjs"
+    },
+    "./idempotency": {
+      "types": "./dist/idempotency/index.d.ts",
+      "import": "./dist/idempotency/index.js",
+      "require": "./dist/idempotency/index.cjs"
+    },
+    "./purchase": {
+      "types": "./dist/purchase.d.ts",
+      "import": "./dist/purchase.js",
+      "require": "./dist/purchase.cjs"
     }
   },
   "files": [
@@ -26,6 +46,8 @@
     "clean": "rm -rf dist .turbo coverage"
   },
   "dependencies": {
+    "uuidv7": "^1.2.1",
+    "yaml": "^2.9.0",
     "zod": "^3.23.8"
   }
 }

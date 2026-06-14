@@ -1,9 +1,8 @@
+// Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it } from "vitest";
-import type { PurchaseIntent } from "@steelyard/core";
-import { evaluatePolicy } from "./evaluate.js";
-import { domainMatches } from "./glob.js";
-import { normalizeMerchantDomain } from "./normalize.js";
-import { parsePolicyYaml } from "./schema.js";
+import type { PurchaseIntent } from "../schemas.js";
+import { evaluatePolicy, parsePolicyYaml } from "./index.js";
+import { domainMatches, normalizeMerchantDomain } from "./index.js";
 
 const intent: PurchaseIntent = {
   merchant: {
@@ -196,7 +195,7 @@ limits:
 });
 
 describe("domain normalization", () => {
-  it("normalizes transport domains and keeps single-star globs to one segment", () => {
+  it("normalizes transport domains and keeps single-star globs to one segment", async () => {
     expect(normalizeMerchantDomain("https://café.example.:443/path")).toBe("xn--caf-dma.example");
     expect(normalizeMerchantDomain("https://%zz")).toBe("");
     expect(domainMatches("**.github.com", "deep.shop.github.com")).toBe(true);
@@ -213,7 +212,7 @@ rules:
     const github = { ...intent, merchant: { ...intent.merchant, domain: "github.com" } };
     const shop = { ...intent, merchant: { ...intent.merchant, domain: "shop.github.com" } };
 
-    return Promise.all([
+    await Promise.all([
       expect(evaluatePolicy([policy], github)).resolves.toEqual({ status: "denied", reason: "default deny" }),
       expect(evaluatePolicy([policy], shop)).resolves.toEqual({ status: "allowed", rule: "subdomain only" })
     ]);

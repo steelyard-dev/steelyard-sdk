@@ -2,6 +2,7 @@ import { access, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Decision, PurchaseIntent, Rule, SpendLimits } from "@steelyard/core";
+import type { PolicySpendContext } from "@steelyard/core/policy-yaml";
 import type { BuyerVault } from "../vault/index.js";
 import { evaluatePolicy } from "./evaluate.js";
 import { parsePolicyYaml, type ParsedPolicyDocument } from "./schema.js";
@@ -46,7 +47,7 @@ export class BuyerPolicy {
   }
 
   async evaluate(intent: PurchaseIntent, ctx: { vault?: BuyerVault } = {}): Promise<Decision> {
-    return evaluatePolicy(this.#documents, intent, ctx);
+    return evaluatePolicy(this.#documents, intent, adaptSpendContext(ctx.vault));
   }
 }
 
@@ -109,6 +110,18 @@ function mergeLimits(limits: SpendLimits[]): SpendLimits {
     }
   }
   return merged;
+}
+
+function adaptSpendContext(vault?: BuyerVault): { vault?: PolicySpendContext } {
+  if (!vault) return {};
+  return {
+    vault: {
+      spendInWindow: async (window, currency) => ({
+        pending: 0,
+        captured: await vault.spendInWindow(window, currency)
+      })
+    }
+  };
 }
 
 export function _resetPermissiveWarningForTests(): void {
