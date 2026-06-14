@@ -18,10 +18,20 @@
       "import": "./dist/acp/index.js",
       "require": "./dist/acp/index.cjs"
     },
+    "./acp/checkout": {
+      "types": "./dist/acp/checkout.d.ts",
+      "import": "./dist/acp/checkout.js",
+      "require": "./dist/acp/checkout.cjs"
+    },
     "./ucp": {
       "types": "./dist/ucp/index.d.ts",
       "import": "./dist/ucp/index.js",
       "require": "./dist/ucp/index.cjs"
+    },
+    "./ucp/checkout": {
+      "types": "./dist/ucp/checkout.d.ts",
+      "import": "./dist/ucp/checkout.js",
+      "require": "./dist/ucp/checkout.cjs"
     }
   },
   "scripts": {

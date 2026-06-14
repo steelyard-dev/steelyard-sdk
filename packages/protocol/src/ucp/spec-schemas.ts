@@ -22,15 +22,23 @@ import messageWarningSchema from "../../spec/ucp/2026-04-17/schemas/common/types
 import paginationSchema from "../../spec/ucp/2026-04-17/schemas/common/types/pagination.json";
 import priceSchema from "../../spec/ucp/2026-04-17/schemas/common/types/price.json";
 import reverseDomainNameSchema from "../../spec/ucp/2026-04-17/schemas/common/types/reverse_domain_name.json";
+import postalAddressSchema from "../../spec/ucp/2026-04-17/schemas/common/types/postal_address.json";
+import signedAmountSchema from "../../spec/ucp/2026-04-17/schemas/common/types/signed_amount.json";
 import warningCodeSchema from "../../spec/ucp/2026-04-17/schemas/common/types/warning_code.json";
 
 import attributionSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/attribution.json";
 import availablePaymentInstrumentSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/available_payment_instrument.json";
+import buyerSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/buyer.json";
 import categorySchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/category.json";
 import contextSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/context.json";
 import detailOptionValueSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/detail_option_value.json";
 import inputCorrelationSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/input_correlation.json";
+import itemSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/item.json";
+import lineItemSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/line_item.json";
 import optionValueSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/option_value.json";
+import orderConfirmationSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/order_confirmation.json";
+import paymentCredentialSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/payment_credential.json";
+import paymentInstrumentSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/payment_instrument.json";
 import priceFilterSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/price_filter.json";
 import priceRangeSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/price_range.json";
 import productSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/product.json";
@@ -39,10 +47,15 @@ import ratingSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/ratin
 import searchFiltersSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/search_filters.json";
 import selectedOptionSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/selected_option.json";
 import signalsSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/signals.json";
+import totalSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/total.json";
+import totalsSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/totals.json";
 import variantSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/variant.json";
 
 import catalogLookupSchema from "../../spec/ucp/2026-04-17/schemas/shopping/catalog_lookup.json";
 import catalogSearchSchema from "../../spec/ucp/2026-04-17/schemas/shopping/catalog_search.json";
+import cartSchema from "../../spec/ucp/2026-04-17/schemas/shopping/cart.json";
+import checkoutSchema from "../../spec/ucp/2026-04-17/schemas/shopping/checkout.json";
+import paymentSchema from "../../spec/ucp/2026-04-17/schemas/shopping/payment.json";
 
 import capabilitySchema from "../../spec/ucp/2026-04-17/schemas/capability.json";
 import paymentHandlerSchema from "../../spec/ucp/2026-04-17/schemas/payment_handler.json";
@@ -63,8 +76,10 @@ export const ALL_SCHEMAS = [
   linkSchema,
   mediaSchema,
   paginationSchema,
+  postalAddressSchema,
   priceSchema,
   reverseDomainNameSchema,
+  signedAmountSchema,
   warningCodeSchema,
   // message types (depend on info/error/warning codes)
   messageErrorSchema,
@@ -74,13 +89,18 @@ export const ALL_SCHEMAS = [
   // transports / payment instruments (refd by ucp.json)
   embeddedConfigSchema,
   availablePaymentInstrumentSchema,
+  paymentCredentialSchema,
+  paymentInstrumentSchema,
   // shopping leaf types (refd by product/variant)
   attributionSchema,
+  buyerSchema,
   categorySchema,
   contextSchema,
   detailOptionValueSchema,
   inputCorrelationSchema,
+  itemSchema,
   optionValueSchema,
+  orderConfirmationSchema,
   priceFilterSchema,
   priceRangeSchema,
   productOptionSchema,
@@ -88,7 +108,10 @@ export const ALL_SCHEMAS = [
   searchFiltersSchema,
   selectedOptionSchema,
   signalsSchema,
+  totalSchema,
+  totalsSchema,
   // shopping composite types
+  lineItemSchema,
   variantSchema,
   productSchema,
   // top-level UCP entities (envelope + capability + service)
@@ -96,6 +119,9 @@ export const ALL_SCHEMAS = [
   serviceSchema,
   capabilitySchema,
   paymentHandlerSchema,
+  paymentSchema,
+  checkoutSchema,
+  cartSchema,
   // catalog requests + responses (the schemas whose `$defs/*_response` we validate)
   catalogSearchSchema,
   catalogLookupSchema
@@ -103,3 +129,6 @@ export const ALL_SCHEMAS = [
 
 export const CATALOG_SEARCH_SCHEMA_ID = "https://ucp.dev/schemas/shopping/catalog_search.json";
 export const CATALOG_LOOKUP_SCHEMA_ID = "https://ucp.dev/schemas/shopping/catalog_lookup.json";
+export const CHECKOUT_SCHEMA_ID = "https://ucp.dev/schemas/shopping/checkout.json";
+export const CART_SCHEMA_ID = "https://ucp.dev/schemas/shopping/cart.json";
+export const PAYMENT_INSTRUMENT_SCHEMA_ID = "https://ucp.dev/schemas/shopping/types/payment_instrument.json";
