@@ -45,6 +45,7 @@ export interface PurchaseOpts {
   approval?: ApprovalProof;
   resume?: ApprovalResume;
   idempotencyKey?: string;
+  reservation_id?: string;
   clock?: () => Date;
   onTotalsKnown?: (finalTotal: number, currency: string) => Promise<void> | void;
 }

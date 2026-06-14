@@ -1,14 +1,18 @@
 import type {
+  ApprovalResume,
   ApprovalProof,
   BillingAddress,
   CardMetadata,
   Decision,
   JsonWebKey,
   PurchaseIntent,
+  Receipt,
   SimpleCard,
   SimpleLimits,
-  SpendReceipt
+  SpendReceipt,
+  WalletDriverPort
 } from "@steelyard/core";
+import { newIdempotencyKey } from "@steelyard/core";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -19,11 +23,15 @@ import { normalizeCurrency, normalizeMerchantDomain } from "../policy/normalize.
 import {
   BuyerVault,
   MandateKeyMissing,
+  ResumeExpired,
+  WalletAmountExceeded,
   fileBoxStore,
   osKeystore,
   passwordKeystore,
-  type MandateKeyMetadata
+  type MandateKeyMetadata,
+  type Reservation
 } from "../vault/index.js";
+import type { Merchant } from "../client/index.js";
 import { openVaultBox, sealVaultBox } from "../vault/crypto.js";
 import { packVaultBox, unpackVaultBox } from "../vault/format.js";
 import { parseVaultHeader, type VaultHeader } from "../vault/header.js";
@@ -62,6 +70,17 @@ interface PaymentVault {
   recordSpend(receipt: SpendReceipt): Promise<void>;
 }
 
+export interface LegacyPayOptions {
+  approval?: ApprovalProof;
+}
+
+export interface PayOptions extends LegacyPayOptions {
+  merchant: Merchant;
+  resume?: ApprovalResume;
+  idempotencyKey?: string;
+  clock?: () => Date;
+}
+
 export class WalletNotAllowed extends Error {
   constructor(readonly decision: Decision) {
     super(decision.status === "denied" ? decision.reason : "wallet payment is not allowed");
@@ -70,9 +89,45 @@ export class WalletNotAllowed extends Error {
 }
 
 export class WalletApprovalRequired extends Error {
-  constructor(readonly decision: Extract<Decision, { status: "approval_required" }>) {
-    super("wallet payment requires approval");
+  readonly kind: "policy" | "3ds" | "escalation";
+  readonly decision?: Extract<Decision, { status: "approval_required" }>;
+  readonly continue_url?: string;
+  readonly resume?: ApprovalResume;
+
+  constructor(input: Extract<Decision, { status: "approval_required" }> | {
+    kind: "policy" | "3ds" | "escalation";
+    decision?: Extract<Decision, { status: "approval_required" }>;
+    continue_url?: string;
+    resume?: ApprovalResume;
+  }) {
+    const opts = "status" in input
+      ? { kind: "policy" as const, decision: input }
+      : input;
+    super(opts.kind === "policy" ? "wallet payment requires approval" : `wallet payment requires ${opts.kind} approval`);
     this.name = "WalletApprovalRequired";
+    this.kind = opts.kind;
+    this.decision = opts.decision;
+    this.continue_url = opts.continue_url;
+    this.resume = opts.resume;
+  }
+}
+
+export class ReceiptPersistenceFailed extends Error {
+  readonly receipt: Receipt;
+  readonly reservation_id: string;
+  readonly shadow_persisted: boolean;
+
+  constructor(opts: {
+    receipt: Receipt;
+    reservation_id: string;
+    shadow_persisted: boolean;
+    cause: unknown;
+  }) {
+    super("receipt persistence failed after merchant charge", { cause: opts.cause });
+    this.name = "ReceiptPersistenceFailed";
+    this.receipt = opts.receipt;
+    this.reservation_id = opts.reservation_id;
+    this.shadow_persisted = opts.shadow_persisted;
   }
 }
 
@@ -90,7 +145,7 @@ export class KeystoreUnavailable extends Error {
   }
 }
 
-export { MandateKeyMissing };
+export { MandateKeyMissing, ResumeExpired, WalletAmountExceeded };
 
 export class Payment {
   readonly metadata: PaymentMetadata;
@@ -278,7 +333,14 @@ export class Wallet {
     return this.#policy.evaluate(intent, { vault: this.#vault });
   }
 
-  async pay(intent: PurchaseIntent, opts: { approval?: ApprovalProof } = {}): Promise<Payment> {
+  async pay(intent: PurchaseIntent, opts: PayOptions): Promise<Receipt>;
+  async pay(intent: PurchaseIntent, opts?: LegacyPayOptions): Promise<Payment>;
+  async pay(intent: PurchaseIntent, opts: LegacyPayOptions | PayOptions = {}): Promise<Payment | Receipt> {
+    if (isMerchantPayOptions(opts)) return this.purchaseWithMerchant(intent, opts);
+    return this.prepareLegacyPayment(intent, opts);
+  }
+
+  private async prepareLegacyPayment(intent: PurchaseIntent, opts: LegacyPayOptions = {}): Promise<Payment> {
     const decision = await this.decide(intent);
     if (decision.status === "denied") throw new WalletNotAllowed(decision);
     if (decision.status === "approval_required" && !validApproval(opts.approval)) {
@@ -295,6 +357,82 @@ export class Wallet {
       billing: { email: billing.email, address: billing.address },
       rule: decision.status === "allowed" ? decision.rule : decision.matched_rule
     });
+  }
+
+  private async purchaseWithMerchant(intent: PurchaseIntent, opts: PayOptions): Promise<Receipt> {
+    const clock = opts.clock ?? (() => new Date());
+    const decision = await this.decide(intent);
+    if (decision.status === "denied") throw new WalletNotAllowed(decision);
+    if (decision.status === "approval_required" && !validApproval(opts.approval) && !opts.resume) {
+      throw new WalletApprovalRequired(decision);
+    }
+
+    const idempotencyKey = opts.idempotencyKey ?? opts.resume?.idempotency_key ?? newIdempotencyKey();
+    const reservation = opts.resume
+      ? await this.#vault.reattachReservation(opts.resume.reservation_id, clock())
+      : await this.#vault.reserve({
+        intent,
+        idempotencyKey,
+        amount: intent.amount,
+        at: clock(),
+        limits: this.#policy.limits
+      });
+
+    let receipt: Receipt;
+    try {
+      const port = await this.buildDriverPort(intent);
+      receipt = await opts.merchant.purchase(intent, {
+        port,
+        approval: opts.approval,
+        resume: opts.resume,
+        idempotencyKey,
+        reservation_id: reservation.id,
+        clock,
+        onTotalsKnown: async (finalTotal, currency) => {
+          const normalizedCurrency = normalizeCurrency(currency);
+          if (normalizedCurrency !== reservation.currency) {
+            await this.#vault.releaseReservation(reservation.id, "currency_mismatch", clock());
+            throw new WalletAmountExceeded({
+              requested: finalTotal,
+              allowed: 0,
+              currency: normalizedCurrency,
+              reservation_released: true
+            });
+          }
+          await this.#vault.adjustReservation(reservation.id, finalTotal, clock());
+        }
+      });
+    } catch (error) {
+      if (isResumableApprovalError(error)) {
+        await this.#vault.markReservationEscalated(reservation.id, error.resume.expires_at, clock());
+        throw error;
+      }
+      if (!(error instanceof WalletAmountExceeded && error.reservation_released)) {
+        await this.#vault.releaseReservation(reservation.id, errorSummary(error), clock());
+      }
+      throw error;
+    }
+
+    try {
+      await this.#vault.settleReservation(reservation.id, receipt, clock());
+    } catch (settleErr) {
+      let shadowErr: Error | undefined;
+      try {
+        await this.#vault.writeShadowReceipt(reservation.id, receipt, clock());
+      } catch (error) {
+        shadowErr = error as Error;
+      }
+      throw new ReceiptPersistenceFailed({
+        receipt,
+        reservation_id: reservation.id,
+        shadow_persisted: shadowErr === undefined,
+        cause: shadowErr
+          ? new AggregateError([settleErr as Error, shadowErr], "settle and shadow write both failed")
+          : settleErr
+      });
+    }
+
+    return receipt;
   }
 
   async addCard(card: SimpleCard & { merchants?: string[]; default?: boolean }): Promise<void> {
@@ -376,6 +514,28 @@ export class Wallet {
     return this.#vault.listSpend(opts);
   }
 
+  async listReceipts(opts: { since?: Date; until?: Date } = {}): Promise<Receipt[]> {
+    return this.#vault.listReceipts(opts);
+  }
+
+  async pendingReservations(): Promise<Reservation[]> {
+    return this.#vault.pendingReservations();
+  }
+
+  async reconcile(
+    reservationId: string,
+    opts: { decision: "complete" | "release"; receipt?: Receipt; clock?: () => Date }
+  ): Promise<void> {
+    const at = opts.clock?.() ?? new Date();
+    if (opts.decision === "release") {
+      await this.#vault.releaseReservation(reservationId, "reconciled_release", at);
+      return;
+    }
+    const receipt = opts.receipt ?? await this.#vault.shadowReceipt(reservationId);
+    if (!receipt) throw new Error(`receipt required to reconcile reservation ${reservationId}`);
+    await this.#vault.settleReservation(reservationId, receipt, at);
+  }
+
   async spendInWindow(
     window: "daily" | "weekly" | "monthly",
     currency: string
@@ -414,6 +574,29 @@ export class Wallet {
 
   private async reloadPolicy(): Promise<void> {
     this.#policy = await loadWalletPolicy(this.#project);
+  }
+
+  private async buildDriverPort(intent: PurchaseIntent): Promise<WalletDriverPort> {
+    const card = await this.#vault.pickCard({ merchant: intent.merchant.domain });
+    if (!card) throw new NoCardForMerchant(intent.merchant.domain);
+    const billing = await this.#vault.billing();
+    return {
+      billing,
+      withRawCard: async (fn) => {
+        const raw = await this.#vault.revealCard(card.id);
+        const released = { ...raw };
+        try {
+          return await fn(released);
+        } finally {
+          released.pan = "0".repeat(raw.pan.length);
+          released.name_on_card = "";
+          released.exp = "00/00";
+        }
+      },
+      signMandate: (payload) => this.#vault.signMandate(payload),
+      pairwiseSubject: (audience) => this.#vault.pairwiseSubject(audience),
+      mandatePublicKey: () => this.#vault.mandatePublicKey()
+    };
   }
 }
 
@@ -553,6 +736,19 @@ async function rotatePasswordVault(path: string, oldPassword: string, newPasswor
 
 function validApproval(approval: ApprovalProof | undefined): boolean {
   return !!approval && typeof approval.source === "string" && !Number.isNaN(new Date(approval.ts).getTime());
+}
+
+function isMerchantPayOptions(opts: LegacyPayOptions | PayOptions): opts is PayOptions {
+  return "merchant" in opts && !!opts.merchant;
+}
+
+function isResumableApprovalError(error: unknown): error is WalletApprovalRequired & { resume: ApprovalResume } {
+  return error instanceof WalletApprovalRequired && error.kind !== "policy" && !!error.resume;
+}
+
+function errorSummary(error: unknown): string {
+  if (error instanceof Error) return `${error.name}: ${error.message}`.slice(0, 240);
+  return String(error).slice(0, 240);
 }
 
 async function exists(path: string): Promise<boolean> {
