@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steelyard.dev/schemas/http/0.1/policies_response.json",
+  "title": "Steelyard HTTP Policies Response",
+  "type": "object",
+  "required": ["policies"],
+  "properties": {
+    "policies": {
+      "type": "array",
+      "items": {
+        "$ref": "https://steelyard.dev/schemas/commerce-manifest/0.1.json#/$defs/policy"
+      }
+    }
+  },
+  "additionalProperties": true
+}

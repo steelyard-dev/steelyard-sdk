@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steelyard.dev/schemas/http/0.1/error.json",
+  "title": "Steelyard HTTP Error",
+  "type": "object",
+  "required": ["error"],
+  "properties": {
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": {
+          "enum": ["not_found", "method_not_allowed", "bad_request", "internal_error"]
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -40,12 +40,16 @@
     "PORT_AUDIT.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "node scripts/generate-commerce-types.mjs --check && tsup && node scripts/copy-specs.mjs",
+    "generate:types": "node scripts/generate-commerce-types.mjs",
     "test": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .turbo coverage"
   },
   "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "canonicalize": "^3.0.0",
     "uuidv7": "^1.2.1",
     "yaml": "^2.9.0",
     "zod": "^3.23.8"

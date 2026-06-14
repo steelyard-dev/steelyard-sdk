@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steelyard.dev/schemas/http/0.1/index_response.json",
+  "title": "Steelyard HTTP Index Response",
+  "type": "object",
+  "required": ["schema_version", "links"],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "links": {
+      "type": "object",
+      "required": ["products", "policies", "capabilities"],
+      "properties": {
+        "products": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policies": {
+          "type": "string",
+          "minLength": 1
+        },
+        "capabilities": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

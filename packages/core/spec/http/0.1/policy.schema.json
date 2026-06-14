@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steelyard.dev/schemas/http/0.1/policy.json",
+  "title": "Steelyard HTTP Policy",
+  "$ref": "https://steelyard.dev/schemas/commerce-manifest/0.1.json#/$defs/policy"
+}

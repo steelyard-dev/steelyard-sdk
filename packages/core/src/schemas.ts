@@ -83,6 +83,7 @@ export const OfferSchema = z.object({
 export type Offer = z.infer<typeof OfferSchema>;
 
 export const PolicySchema = z.object({
+  id: z.string().min(1).optional(),
   type: z.enum(["shipping", "returns", "refunds", "terms", "privacy", "other"]),
   url: optionalHttpUrl(),
   summary: z.string().optional()

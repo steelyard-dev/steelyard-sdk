@@ -1,6 +1,14 @@
 export { defineCommerce } from "./define.js";
 export { validate } from "./validate.js";
 export { COMMERCE_READ_VERSION } from "./schemas.js";
+export {
+  COMMERCE_MANIFEST_PATH,
+  COMMERCE_MANIFEST_SCHEMA_VERSION,
+  DuplicateExplicitPolicyId,
+  canonicalCommerceManifestHash,
+  commerceManifest,
+  validateCommerceManifest
+} from "./commerce-manifest.js";
 export { ERROR_CODES } from "./errors.js";
 export { defaultClock, systemClock } from "./clock.js";
 export {
@@ -12,6 +20,15 @@ export {
   totalAmount
 } from "./purchase.js";
 export { mapAcpToOrderState, mapUcpCheckoutStatus } from "./order-state.js";
+export type {
+  CommerceManifestOpts,
+  CommerceManifestValidationResult
+} from "./commerce-manifest.js";
+export type {
+  CommerceManifestDoc,
+  CommerceManifestPeer,
+  PeerName
+} from "./generated/commerce-manifest.types.js";
 export type {
   CommerceConfig,
   Manifest,

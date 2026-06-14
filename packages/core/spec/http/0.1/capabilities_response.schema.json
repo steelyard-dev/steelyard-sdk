@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://steelyard.dev/schemas/http/0.1/capabilities_response.json",
+  "title": "Steelyard HTTP Capabilities Response",
+  "type": "object",
+  "required": ["peers"],
+  "properties": {
+    "peers": {
+      "$ref": "https://steelyard.dev/schemas/commerce-manifest/0.1.json#/$defs/peers"
+    }
+  },
+  "additionalProperties": true
+}
