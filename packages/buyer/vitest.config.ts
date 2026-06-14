@@ -8,7 +8,7 @@ export default defineConfig({
       thresholds: {
         lines: 95,
         functions: 90,
-        branches: 70,
+        branches: 88,
         statements: 95
       },
       include: ["src/client/**/*.ts", "src/policy/**/*.ts", "src/vault/**/*.ts", "src/wallet/**/*.ts"],

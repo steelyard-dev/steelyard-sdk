@@ -7,7 +7,12 @@ import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { buildAcpFeed, createAcpFeedHandler } from "@steelyard/protocol/acp";
 import { defineCommerce, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
 import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
-import { buildUcpDiscovery, createUcpHandler } from "@steelyard/protocol/ucp";
+import {
+  UCP_CATALOG_SEARCH_CAPABILITY_ID,
+  UCP_SHOPPING_DOMAIN,
+  buildUcpDiscovery,
+  createUcpHandler
+} from "@steelyard/protocol/ucp";
 import {
   applyCompleteRequest as applyAcpComplete,
   applyCreateRequest as applyAcpCreate,
@@ -127,6 +132,32 @@ describe("Steelyard.connect", () => {
     );
   });
 
+  it("handles ACP merchant id and variant-level offer fallbacks", async () => {
+    const base = await startAcpFallbackServer();
+    const merchant = await connect(`${base}/acp/feed`);
+
+    expect(isMerchant(merchant) && merchant.protocol).toBe("acp");
+    if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    expect(merchant.id).toBe("merchant_from_id");
+    expect(merchant.supports("discounts")).toBe(true);
+    const offers = await merchant.search("");
+    expect(offers).toEqual([
+      expect.objectContaining({
+        id: "variant-only",
+        title: "Variant Latte",
+        description: "Variant description",
+        images: ["https://coffee.example/variant.png"],
+        url: "https://coffee.example/variant",
+        availability: "unknown",
+        pricing: []
+      })
+    ]);
+    await expect(merchant.getManifest()).resolves.toMatchObject({
+      identity: { name: "Variant Seller" }
+    });
+    await expect(merchant.getPolicies()).resolves.toEqual([]);
+  });
+
   it("detects UCP discovery and uses the REST catalog service", async () => {
     const base = await startMerchantServer();
     const merchant = await connect(`${base}/.well-known/ucp`);
@@ -156,6 +187,30 @@ describe("Steelyard.connect", () => {
     const merchant = await connect(base);
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
+  });
+
+  it("uses the default UCP REST endpoint and maps UCP product fallbacks", async () => {
+    const base = await startUcpDefaultEndpointServer();
+    const merchant = await connect(base);
+
+    expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
+    if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    expect(merchant.url).toBe(`${base}/api`);
+    await expect(merchant.search("variant")).resolves.toEqual([
+      expect.objectContaining({
+        id: "variant-only",
+        description: "Variant description",
+        images: ["https://coffee.example/variant.png"],
+        url: "https://coffee.example/variant",
+        categories: ["coffee"],
+        availability: "unknown",
+        pricing: []
+      })
+    ]);
+    await expect(merchant.getOffer("broken")).resolves.toEqual({
+      error: "internal_error",
+      error_detail: "UCP product has no variants: broken"
+    });
   });
 
   it("sniffs ACP checkout capability from capabilities.services", async () => {
@@ -279,6 +334,26 @@ describe("Steelyard.connect", () => {
     expect(await connect("http://127.0.0.1:9/mcp")).toMatchObject({ error: "network_error" });
   });
 
+  it("treats server errors and invalid JSON probes as protocol mismatches", async () => {
+    server = createServer((req, res) => {
+      if (req.method === "GET" && req.url === "/invalid-json") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end("{not json");
+        return;
+      }
+      sendJson(res, { error: "unavailable" }, 500);
+    });
+    await listen(server);
+    const { port } = server.address() as { port: number };
+
+    await expect(connect(`http://127.0.0.1:${port}/server-error`)).resolves.toMatchObject({
+      error: "protocol_mismatch"
+    });
+    await expect(connect(`http://127.0.0.1:${port}/invalid-json`)).resolves.toMatchObject({
+      error: "protocol_mismatch"
+    });
+  });
+
   it("returns version_mismatch for incompatible MCP read versions", async () => {
     server = createServer(createVersionedMcpHandler("0.2.0"));
     await listen(server);
@@ -347,6 +422,38 @@ async function startAcpCapabilityServer(services: string[]): Promise<string> {
   return `http://127.0.0.1:${port}`;
 }
 
+async function startAcpFallbackServer(): Promise<string> {
+  server = createServer((req, res) => {
+    if (req.method === "GET" && req.url?.startsWith("/acp/feed")) {
+      sendJson(res, {
+        products: [
+          {
+            id: "variant-only",
+            variants: [
+              {
+                id: "variant-only-default",
+                title: "Variant Latte",
+                description: { plain: "Variant description" },
+                media: [{ url: "https://coffee.example/variant.png" }],
+                url: "https://coffee.example/variant",
+                categories: [],
+                seller: { name: "Variant Seller", links: [] }
+              }
+            ]
+          }
+        ],
+        merchant: { id: "merchant_from_id" },
+        capabilities: { services: ["discounts"] }
+      });
+      return;
+    }
+    sendJson(res, { error: "not_found" }, 404);
+  });
+  await listen(server);
+  const { port } = server.address() as { port: number };
+  return `http://127.0.0.1:${port}`;
+}
+
 async function startLegacyUcpDiscoveryServer(): Promise<string> {
   server = createServer((req, res) => {
     if (req.method === "GET" && req.url?.startsWith("/.well-known/ucp")) {
@@ -378,6 +485,69 @@ async function startLegacyUcpDiscoveryServer(): Promise<string> {
   await listen(server);
   const { port } = server.address() as { port: number };
   return `http://127.0.0.1:${port}`;
+}
+
+async function startUcpDefaultEndpointServer(): Promise<string> {
+  server = createServer(async (req, res) => {
+    const baseUrl = `http://${req.headers.host}`;
+    if (req.method === "GET" && req.url?.startsWith("/.well-known/ucp")) {
+      sendJson(res, {
+        ucp: {
+          version: "2026-04-17",
+          services: {
+            "dev.ucp.shopping": [
+              { version: "2026-04-17", transport: "other" }
+            ]
+          },
+          capabilities: {
+            [UCP_SHOPPING_DOMAIN]: [
+              { id: UCP_CATALOG_SEARCH_CAPABILITY_ID, version: "2026-04-17" }
+            ]
+          },
+          payment_handlers: {}
+        },
+        merchant: { name: "Acme Coffee", domain: "coffee.example" },
+        links: { commerce_manifest: `${baseUrl}/commerce/manifest` }
+      });
+      return;
+    }
+
+    const body = await readJsonBody(req);
+    if (req.method === "POST" && req.url === "/api/catalog/search") {
+      const query = typeof (body as { query?: unknown }).query === "string"
+        ? (body as { query: string }).query
+        : "";
+      sendJson(res, {
+        products: query && !query.includes("variant") ? [] : [ucpVariantProduct()]
+      });
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/catalog/product") {
+      const id = (body as { id?: string }).id;
+      sendJson(res, { product: id === "broken" ? { id: "broken", title: "Broken", variants: [] } : ucpVariantProduct() });
+      return;
+    }
+    sendJson(res, { error: "not_found" }, 404);
+  });
+  await listen(server);
+  const { port } = server.address() as { port: number };
+  return `http://127.0.0.1:${port}`;
+}
+
+function ucpVariantProduct(): Record<string, unknown> {
+  return {
+    id: "variant-only",
+    title: "Variant Latte",
+    variants: [
+      {
+        id: "variant-only-default",
+        description: { plain: "Variant description" },
+        media: [{ url: "https://coffee.example/variant.png" }],
+        url: "https://coffee.example/variant",
+        categories: [{ value: "coffee" }]
+      }
+    ]
+  };
 }
 
 async function startUcpDiscoveryServer(opts: { checkout: boolean; steelyardMandate: boolean }): Promise<string> {

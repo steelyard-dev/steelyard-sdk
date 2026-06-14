@@ -1,7 +1,7 @@
 import type { PurchaseIntent, Receipt, SpendLimits, SpendReceipt } from "@steelyard/core";
 import { xsalsa20poly1305 } from "@noble/ciphers/salsa.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { chmod, mkdir, open, readFile, stat } from "node:fs/promises";
+import { chmod, mkdir, open, readFile, rename, stat } from "node:fs/promises";
 import { dirname } from "node:path";
 import { lock } from "proper-lockfile";
 import { normalizeCurrency, normalizeMerchantDomain } from "../policy/normalize.js";
@@ -158,6 +158,7 @@ export class VaultLedger {
       stale: 30_000,
       retries: { retries: 10, minTimeout: 10, maxTimeout: 100 }
     });
+    let migrated = false;
     try {
       if (await exists(this.path)) return;
       const receipts = await readLegacySpendLedger(this.legacyPath);
@@ -172,8 +173,13 @@ export class VaultLedger {
         );
         if (rows.length) await this.appendRows(rows);
       });
+      migrated = true;
     } finally {
-      await releaseLegacy();
+      try {
+        if (migrated) await renameMigratedLegacyLedger(this.legacyPath);
+      } finally {
+        await releaseLegacy();
+      }
     }
   }
 
@@ -739,6 +745,15 @@ async function readLegacySpendLedger(path: string): Promise<SpendReceipt[]> {
     }
   }
   return receipts;
+}
+
+async function renameMigratedLegacyLedger(path: string): Promise<void> {
+  const target = `${path}.migrated-${new Date().toISOString()}`;
+  try {
+    await rename(path, target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
 }
 
 function normalizeSpendReceipt(value: unknown): SpendReceipt {

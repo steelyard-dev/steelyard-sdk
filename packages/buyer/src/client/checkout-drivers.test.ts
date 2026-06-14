@@ -12,9 +12,32 @@ import {
   applyUcpUpdate,
   type Checkout as UcpCheckout
 } from "@steelyard/protocol/ucp/checkout";
-import { afterEach, describe, expect, it } from "vitest";
-import { acpDriver } from "./acp.js";
-import { ucpDriver } from "./ucp.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  AcpCanceled,
+  AcpExpired,
+  AcpNoPspEndpoint,
+  AcpProtocolViolation,
+  acpDriver
+} from "./acp.js";
+import {
+  asRecord,
+  billingBuyer,
+  checkoutTotals,
+  delegatePaymentRequest,
+  joinUrl,
+  notifyTotals,
+  patchJson,
+  postJson,
+  purchaseKey,
+  selectedHandler,
+  stringValue
+} from "./driver-common.js";
+import {
+  UcpCanceled,
+  UcpNoCompatibleHandler,
+  ucpDriver
+} from "./ucp.js";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const manifest = defineCommerce({
@@ -107,6 +130,55 @@ describe("ACP checkout driver", () => {
       })
     ).rejects.not.toThrow(/4242424242424242|123/);
   });
+
+  it("maps non-payable ACP statuses to terminal driver errors", async () => {
+    await expect(
+      acpDriver.purchase(intent, {
+        merchantUrl: (await startAcpMerchant({ createStatus: "canceled" })).baseUrl,
+        merchantId: "coffee.example",
+        delegatePaymentUrl: "https://psp.example/delegate",
+        port: testPort(),
+        idempotencyKey: "purchase_canceled",
+        clock: () => now
+      })
+    ).rejects.toBeInstanceOf(AcpCanceled);
+
+    await expect(
+      acpDriver.purchase(intent, {
+        merchantUrl: (await startAcpMerchant({ createStatus: "expired" })).baseUrl,
+        merchantId: "coffee.example",
+        delegatePaymentUrl: "https://psp.example/delegate",
+        port: testPort(),
+        idempotencyKey: "purchase_expired",
+        clock: () => now
+      })
+    ).rejects.toBeInstanceOf(AcpExpired);
+
+    await expect(
+      acpDriver.purchase(intent, {
+        merchantUrl: (await startAcpMerchant({ createStatus: "pending_approval" })).baseUrl,
+        merchantId: "coffee.example",
+        delegatePaymentUrl: "https://psp.example/delegate",
+        port: testPort(),
+        idempotencyKey: "purchase_pending",
+        clock: () => now
+      })
+    ).rejects.toBeInstanceOf(AcpProtocolViolation);
+  });
+
+  it("fails when ACP checkout does not advertise a PSP endpoint", async () => {
+    const merchant = await startAcpMerchant({ handlerConfig: false });
+
+    await expect(
+      acpDriver.purchase(intent, {
+        merchantUrl: merchant.baseUrl,
+        merchantId: "coffee.example",
+        port: testPort(),
+        idempotencyKey: "purchase_no_psp",
+        clock: () => now
+      })
+    ).rejects.toBeInstanceOf(AcpNoPspEndpoint);
+  });
 });
 
 describe("UCP checkout driver", () => {
@@ -167,6 +239,90 @@ describe("UCP checkout driver", () => {
     ).rejects.toThrow(/does not advertise Steelyard/);
     expect(merchant.requests.map((request) => request.idempotencyKey)).toEqual(["purchase_ucp_blocked:create"]);
   });
+
+  it("maps canceled and handlerless UCP checkouts to driver errors", async () => {
+    await expect(
+      ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+        merchantUrl: (await startUcpMerchant({ createStatus: "canceled" })).baseUrl,
+        merchantId: "https://coffee.example/.well-known/ucp",
+        supportsSteelyardMode: true,
+        port: testPort(),
+        idempotencyKey: "purchase_ucp_canceled",
+        clock: () => now
+      })
+    ).rejects.toBeInstanceOf(UcpCanceled);
+
+    await expect(
+      ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+        merchantUrl: (await startUcpMerchant({ handlerCatalog: false })).baseUrl,
+        merchantId: "https://coffee.example/.well-known/ucp",
+        supportsSteelyardMode: true,
+        port: testPort(),
+        idempotencyKey: "purchase_ucp_no_handler",
+        clock: () => now
+      })
+    ).rejects.toBeInstanceOf(UcpNoCompatibleHandler);
+  });
+});
+
+describe("checkout driver helpers", () => {
+  it("covers JSON, URL, totals, handler, and buyer fallbacks", async () => {
+    expect(purchaseKey({}, intent)).toBe("purchase_1");
+    expect(purchaseKey({ idempotencyKey: "explicit" }, intent)).toBe("explicit");
+    expect(joinUrl("https://shop.example/base/", "checkout")).toBe("https://shop.example/base/checkout");
+    expect(joinUrl(new URL("https://shop.example/base"), "/checkout")).toBe("https://shop.example/base/checkout");
+    expect(asRecord(null)).toEqual({});
+    expect(asRecord([])).toEqual({});
+    expect(stringValue("", "fallback")).toBe("fallback");
+    expect(() => checkoutTotals({ totals: "bad" })).toThrow(/expected exactly one total row/);
+    await expect(notifyTotals({}, { totals: [{ type: "total", amount: 0 }], currency: "EUR" }))
+      .resolves.toEqual({ amount: 0, currency: "EUR" });
+    expect(billingBuyer({ name: "Ada", address: { line1: "1", city: "London", postal_code: "SW1A", country: "GB" } }))
+      .toEqual({ name: "Ada", address: { line1: "1", city: "London", postal_code: "SW1A", country: "GB" } });
+
+    expect(selectedHandler([], "https://psp.example/delegate")).toBeUndefined();
+    expect(selectedHandler([{ id: "no-config", config: {} }])).toBeUndefined();
+    expect(selectedHandler([{ id: "first" }], "https://psp.example/delegate")).toEqual({
+      handler: { id: "first" },
+      delegatePaymentUrl: "https://psp.example/delegate"
+    });
+    expect(selectedHandler([{ id: "configured", config: { delegate_payment_url: "https://psp.example/delegate" } }]))
+      .toMatchObject({ handler: { id: "configured" }, delegatePaymentUrl: "https://psp.example/delegate" });
+
+    const fetchEmpty = vi.fn(async () => response("", 204));
+    await expect(postJson("https://shop.example/empty", {}, { idempotencyKey: "empty", fetch: fetchEmpty }))
+      .resolves.toEqual({});
+    const fetchPatchEmpty = vi.fn(async () => response("", 204));
+    await expect(patchJson("https://shop.example/empty", {}, { idempotencyKey: "empty", fetch: fetchPatchEmpty }))
+      .resolves.toEqual({});
+    const fetchInvalid = vi.fn(async () => response("not json", 200));
+    await expect(postJson("https://shop.example/bad", {}, { idempotencyKey: "bad", fetch: fetchInvalid }))
+      .rejects.toThrow(/invalid JSON response/);
+    const fetchPatchError = vi.fn(async () => response("card 4242424242424242 cvc=123", 500));
+    await expect(patchJson("https://shop.example/fail", {}, { idempotencyKey: "fail", fetch: fetchPatchError }))
+      .rejects.toThrow(/\[REDACTED_PAN\]/);
+
+    expect(delegatePaymentRequest(
+      { number: "5555555555554444", exp: "bad", name: "Ada" },
+      {
+        amount: 100,
+        currency: "USD",
+        checkoutId: "checkout_1",
+        merchantId: "coffee.example",
+        purchaseKey: "purchase",
+        riskSignals: [{ type: "card_testing", score: 1, action: "authorized" }],
+        clock: () => now
+      }
+    )).toMatchObject({
+      payment_method: {
+        exp_month: 1,
+        exp_year: 2099,
+        name: "Ada",
+        display_brand: "other"
+      },
+      risk_signals: [{ type: "card_testing", score: 1, action: "authorized" }]
+    });
+  });
 });
 
 interface CapturedRequest {
@@ -175,7 +331,11 @@ interface CapturedRequest {
   body: Record<string, unknown>;
 }
 
-async function startAcpMerchant(opts: { delegateStatus?: number } = {}): Promise<{
+async function startAcpMerchant(opts: {
+  createStatus?: string;
+  delegateStatus?: number;
+  handlerConfig?: boolean;
+} = {}): Promise<{
   baseUrl: string;
   requests: CapturedRequest[];
 }> {
@@ -186,6 +346,31 @@ async function startAcpMerchant(opts: { delegateStatus?: number } = {}): Promise
     requests.push({ path: req.url ?? "/", idempotencyKey: idempotencyKey(req), body });
     if (req.method === "POST" && req.url === "/checkout_sessions") {
       session = withAcpHandler(applyCreateRequest(body, { manifest, now, sessionId: "cs_1" }).next) as CheckoutSession;
+      if (opts.createStatus) session = { ...session, status: opts.createStatus as CheckoutSession["status"] };
+      if (opts.handlerConfig === false) {
+        session = {
+          ...session,
+          capabilities: {
+            payment: {
+              handlers: [
+                {
+                  id: "stripe",
+                  name: "dev.steelyard.vault_token",
+                  display_name: "Vault token",
+                  version: "2026-04-17",
+                  spec: "https://steelyard.dev/specs/payment/vault-token",
+                  requires_delegate_payment: true,
+                  requires_pci_compliance: false,
+                  psp: "stripe",
+                  config_schema: "https://steelyard.dev/schemas/payment-handler-config.json",
+                  instrument_schemas: ["https://steelyard.dev/schemas/vault-token-instrument.json"],
+                  config: {}
+                }
+              ]
+            }
+          }
+        } as CheckoutSession;
+      }
       sendJson(res, 200, session);
       return;
     }
@@ -210,7 +395,7 @@ async function startAcpMerchant(opts: { delegateStatus?: number } = {}): Promise
   return { baseUrl: await listen(server), requests };
 }
 
-async function startUcpMerchant(): Promise<{ baseUrl: string; requests: CapturedRequest[] }> {
+async function startUcpMerchant(opts: { createStatus?: string; handlerCatalog?: boolean } = {}): Promise<{ baseUrl: string; requests: CapturedRequest[] }> {
   const requests: CapturedRequest[] = [];
   let checkout: UcpCheckout | undefined;
   const server = createServer(async (req, res) => {
@@ -218,6 +403,8 @@ async function startUcpMerchant(): Promise<{ baseUrl: string; requests: Captured
     requests.push({ path: req.url ?? "/", idempotencyKey: idempotencyKey(req), body });
     if (req.method === "POST" && req.url === "/checkout") {
       checkout = withUcpHandler(applyUcpCreate(body, { now, checkoutId: "checkout_1", currency: "USD", links: [] }).next);
+      if (opts.createStatus) checkout = { ...checkout, status: opts.createStatus as UcpCheckout["status"] };
+      if (opts.handlerCatalog === false) checkout = { ...checkout, ucp: { ...(checkout.ucp as Record<string, unknown>), payment_handlers: {} } };
       sendJson(res, 200, checkout);
       return;
     }
@@ -340,6 +527,14 @@ function idempotencyKey(req: IncomingMessage): string | undefined {
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
+}
+
+function response(text: string, status: number): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    text: async () => text
+  } as Response;
 }
 
 async function listen(server: Server): Promise<string> {

@@ -305,6 +305,63 @@ describe("Wallet decision, payment, and maintenance", () => {
     });
   });
 
+  it("does not reserve merchant purchases that need policy approval", async () => {
+    await withWorkspace(async () => {
+      const wallet = await Wallet.create(createOptions({ approvalAbove: { USD: 4 } }));
+      const merchant = merchantWithPurchase(vi.fn(async () => purchaseReceipt()));
+
+      await expect(wallet.pay(intent, { merchant, clock: () => purchaseClock }))
+        .rejects.toMatchObject({ name: "WalletApprovalRequired", kind: "policy" });
+      expect(merchant.purchase).not.toHaveBeenCalled();
+      await expect(wallet.pendingReservations()).resolves.toEqual([]);
+    });
+  });
+
+  it("releases reservations for merchant failures and currency mismatches", async () => {
+    await withWorkspace(async () => {
+      const wallet = await Wallet.create(createOptions());
+      const failingMerchant = merchantWithPurchase(async () => {
+        throw new Error("HTTP 500");
+      });
+
+      await expect(wallet.pay(intent, {
+        merchant: failingMerchant,
+        idempotencyKey: "merchant_failure",
+        clock: () => purchaseClock
+      })).rejects.toThrow(/HTTP 500/);
+      await expect(wallet.pendingReservations()).resolves.toEqual([]);
+      await expect(wallet.spendInWindow("daily", "USD")).resolves.toEqual({ pending: 0, captured: 0 });
+
+      const mismatchMerchant = merchantWithPurchase(async (_intent, opts) => {
+        await opts.onTotalsKnown?.(450, "EUR");
+        throw new Error("should not charge after mismatch");
+      });
+      await expect(wallet.pay(intent, {
+        merchant: mismatchMerchant,
+        idempotencyKey: "currency_mismatch",
+        clock: () => purchaseClock
+      })).rejects.toMatchObject({ name: "WalletAmountExceeded", currency: "EUR", reservation_released: true });
+      await expect(wallet.pendingReservations()).resolves.toEqual([]);
+    });
+  });
+
+  it("releases reservations when a UCP-style mandate key is absent", async () => {
+    await withWorkspace(async () => {
+      const wallet = await Wallet.create(createOptions({ mandateKey: false }));
+      const merchant = merchantWithPurchase(async (_intent, opts) => {
+        await opts.port.mandatePublicKey();
+        throw new Error("unreachable");
+      });
+
+      await expect(wallet.pay(intent, {
+        merchant,
+        idempotencyKey: "missing_mandate",
+        clock: () => purchaseClock
+      })).rejects.toBeInstanceOf(MandateKeyMissing);
+      await expect(wallet.pendingReservations()).resolves.toEqual([]);
+    });
+  });
+
   it("keeps resumable approval reservations claimed and resumes the same reservation", async () => {
     await withWorkspace(async () => {
       const wallet = await Wallet.create(createOptions());
@@ -357,6 +414,52 @@ describe("Wallet decision, payment, and maintenance", () => {
     });
   });
 
+  it("can release a pending approval reservation during reconciliation", async () => {
+    await withWorkspace(async () => {
+      const wallet = await Wallet.create(createOptions());
+      const expiresAt = new Date(purchaseClock.getTime() + 5 * 60_000).toISOString();
+      const challengeMerchant = merchantWithPurchase(async (_intent, opts) => {
+        throw new WalletApprovalRequired({
+          kind: "escalation",
+          continue_url: "https://coffee.example/review",
+          resume: {
+            protocol: "ucp",
+            checkout_id: "checkout_1",
+            idempotency_key: opts.idempotencyKey ?? "missing",
+            expires_at: expiresAt,
+            reservation_id: opts.reservation_id ?? "missing"
+          }
+        });
+      });
+
+      let challenge: InstanceType<typeof WalletApprovalRequired> | undefined;
+      try {
+        await wallet.pay(intent, {
+          merchant: challengeMerchant,
+          idempotencyKey: "reconcile_release",
+          clock: () => purchaseClock
+        });
+      } catch (error) {
+        challenge = error as InstanceType<typeof WalletApprovalRequired>;
+      }
+
+      expect(challenge?.kind).toBe("escalation");
+      await expect(wallet.pendingReservations()).resolves.toMatchObject([
+        { id: challenge!.resume!.reservation_id, status: "pending_escalated" }
+      ]);
+      await wallet.reconcile(challenge!.resume!.reservation_id, {
+        decision: "release",
+        clock: () => purchaseClock
+      });
+      await expect(wallet.pendingReservations()).resolves.toEqual([]);
+      await expect(wallet.spendInWindow("daily", "USD")).resolves.toEqual({ pending: 0, captured: 0 });
+      await expect(wallet.reconcile(challenge!.resume!.reservation_id, {
+        decision: "complete",
+        clock: () => purchaseClock
+      })).rejects.toThrow(/receipt required/);
+    });
+  });
+
   it("surfaces charged-but-unpersisted receipts for reconciliation", async () => {
     await withWorkspace(async () => {
       const wallet = await Wallet.create(createOptions());
@@ -401,9 +504,12 @@ describe("Wallet decision, payment, and maintenance", () => {
       policy.rules.push({ name: "user rule", can: "buy", where: { merchant_domain: "user.example" } });
       await writeFile(policyPath, stringify(policy));
 
+      await wallet.setLimits({ daily: { USD: 60 }, weekly: { USD: 250 } });
       await wallet.setLimits({ USD: 50 });
       await expect(wallet.decide({ ...intent, amount: 5001 })).resolves.toMatchObject({ status: "denied", reason: "daily_limit_exceeded" });
       await wallet.setAllowedMerchants(["linear.app"]);
+      await wallet.setApprovalAbove({ USD: 25 });
+      await wallet.setApprovalAbove({});
       await wallet.setApprovalAbove({ USD: 25 });
 
       const updated = parseDocument(await readFile(policyPath, "utf8")).toJSON() as any;

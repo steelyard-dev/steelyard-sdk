@@ -1,7 +1,7 @@
 import type { PurchaseIntent, Receipt, SpendReceipt } from "@steelyard/core";
 import { fork } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { appendFile, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { appendFile, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -220,6 +220,39 @@ describe("BuyerVault encrypted spend ledger", () => {
     });
   });
 
+  it("translates v0.3 receipts back to the exact v0.2 spend key set", async () => {
+    await withVault(async ({ vault }) => {
+      const reservation = await vault.reserve({
+        intent,
+        idempotencyKey: "idem_v02_shape",
+        at: new Date("2026-06-14T12:00:00.000Z")
+      });
+      await vault.settleReservation(reservation.id, v03Receipt(), new Date("2026-06-14T12:02:00.000Z"));
+
+      const spend = await vault.listSpend();
+
+      expect(spend).toEqual([
+        {
+          ts: "2026-06-14T12:02:00.000Z",
+          intent_id: "intent_1",
+          merchant_domain: "shop.example",
+          amount: 450,
+          currency: "USD",
+          status: "completed"
+        }
+      ]);
+      expect(Object.keys(spend[0]!).sort()).toEqual([
+        "amount",
+        "currency",
+        "intent_id",
+        "merchant_domain",
+        "status",
+        "ts"
+      ]);
+      expect(spend[0]).not.toHaveProperty("timestamp");
+    });
+  });
+
   it("sums pending and captured spend inside rolling windows and filters list ranges", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-14T12:00:00.000Z"));
@@ -279,18 +312,44 @@ describe("BuyerVault encrypted spend ledger", () => {
         boxStore
       });
       await vault.close();
-      await writeFile(join(root, "spend-ledger.jsonl"), `${JSON.stringify(receipt({ amount: 123 }))}\n{not json}\n`, {
+      await writeFile(join(root, "spend-ledger.jsonl"), [
+        JSON.stringify(receipt({ amount: 123 })),
+        JSON.stringify(receipt({ intent_id: "intent_failed", amount: 50, status: "failed" })),
+        "{not json}",
+        ""
+      ].join("\n"), {
         mode: 0o600
       });
       const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
       const reopened = await BuyerVault.open({ path, keystore, boxStore });
 
-      await expect(reopened.listSpend()).resolves.toMatchObject([{ amount: 123, status: "completed" }]);
+      const spend = await reopened.listSpend();
+      expect(spend).toEqual([
+        receipt({ amount: 123 }),
+        receipt({ intent_id: "intent_failed", amount: 50, status: "failed" })
+      ]);
+      expect(Object.keys(spend[0]!).sort()).toEqual([
+        "amount",
+        "currency",
+        "intent_id",
+        "merchant_domain",
+        "status",
+        "ts"
+      ]);
+      expect(spend[0]).not.toHaveProperty("timestamp");
       await expect(reopened.listReceipts()).resolves.toEqual([]);
       await expect(reopened.spendInWindow("daily", "USD")).resolves.toEqual({ pending: 0, captured: 123 });
       expect(await readFile(reopened.ledgerPath, "utf8")).toContain('"schema_version":2');
-      expect(String(stderr.mock.calls[0]?.[0])).toContain("skipped malformed spend ledger line 2");
+      await expect(readFile(join(root, "spend-ledger.jsonl"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+      const migratedFiles = (await readdir(root)).filter((name) => name.startsWith("spend-ledger.jsonl.migrated-"));
+      expect(migratedFiles).toHaveLength(1);
+      expect(String(stderr.mock.calls[0]?.[0])).toContain("skipped malformed spend ledger line 3");
+
+      await reopened.close();
+      const reopenedAgain = await BuyerVault.open({ path, keystore, boxStore });
+      await expect(reopenedAgain.listSpend()).resolves.toEqual(spend);
+      await expect(readdir(root)).resolves.toContain(migratedFiles[0]!);
     } finally {
       await rm(root, { recursive: true, force: true });
     }
