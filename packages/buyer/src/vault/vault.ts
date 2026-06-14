@@ -1,4 +1,4 @@
-import type { BillingAddress, BillingPayload, CardMetadata, SpendReceipt } from "@steelyard/core";
+import type { BillingAddress, BillingPayload, CardMetadata, Receipt, SpendReceipt } from "@steelyard/core";
 import { randomBytes, createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, basename, resolve, join } from "node:path";
@@ -28,9 +28,11 @@ import {
   type Keystore
 } from "./keystore.js";
 import {
-  listSpend as listSpendReceipts,
-  recordSpend as appendSpendReceipt,
-  spendInWindow as sumSpendInWindow,
+  VaultLedger,
+  type Reservation,
+  type ReserveArgs,
+  type SpendWindowDetailedUsage,
+  type SpendWindowUsage,
   type SpendWindow
 } from "./ledger.js";
 import {
@@ -61,6 +63,8 @@ interface VaultRecord {
 export class BuyerVault {
   readonly path: string;
   readonly ledgerPath: string;
+  readonly legacyLedgerPath: string;
+  readonly ledger: VaultLedger;
   readonly uuid: string;
   #profile: { name: string; email?: string };
   #header: VaultHeader;
@@ -79,13 +83,21 @@ export class BuyerVault {
     masterKey: Uint8Array;
   }) {
     this.path = opts.path;
-    this.ledgerPath = join(dirname(opts.path), "spend-ledger.jsonl");
+    this.legacyLedgerPath = join(dirname(opts.path), "spend-ledger.jsonl");
+    this.ledgerPath = join(dirname(opts.path), "ledger.box");
     this.uuid = opts.uuid;
     this.#profile = opts.profile;
     this.#header = opts.header;
     this.#boxStore = opts.boxStore;
     this.#boxName = opts.boxName;
     this.#masterKey = opts.masterKey;
+    this.ledger = new VaultLedger({
+      path: this.ledgerPath,
+      legacyPath: this.legacyLedgerPath,
+      vaultUuid: opts.uuid,
+      key: opts.masterKey,
+      kdf: opts.header.kdf
+    });
   }
 
   static async init(opts: VaultInitOptions): Promise<BuyerVault> {
@@ -152,7 +164,7 @@ export class BuyerVault {
     const masterKey = await masterKeyForOpen(keystore, header, account);
     const record = readRecord(packed, header, masterKey);
 
-    return new BuyerVault({
+    const vault = new BuyerVault({
       path: location.path,
       uuid: header.uuid,
       profile: record.profile,
@@ -161,6 +173,9 @@ export class BuyerVault {
       boxName: location.name,
       masterKey
     });
+    await vault.ledger.migrateLegacyIfNeeded();
+    await vault.ledger.releaseExpiredEscalations(new Date());
+    return vault;
   }
 
   static async openGlobal(opts: { keystore?: Keystore } = {}): Promise<BuyerVault> {
@@ -288,17 +303,72 @@ export class BuyerVault {
 
   async recordSpend(receipt: SpendReceipt): Promise<void> {
     this.assertOpen();
-    await appendSpendReceipt(this.ledgerPath, receipt);
+    await this.ledger.recordSpend(receipt);
   }
 
-  async spendInWindow(window: SpendWindow, currency: string): Promise<number> {
+  async spendInWindow(window: SpendWindow, currency: string): Promise<SpendWindowUsage> {
     this.assertOpen();
-    return sumSpendInWindow(this.ledgerPath, window, currency);
+    return this.ledger.spendInWindow(window, currency);
+  }
+
+  async spendInWindowDetailed(window: SpendWindow, currency: string): Promise<SpendWindowDetailedUsage> {
+    this.assertOpen();
+    return this.ledger.spendInWindowDetailed(window, currency);
   }
 
   async listSpend(opts: { since?: Date; until?: Date } = {}): Promise<SpendReceipt[]> {
     this.assertOpen();
-    return listSpendReceipts(this.ledgerPath, opts);
+    return this.ledger.listSpend(opts);
+  }
+
+  async listReceipts(opts: { since?: Date; until?: Date } = {}): Promise<Receipt[]> {
+    this.assertOpen();
+    return this.ledger.listReceipts(opts);
+  }
+
+  async reserve(args: ReserveArgs): Promise<Reservation> {
+    this.assertOpen();
+    return this.ledger.reserve(args);
+  }
+
+  async adjustReservation(id: string, finalTotal: number, at: Date): Promise<void> {
+    this.assertOpen();
+    await this.ledger.adjust(id, finalTotal, at);
+  }
+
+  async markReservationEscalated(id: string, expires_at: string, at: Date): Promise<void> {
+    this.assertOpen();
+    await this.ledger.markEscalated(id, expires_at, at);
+  }
+
+  async releaseReservation(id: string, errorSummary: string, at: Date): Promise<void> {
+    this.assertOpen();
+    await this.ledger.release(id, errorSummary, at);
+  }
+
+  async settleReservation(id: string, receipt: Receipt, at: Date): Promise<void> {
+    this.assertOpen();
+    await this.ledger.settle(id, receipt, at);
+  }
+
+  async writeShadowReceipt(id: string, receipt: Receipt, at: Date): Promise<void> {
+    this.assertOpen();
+    await this.ledger.writeShadowReceipt(id, receipt, at);
+  }
+
+  async reattachReservation(id: string, at: Date): Promise<Reservation> {
+    this.assertOpen();
+    return this.ledger.reattach(id, at);
+  }
+
+  async pendingReservations(): Promise<Reservation[]> {
+    this.assertOpen();
+    return this.ledger.pendingReservations();
+  }
+
+  async shadowReceipt(id: string): Promise<Receipt | undefined> {
+    this.assertOpen();
+    return this.ledger.shadowReceipt(id);
   }
 
   async exportKeyToFile(opts: { path: string; recoveryPassword: string }): Promise<string> {

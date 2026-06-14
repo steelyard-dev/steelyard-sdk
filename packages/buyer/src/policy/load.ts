@@ -116,10 +116,7 @@ function adaptSpendContext(vault?: BuyerVault): { vault?: PolicySpendContext } {
   if (!vault) return {};
   return {
     vault: {
-      spendInWindow: async (window, currency) => ({
-        pending: 0,
-        captured: await vault.spendInWindow(window, currency)
-      })
+      spendInWindow: async (window, currency) => vault.spendInWindow(window, currency)
     }
   };
 }

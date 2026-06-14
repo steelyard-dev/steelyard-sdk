@@ -367,7 +367,10 @@ export class Wallet {
     return this.#vault.listSpend(opts);
   }
 
-  async spendInWindow(window: "daily" | "weekly" | "monthly", currency: string): Promise<number> {
+  async spendInWindow(
+    window: "daily" | "weekly" | "monthly",
+    currency: string
+  ): Promise<{ pending: number; captured: number }> {
     return this.#vault.spendInWindow(window, currency);
   }
 

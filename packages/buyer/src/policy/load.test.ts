@@ -57,7 +57,7 @@ limits:
     expect(policy.rules.map((rule) => rule.name)).toEqual(["allow coffee"]);
     expect(policy.limits.daily?.USD).toBe(1000);
     await expect(policy.evaluate(intent, {
-      vault: { spendInWindow: async () => 0 } as unknown as BuyerVault
+      vault: { spendInWindow: async () => ({ pending: 0, captured: 0 }) } as unknown as BuyerVault
     })).resolves.toEqual({ status: "allowed", rule: "allow coffee" });
   });
 
