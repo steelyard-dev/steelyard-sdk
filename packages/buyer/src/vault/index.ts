@@ -8,3 +8,4 @@ export {
 } from "./crypto.js";
 export { createVaultHeader, encodeVaultHeader, type VaultHeader } from "./header.js";
 export { memoryKeystore, VAULT_KEY_SERVICE, type Keystore } from "./keystore.js";
+export { BuyerVault, accountForVault, type VaultInitOptions, type VaultOpenOptions } from "./vault.js";
