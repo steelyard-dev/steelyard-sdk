@@ -21,14 +21,14 @@ explicit password with Argon2id.
 
 | Platform | osKeystore | passwordKeystore | Notes |
 |----------|------------|------------------|-------|
-| macOS 11+ | yes | yes | Touch ID prompts on first access per process |
-| Ubuntu / Debian / Fedora desktop | yes, with libsecret and a keyring daemon | yes | |
-| Alpine Linux | requires GLIBC compat for `@napi-rs/keyring` native | yes | passwordKeystore recommended |
-| NixOS | Secret Service depends on home-manager | yes | |
-| Docker containers | requires Secret Service inside | yes | passwordKeystore recommended |
-| SSH-only sessions | no DBus session | yes | passwordKeystore required |
-| GitHub Actions linux | see CI keychain setup | yes | both lanes tested |
-| Windows 10+ | yes via Credential Vault | yes | not in the v0.2 CI gate |
+| macOS 11+ | ✅ | ✅ | Touch ID prompts on first access per process |
+| Ubuntu / Debian / Fedora desktop | ✅ (with libsecret + a keyring daemon) | ✅ | |
+| Alpine Linux | ⚠ requires GLIBC compat for @napi-rs/keyring native | ✅ | passwordKeystore recommended |
+| NixOS | ⚠ Secret Service depends on home-manager | ✅ | |
+| Docker containers | ⚠ requires Secret Service inside | ✅ | passwordKeystore recommended |
+| SSH-only sessions | ❌ no DBus session | ✅ | passwordKeystore required |
+| GitHub Actions linux | ⚠ see CP3 setup | ✅ | both lanes tested |
+| Windows 10+ | ✅ via Credential Vault | ✅ | not in the v0.2 CI gate; works |
 
 ## Linux runtime packages
 

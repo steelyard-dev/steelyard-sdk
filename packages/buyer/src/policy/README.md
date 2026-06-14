@@ -1,44 +1,52 @@
-# `@steelyard/buyer/policy` (scaffolded; not yet shipped)
+# `@steelyard/buyer/policy`
 
-YAML-driven authorization for autonomous agent buying. CanCanCan-shaped: rules
-declare what the agent **can** or **cannot** buy, with merchant, currency, and
-amount predicates plus per-period spending limits.
+YAML-driven authorization for agent purchases. This is the engine behind the
+root `Wallet` facade and is exported for power users who need custom policy
+loading.
+
+```ts
+import { BuyerPolicy } from "@steelyard/buyer/policy";
+
+const policy = await BuyerPolicy.load();
+const decision = await policy.evaluate(intent, { vault });
+```
+
+## YAML shape
 
 ```yaml
-# ~/.steelyard/policy.yml
 version: "0.1"
 default: deny
-
 rules:
-  - name: "coffee under $15"
+  - name: coffee
     can: buy
     where:
-      merchant_domain: "*.coffee.example"
+      merchant_domain: ["coffee.example", "*.coffee.example"]
       currency: USD
-      amount: { lte: 1500 }   # cents
-
-  - name: "blocked"
-    cannot: buy
-    where:
-      merchant_domain: ["*.adult.example", "casino-*.com"]
-
+      amount: { lte: 1500 }
+      offer_category: coffee
+    requires_approval_above: { amount: 2500, currency: USD }
 limits:
-  daily:   { USD: 10000 }
-  weekly:  { USD: 50000 }
+  daily: { USD: 10000 }
+  weekly: { USD: 50000 }
   monthly: { USD: 200000 }
 ```
 
-API (planned):
+Parsing is strict: duplicate keys, anchors, aliases, tags, unsupported
+versions, `can` plus `cannot`, and files larger than 1 MB are rejected. A rule
+with `where.amount` must also specify `where.currency`.
 
-```typescript
-import { BuyerPolicy } from "@steelyard/buyer/policy";
+## Evaluation
 
-const policy = await BuyerPolicy.load();           // ~/.steelyard/policy.yml
-const decision = policy.evaluate(intent);
-// → { allowed: true }
-// → { allowed: false, reason: "no matching rule (deny-by-default)" }
-// → { requires_approval: true, threshold: 2500, matched_rule: "..." }
-```
+Rules are deterministic:
 
-This subpath is **not yet in `package.json#exports`** — it ships when the
-implementation is complete (no-stubs rule).
+1. All `cannot` rules from project and global files run first.
+2. Project `can` rules run next.
+3. Global `can` rules follow.
+4. The file default is the fallback.
+
+Spending limits query the vault ledger. If a policy has non-zero limits and no
+vault is supplied, evaluation denies with `spend_limits_require_vault` instead
+of silently skipping caps.
+
+Wallet-owned rules use the reserved `steelyard.wallet.*` namespace. Wallet
+maintenance setters only modify those rules and preserve user-edited rules.

@@ -1,53 +1,63 @@
-# `@steelyard/buyer/vault` (scaffolded; not yet shipped)
+# `@steelyard/buyer/vault`
 
-Local-first encrypted vault for billing identity, addresses, and payment cards.
-Password-manager-shaped: stores raw PANs + billing info on disk (AES-256-GCM),
-master key in the OS keychain (macOS Keychain / Linux Secret Service / Windows
-Credential Vault) via `keytar`.
+Local-first encrypted vault for billing identity, addresses, payment card
+metadata, and raw PANs. This subpath is exported for power users; the primary
+developer path is the root `Wallet` facade.
 
-Layout:
+The vault stores data in `vault.box`, encrypted with XSalsa20-Poly1305 from
+`@noble/ciphers`. Each vault has a stable UUID in its plaintext header, and
+that header is authenticated as associated data when the encrypted record is
+opened. The master key is stored in the OS keychain by default, or derived with
+Argon2id when the caller explicitly supplies `passwordKeystore({ password })`.
 
-```
-~/.steelyard/
-└── vault.enc                   # AES-256-GCM blob; master key in OS keychain
-```
+```ts
+import { BuyerVault, passwordKeystore } from "@steelyard/buyer/vault";
 
-Decrypted contents:
-
-```yaml
-profile:
-  name: "Riccardo"
-  email: "riccardo@example.com"
-addresses:
-  default: { line1, city, postal_code, country }
-cards:
-  - id: "personal"
-    name_on_card: "Riccardo X"
-    pan: "4242424242424242"
-    exp: "12/27"
-    brand: "visa"
-    last4: "4242"
-    tags: ["default"]
-  - id: "biz"
-    tags: ["github.com", "linear.app"]
+const vault = await BuyerVault.open({
+  path: "~/.steelyard/vault.box",
+  keystore: passwordKeystore({ password: process.env.STEELYARD_PASSWORD! })
+});
 ```
 
-CVV is intentionally **not** stored — most card-on-file checkout flows accept
-the card without it. If a merchant requires CVV, prompt at purchase time.
+## Keystore options
 
-API (planned):
+- `osKeystore()` uses `@napi-rs/keyring` for macOS Keychain, Linux Secret
+  Service, or Windows Credential Vault. It is the default.
+- `passwordKeystore({ password })` derives the master key from the password and
+  the vault header KDF parameters. Use it for headless Linux, Docker, SSH-only
+  sessions, Alpine, NixOS without Secret Service, and CI password lanes.
+- `memoryKeystore()` and `memoryBoxStore()` are for tests only.
 
-```typescript
-import { BuyerVault } from "@steelyard/buyer/vault";
+The vault never silently falls back from OS keychain to password mode. If the OS
+keychain is unreachable, open/init throws with a message that tells the caller
+to pass an explicit password keystore.
 
-const vault = await BuyerVault.openGlobal();    // ~/.steelyard/vault.enc
-// or:
-const vault = await BuyerVault.openProject();   // ./.steelyard/vault.enc
+## Card exposure
 
-await vault.addCard({ id: "personal", pan, exp, brand, last4 });
-const card    = await vault.pickCard({ merchant: "github.com" });
-const billing = await vault.billing();
+`listCards()` and `pickCard()` return metadata only: brand, last4, exp, name,
+and tags. The only path to a raw PAN is `revealCard(id)`. Raw card objects
+redact `pan` in `toJSON()` and Node's inspector, but callers should still avoid
+logging them.
+
+## Recovery
+
+Call `exportKeyToFile({ path, recoveryPassword })` once after setup and store
+the recovery file plus password separately, for example in a password manager
+or encrypted backup.
+
+```ts
+await vault.exportKeyToFile({
+  path: "~/.steelyard/recovery.enc",
+  recoveryPassword: process.env.STEELYARD_RECOVERY_PASSWORD!
+});
+
+await BuyerVault.importKeyFromFile({
+  path: "~/.steelyard/recovery.enc",
+  vaultPath: "~/.steelyard/vault.box",
+  recoveryPassword: process.env.STEELYARD_RECOVERY_PASSWORD!
+});
 ```
 
-This subpath is **not yet in `package.json#exports`** — it ships when the
-implementation is complete (no-stubs rule).
+`exportKey_UNSAFE()` exists only as an escape hatch. It returns the raw master
+key as a base64 string and can leak through REPL history, logs, or terminal
+scrollback.

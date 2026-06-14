@@ -31,19 +31,19 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Linux keychain setup
+      - name: Test (Linux keychain)
         if: runner.os == 'Linux' && matrix.lane == 'keychain'
         run: |
           sudo apt-get update
           sudo apt-get install -y libsecret-1-0 libsecret-1-dev gnome-keyring dbus-x11
           eval "$(dbus-launch --sh-syntax)"
-          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
           eval "$(echo -n '' | gnome-keyring-daemon --start --components=secrets --unlock)"
-          echo "GNOME_KEYRING_CONTROL=$GNOME_KEYRING_CONTROL" >> "$GITHUB_ENV"
+          STEELYARD_TEST_KEYSTORE=keychain pnpm test
       - name: Test
+        if: runner.os != 'Linux' || matrix.lane != 'keychain'
         run: pnpm test
         env:
-          STEELYARD_TEST_KEYSTORE: ${{ matrix.lane == 'password' && 'password' || '' }}
+          STEELYARD_TEST_KEYSTORE: ${{ matrix.lane }}
       - name: Buyer examples
         run: |
           STEELYARD_EXAMPLE_DRY_RUN=1 pnpm --filter @steelyard/example-coffee-shop buy:wallet
