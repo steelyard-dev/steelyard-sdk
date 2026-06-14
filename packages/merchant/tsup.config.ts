@@ -2,6 +2,7 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: {
+    index: "src/index.ts",
     "checkout/index": "src/checkout/index.ts",
     "policy/index": "src/policy/index.ts",
     "psp/index": "src/psp/index.ts",

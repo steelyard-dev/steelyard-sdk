@@ -1,4 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
+export { MerchantCheckoutConfigError, createMerchantCheckout } from "./server.js";
+export type { AcpRoutes, MerchantCheckout, MerchantCheckoutOpts, UcpRoutes } from "./server.js";
 export {
   StoreCasConflict,
   StoreNotFound,
