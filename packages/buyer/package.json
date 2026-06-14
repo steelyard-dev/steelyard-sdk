@@ -8,6 +8,11 @@
     "dist"
   ],
   "exports": {
+    ".": {
+      "types": "./dist/wallet/index.d.ts",
+      "import": "./dist/wallet/index.js",
+      "require": "./dist/wallet/index.cjs"
+    },
     "./client": {
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js",
