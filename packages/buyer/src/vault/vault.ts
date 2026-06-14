@@ -20,7 +20,7 @@ import {
 } from "./card.js";
 import { openVaultBox, sealVaultBox, VAULT_KEY_BYTES } from "./crypto.js";
 import { packVaultBox, unpackVaultBox } from "./format.js";
-import { createVaultHeader, type VaultHeader } from "./header.js";
+import { createVaultHeader, parseVaultHeader, type VaultHeader } from "./header.js";
 import {
   VAULT_KEY_SERVICE,
   isPasswordKeystore,
@@ -33,6 +33,11 @@ import {
   spendInWindow as sumSpendInWindow,
   type SpendWindow
 } from "./ledger.js";
+import {
+  exportKeyToRecoveryFile,
+  exportKeyUnsafe,
+  importKeyFromRecoveryFile
+} from "./recovery.js";
 
 export interface VaultInitOptions {
   profile: { name: string; email?: string };
@@ -142,7 +147,7 @@ export class BuyerVault {
     if (!bytes) throw new Error(`vault file not found at ${location.path}`);
 
     const packed = unpackVaultBox(bytes);
-    const header = parseHeader(packed.header);
+    const header = parseVaultHeader(packed.header);
     const account = accountForVault(header.uuid);
     const masterKey = await masterKeyForOpen(keystore, header, account);
     const record = readRecord(packed, header, masterKey);
@@ -164,6 +169,14 @@ export class BuyerVault {
 
   static async openProject(opts: { keystore?: Keystore } = {}): Promise<BuyerVault> {
     return BuyerVault.open({ path: projectVaultPath(), keystore: opts.keystore });
+  }
+
+  static async importKeyFromFile(opts: {
+    path: string;
+    vaultPath: string;
+    recoveryPassword: string;
+  }): Promise<void> {
+    await importKeyFromRecoveryFile(opts);
   }
 
   get profile(): { name: string; email?: string } {
@@ -288,6 +301,21 @@ export class BuyerVault {
     return listSpendReceipts(this.ledgerPath, opts);
   }
 
+  async exportKeyToFile(opts: { path: string; recoveryPassword: string }): Promise<string> {
+    this.assertOpen();
+    return exportKeyToRecoveryFile({
+      path: opts.path,
+      recoveryPassword: opts.recoveryPassword,
+      vaultUuid: this.uuid,
+      masterKey: this.#masterKey
+    });
+  }
+
+  async exportKey_UNSAFE(): Promise<string> {
+    this.assertOpen();
+    return exportKeyUnsafe(this.#masterKey);
+  }
+
   async close(): Promise<void> {
     if (!this.#isOpen) return;
     this.#masterKey.fill(0);
@@ -298,7 +326,7 @@ export class BuyerVault {
     const bytes = await this.#boxStore.read(this.#boxName);
     if (!bytes) throw new Error(`vault file not found at ${this.path}`);
     const packed = unpackVaultBox(bytes);
-    const header = parseHeader(packed.header);
+    const header = parseVaultHeader(packed.header);
     return readRecord(packed, header, this.#masterKey);
   }
 
@@ -379,19 +407,6 @@ function readRecord(
   return normalizeVaultRecord(JSON.parse(new TextDecoder().decode(plaintext)));
 }
 
-function parseHeader(bytes: Uint8Array): VaultHeader {
-  const parsed = JSON.parse(new TextDecoder().decode(bytes)) as VaultHeader;
-  if (
-    parsed.version !== 1 ||
-    parsed.alg !== "xsalsa20-poly1305" ||
-    typeof parsed.uuid !== "string" ||
-    !validKdf(parsed.kdf)
-  ) {
-    throw new Error("vault header is unsupported");
-  }
-  return parsed;
-}
-
 function normalizeVaultRecord(value: unknown): VaultRecord {
   if (!value || typeof value !== "object") throw new Error("vault record is malformed");
   const record = value as Partial<VaultRecord>;
@@ -410,19 +425,4 @@ function normalizeVaultRecord(value: unknown): VaultRecord {
 
 function nextId(prefix: "card" | "addr"): string {
   return `${prefix}_${randomBytes(4).toString("hex")}`;
-}
-
-function validKdf(kdf: VaultHeader["kdf"]): boolean {
-  if (kdf === null) return true;
-  return (
-    typeof kdf === "object" &&
-    kdf.type === "argon2id" &&
-    typeof kdf.salt === "string" &&
-    Number.isInteger(kdf.iterations) &&
-    kdf.iterations > 0 &&
-    Number.isInteger(kdf.memory_kib) &&
-    kdf.memory_kib > 0 &&
-    Number.isInteger(kdf.parallelism) &&
-    kdf.parallelism > 0
-  );
 }
