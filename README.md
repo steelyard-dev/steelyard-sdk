@@ -1,15 +1,13 @@
 # Steelyard
 
-Steelyard is a TypeScript SDK for defining a read-only commerce catalog once and serving it over MCP, ACP, and UCP. A buyer can connect to any of those protocols and get the same offers, manifest, and policies.
+Steelyard is a TypeScript SDK for defining a commerce catalog once, serving it over MCP, ACP, and UCP, and letting buyers gate purchases through a local Wallet.
 
 v1 is intentionally read-side only: catalog discovery, offer listing, offer lookup, manifest, and policies. Carts, checkout, payment execution, receipts, and order mutation are out of scope.
 
 ## Install
 
 ```sh
-npm install @steelyard/core @steelyard/mcp @steelyard/acp @steelyard/ucp
-npm install @steelyard/client
-npm install --global @steelyard/agent
+npm install @steelyard/core @steelyard/protocol @steelyard/buyer
 ```
 
 For local development:
@@ -38,7 +36,7 @@ export const manifest = defineCommerce({
 });
 ```
 
-Pass that manifest to `@steelyard/mcp`, `@steelyard/acp`, and `@steelyard/ucp` to expose one catalog through all three protocols.
+Pass that manifest to `@steelyard/protocol/mcp`, `@steelyard/protocol/acp`, and `@steelyard/protocol/ucp` to expose one catalog through all three protocols.
 
 ## Demo
 
@@ -52,7 +50,7 @@ PORT=3000 pnpm --filter @steelyard/example-coffee-shop start
 In another terminal:
 
 ```sh
-steelyard-agent --merchant http://127.0.0.1:3000/mcp "what does this shop sell"
+steelyard-agent --merchant http://127.0.0.1:3000/protocol/mcp "what does this shop sell"
 ```
 
 Transcript with `ANTHROPIC_API_KEY` unset:
@@ -117,23 +115,24 @@ Transcript with `ANTHROPIC_API_KEY` unset:
 ]
 ```
 
-The full coffee-shop example contains Single Espresso, Double Espresso, and Cappuccino. The integration test boots the merchant and proves MCP `list_offers`, ACP `/acp/feed`, and UCP `/api/catalog/search` return the same canonical offer list.
+The full coffee-shop example contains Single Espresso, Double Espresso, and Cappuccino. The integration test boots the merchant and proves MCP `list_offers`, ACP `/protocol/acp/feed`, and UCP `/api/catalog/search` return the same canonical offer list.
 
-## Buyer SDK
+## Wallet
 
 ```ts
-import { Steelyard } from "@steelyard/client";
+import { Wallet } from "@steelyard/buyer";
 
-const merchant = await Steelyard.connect("https://merchant.example/mcp");
+const wallet = await Wallet.open();
 
-if ("error" in merchant) {
-  throw new Error(merchant.error_detail ?? merchant.error);
+if (await wallet.isAllowed(intent)) {
+  const payment = await wallet.pay(intent);
+  await payment.cancel(); // v0.2 releases card details; v0.3 will charge.
 }
-
-const offers = await merchant.search("");
 ```
 
-`Steelyard.connect()` probes MCP first, then ACP, then UCP. The closed v1 error taxonomy is `not_found`, `version_mismatch`, `protocol_mismatch`, `network_error`, `internal_error` (exported from `@steelyard/core` as `ERROR_CODES`).
+Power users can still import `Steelyard` from `@steelyard/buyer/client`,
+`BuyerPolicy` from `@steelyard/buyer/policy`, and `BuyerVault` from
+`@steelyard/buyer/vault`.
 
 ## Port Note
 

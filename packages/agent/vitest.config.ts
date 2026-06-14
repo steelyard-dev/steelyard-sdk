@@ -5,10 +5,10 @@ const source = (path: string) => fileURLToPath(new URL(path, import.meta.url));
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@steelyard/client": source("../client/src/index.ts"),
-      "@steelyard/core": source("../core/src/index.ts")
-    }
+    alias: [
+      { find: "@steelyard/buyer/client", replacement: source("../buyer/src/client/index.ts") },
+      { find: /^@steelyard\/core$/, replacement: source("../core/src/index.ts") }
+    ]
   },
   test: {
     coverage: {

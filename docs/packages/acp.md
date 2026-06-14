@@ -1,9 +1,9 @@
-# `@steelyard/acp`
+# `@steelyard/protocol/acp`
 
 Emit a spec-validated ACP feed/catalog endpoint from a Steelyard manifest.
 
 ```bash
-npm install @steelyard/acp @steelyard/core
+npm install @steelyard/protocol @steelyard/core
 ```
 
 The published `ProductsResponse` is validated against
@@ -25,7 +25,7 @@ import {
   type AcpDescription,
   type AcpMedia,
   type AcpValidationResult
-} from "@steelyard/acp";
+} from "@steelyard/protocol/acp";
 ```
 
 ### `buildAcpFeed(manifest)` → `AcpFeed`
@@ -48,10 +48,10 @@ Throws with a spec-aware error message if the feed doesn't conform.
 
 ## Verification
 
-`packages/acp/src/feed.test.ts` runs adversarial cases (tampered feed must
+`packages/protocol/src/acp/feed.test.ts` runs adversarial cases (tampered feed must
 throw the specific spec violation). Coverage: ≥ 95% lines.
 
 ## What's next
 
 - :material-protocol: [ACP protocol reference](../protocols/acp.md).
-- :material-shopping-search: [`@steelyard/client`](client.md) — the unified buyer SDK.
+- :material-shopping-search: [`@steelyard/buyer/client`](client.md) — the unified buyer SDK.

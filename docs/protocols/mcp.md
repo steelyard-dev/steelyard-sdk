@@ -1,6 +1,6 @@
 # MCP
 
-Steelyard's MCP adapter (`@steelyard/mcp`) emits a real
+Steelyard's MCP adapter (`@steelyard/protocol/mcp`) emits a real
 [Model Context Protocol](https://modelcontextprotocol.io/) server from a
 `defineCommerce()` manifest. The runtime is the official
 `@modelcontextprotocol/sdk` (≥ 1.29) — not a reimplementation.
@@ -31,7 +31,7 @@ On `initialize`, the server advertises:
 ```
 
 The capability ships in two places: `serverInfo.capabilities.commerce` (the
-direct sniff site `@steelyard/client` uses) and `capabilities.extensions["steelyard/commerce"]`
+direct sniff site `@steelyard/buyer/client` uses) and `capabilities.extensions["steelyard/commerce"]`
 (the MCP-spec-canonical extension envelope, useful for tools that walk the
 extensions registry).
 
@@ -61,7 +61,7 @@ Both are readable without auth.
 ## Transports
 
 ```typescript
-import { createMcpServer, createMcpHttpHandler, runMcpStdio } from "@steelyard/mcp";
+import { createMcpServer, createMcpHttpHandler, runMcpStdio } from "@steelyard/protocol/mcp";
 
 // HTTP (streamable, used by the example coffee shop)
 const handler = createMcpHttpHandler(manifest);
@@ -80,7 +80,7 @@ from any `@modelcontextprotocol/sdk` client.
 Steelyard's MCP tests run a real `@modelcontextprotocol/sdk` client against
 the emitted server, assert the capability shape, exercise `list_offers` and
 `get_offer`, and read both resources end-to-end. See
-[`packages/mcp/src/mcp.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/mcp/src/mcp.test.ts).
+[`packages/protocol/src/mcp/mcp.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/protocol/src/mcp/mcp.test.ts).
 
 ## What's not on the wire (yet)
 
@@ -95,4 +95,4 @@ The MCP catalog tools above are the v1 read surface. The following are
 ## What's next
 
 - :material-protocol: [ACP](acp.md) — the spec-validated feed/catalog.
-- :material-package-variant-closed: [`@steelyard/mcp` package API](../packages/mcp.md).
+- :material-package-variant-closed: [`@steelyard/protocol/mcp` package API](../packages/mcp.md).

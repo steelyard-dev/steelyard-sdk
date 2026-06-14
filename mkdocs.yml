@@ -60,11 +60,14 @@ nav:
     - ACP: protocols/acp.md
     - UCP: protocols/ucp.md
   - Packages:
+    - "Wallet (junior surface)": packages/buyer-wallet.md
+    - "Policy (engine)": packages/buyer-policy.md
+    - "Vault (engine)": packages/buyer-vault.md
     - "@steelyard/core": packages/core.md
-    - "@steelyard/mcp": packages/mcp.md
-    - "@steelyard/acp": packages/acp.md
-    - "@steelyard/ucp": packages/ucp.md
-    - "@steelyard/client": packages/client.md
+    - "@steelyard/protocol/mcp": packages/mcp.md
+    - "@steelyard/protocol/acp": packages/acp.md
+    - "@steelyard/protocol/ucp": packages/ucp.md
+    - "@steelyard/buyer/client": packages/client.md
     - "@steelyard/agent": packages/agent.md
   - Architecture: architecture.md
 

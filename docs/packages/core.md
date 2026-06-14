@@ -34,4 +34,4 @@ enforces this — `@steelyard/core` is protocol-agnostic by construction.
 
 ## What's next
 
-- :material-package-variant-closed: [`@steelyard/mcp`](mcp.md), [`@steelyard/acp`](acp.md), [`@steelyard/ucp`](ucp.md) — the protocol adapters that consume a `Manifest`.
+- :material-package-variant-closed: [`@steelyard/protocol/mcp`](mcp.md), [`@steelyard/protocol/acp`](acp.md), [`@steelyard/protocol/ucp`](ucp.md) — the protocol adapters that consume a `Manifest`.

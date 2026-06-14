@@ -5,10 +5,10 @@
 ```mermaid
 graph TD
   core["@steelyard/core<br/><i>schema · types · ErrorCode · zod</i>"]
-  mcp["@steelyard/mcp<br/><i>tools + resources<br/>@modelcontextprotocol/sdk</i>"]
-  acp["@steelyard/acp<br/><i>ProductsResponse<br/>AJV spec validation</i>"]
-  ucp["@steelyard/ucp<br/><i>discovery + catalog<br/>AJV spec validation</i>"]
-  client["@steelyard/client<br/><i>auto-detect buyer SDK</i>"]
+  mcp["@steelyard/protocol/mcp<br/><i>tools + resources<br/>@modelcontextprotocol/sdk</i>"]
+  acp["@steelyard/protocol/acp<br/><i>ProductsResponse<br/>AJV spec validation</i>"]
+  ucp["@steelyard/protocol/ucp<br/><i>discovery + catalog<br/>AJV spec validation</i>"]
+  client["@steelyard/buyer/client<br/><i>auto-detect buyer SDK</i>"]
   agent["@steelyard/agent<br/><i>LLM-driven CLI</i>"]
   example["examples/coffee-shop<br/><i>private; not published</i>"]
 
@@ -33,7 +33,7 @@ acyclic and protocol-agnostic at the core.
 ```mermaid
 sequenceDiagram
   participant Agent as @steelyard/agent
-  participant Client as @steelyard/client
+  participant Client as @steelyard/buyer/client
   participant Merchant as Steelyard merchant
   participant LLM as Anthropic (optional)
 
@@ -65,10 +65,10 @@ emit time:
 
 | Adapter | Validator | Schema |
 |---------|-----------|--------|
-| `@steelyard/acp` | AJV2020 | `protocols/acp/spec/2026-04-17/json-schema/schema.feed.json` |
-| `@steelyard/ucp` (discovery) | AJV2020 | `protocols/ucp/source/schemas/ucp.json` + transitive deps |
-| `@steelyard/ucp` (catalog) | AJV2020 | `protocols/ucp/source/schemas/shopping/catalog_*.json` |
-| `@steelyard/mcp` | — | Uses the official `@modelcontextprotocol/sdk`; conformance is by construction |
+| `@steelyard/protocol/acp` | AJV2020 | `protocols/acp/spec/2026-04-17/json-schema/schema.feed.json` |
+| `@steelyard/protocol/ucp` (discovery) | AJV2020 | `protocols/ucp/source/schemas/ucp.json` + transitive deps |
+| `@steelyard/protocol/ucp` (catalog) | AJV2020 | `protocols/ucp/source/schemas/shopping/catalog_*.json` |
+| `@steelyard/protocol/mcp` | — | Uses the official `@modelcontextprotocol/sdk`; conformance is by construction |
 
 Bugs that would produce non-conformant output throw at emit time with the
 specific spec violation. **No fake / incomplete stuff.**

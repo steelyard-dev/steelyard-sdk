@@ -18,7 +18,7 @@ Every Steelyard merchant declares a capability under its MCP `serverInfo`
 }
 ```
 
-`@steelyard/client.connect()` reads this on the handshake and applies the
+`@steelyard/buyer/client.connect()` reads this on the handshake and applies the
 following compatibility rule:
 
 | Client | Server | Result | Reason |
@@ -48,8 +48,8 @@ The capability version stays at `0.1` until the read-side surface
 capability will bump to `0.2` if any of these change in a backward-incompatible
 way:
 
-- The tool names emitted by `@steelyard/mcp`
-- The `ProductsResponse` shape emitted by `@steelyard/acp`
+- The tool names emitted by `@steelyard/protocol/mcp`
+- The `ProductsResponse` shape emitted by `@steelyard/protocol/acp`
 - The UCP discovery + catalog response shape
 - The closed error taxonomy in `@steelyard/core`
 

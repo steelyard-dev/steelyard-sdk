@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "tsup",
+    "buy:wallet": "tsx src/buy-with-wallet.ts",
+    "buy:primitives": "tsx src/buy-with-primitives.ts",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run",

@@ -1,6 +1,6 @@
 # ACP
 
-Steelyard's ACP adapter (`@steelyard/acp`) emits an
+Steelyard's ACP adapter (`@steelyard/protocol/acp`) emits an
 [Agentic Commerce Protocol](https://agentic-commerce-protocol.com/) feed
 that conforms to the **pinned spec**:
 
@@ -18,7 +18,7 @@ The HTTP handler serves a GET endpoint that returns
 `application/feed+acp-products+json`:
 
 ```bash
-curl -s http://localhost:3000/acp/feed | jq '.products | length'
+curl -s http://localhost:3000/protocol/acp/feed | jq '.products | length'
 # 3
 ```
 
@@ -49,7 +49,7 @@ and (optionally) `links[]` from the manifest identity.
 ## Runtime validation API
 
 ```typescript
-import { buildAcpFeed, validateAcpFeed, assertValidAcpFeed } from "@steelyard/acp";
+import { buildAcpFeed, validateAcpFeed, assertValidAcpFeed } from "@steelyard/protocol/acp";
 
 const feed = buildAcpFeed(manifest);
 
@@ -80,7 +80,7 @@ ACP feed failed ProductsResponse validation:
 
 ## Verification
 
-[`packages/acp/src/feed.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/acp/src/feed.test.ts)
+[`packages/protocol/src/acp/feed.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/protocol/src/acp/feed.test.ts)
 exercises the full `Manifest → AcpFeed` pipeline against the pinned spec
 schema, including adversarial cases (a tampered feed must throw the spec
 violation).
@@ -88,4 +88,4 @@ violation).
 ## What's next
 
 - :material-protocol: [UCP](ucp.md) — the third protocol surface.
-- :material-package-variant-closed: [`@steelyard/acp` package API](../packages/acp.md).
+- :material-package-variant-closed: [`@steelyard/protocol/acp` package API](../packages/acp.md).

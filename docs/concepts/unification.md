@@ -54,7 +54,7 @@ What does not differ is the source of truth.
   vendored `schema.feed.json` with AJV at emit time. UCP catalog responses
   are AJV-validated against the official `catalog_search.json` and
   `catalog_lookup.json` schemas. MCP uses the official SDK.
-- **A unified buyer SDK.** `@steelyard/client` connects to a merchant, sniffs
+- **A unified buyer SDK.** `@steelyard/buyer/client` connects to a merchant, sniffs
   which protocol it speaks, and returns the **same** `Merchant` handle
   regardless. Methods like `search()` and `getOffer()` return identical
   results across all three.
@@ -78,5 +78,5 @@ What does not differ is the source of truth.
   shape of the config.
 - :material-protocol: [Protocols](../protocols/mcp.md) — what each
   surface looks like on the wire.
-- :material-shopping-search: [`@steelyard/client`](../packages/client.md) —
+- :material-shopping-search: [`@steelyard/buyer/client`](../packages/client.md) —
   the buyer SDK that consumes any of the three.

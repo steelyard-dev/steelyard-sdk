@@ -1,7 +1,7 @@
 # UCP
 
-Steelyard's UCP adapter (`@steelyard/ucp`) emits a real
-[Universal Commerce Protocol](https://ucp.dev/) discovery document
+Steelyard's UCP adapter (`@steelyard/protocol/ucp`) emits a real
+[Universal Commerce Protocol](https://protocol/ucp.dev/) discovery document
 **plus** a runtime-validated shopping-service catalog API:
 
 - **UCP version:** `2026-04-08`
@@ -16,7 +16,7 @@ leaves the server.
 ## Endpoints
 
 ```text
-GET  /.well-known/ucp              → UCP discovery document
+GET  /.well-known/protocol/ucp              → UCP discovery document
 POST /api/catalog/search           → catalog search_response
 POST /api/catalog/lookup           → catalog lookup_response
 POST /api/catalog/product          → get_product_response
@@ -35,7 +35,7 @@ The discovery doc advertises the shopping service at
     "services": {
       "dev.ucp.shopping": [
         { "version": "2026-04-08", "endpoint": "https://acme.example/api", "transport": "rest" },
-        { "version": "2026-04-08", "endpoint": "https://acme.example/mcp",  "transport": "mcp"  }
+        { "version": "2026-04-08", "endpoint": "https://acme.example/protocol/mcp",  "transport": "mcp"  }
       ]
     },
     "capabilities": {
@@ -62,7 +62,7 @@ import {
   searchCatalog, lookupCatalog, getProduct,
   validateSearchResponse, validateLookupResponse, validateGetProductResponse,
   assertValidSearchResponse, assertValidLookupResponse, assertValidGetProductResponse
-} from "@steelyard/ucp";
+} from "@steelyard/protocol/ucp";
 
 const result = searchCatalog(manifest, { query: "espresso" });
 // result.products is a list of UCP Product[]
@@ -104,13 +104,13 @@ UCP catalog lookup response failed spec validation:
 
 ## Verification
 
-[`packages/ucp/src/ucp.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/ucp/src/ucp.test.ts)
+[`packages/protocol/src/ucp/ucp.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/protocol/src/ucp/ucp.test.ts)
 runs 14 cases including spec-conformance for discovery + search + lookup +
 get_product, plus adversarial tests that tamper each response and assert AJV
 throws.
 
 ## What's next
 
-- :material-package-variant-closed: [`@steelyard/ucp` package API](../packages/ucp.md).
-- :material-shopping-search: [`@steelyard/client`](../packages/client.md) — the
+- :material-package-variant-closed: [`@steelyard/protocol/ucp` package API](../packages/ucp.md).
+- :material-shopping-search: [`@steelyard/buyer/client`](../packages/client.md) — the
   unified buyer SDK that auto-detects this UCP surface.

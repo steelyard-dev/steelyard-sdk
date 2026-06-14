@@ -1,18 +1,18 @@
-# `@steelyard/client`
+# `@steelyard/buyer/client`
 
 The unified buyer SDK. Connect to any Steelyard merchant — MCP, ACP, or UCP —
 through a single API.
 
 ```bash
-npm install @steelyard/client @steelyard/core
+npm install @steelyard/buyer @steelyard/core
 ```
 
 ## The shape
 
 ```typescript
-import { Steelyard, type Merchant } from "@steelyard/client";
+import { Steelyard, type Merchant } from "@steelyard/buyer/client";
 
-const result = await Steelyard.connect("https://acme.example/mcp");
+const result = await Steelyard.connect("https://acme.example/protocol/mcp");
 
 if ("error" in result) {
   // version_mismatch, protocol_mismatch, network_error, internal_error
@@ -32,9 +32,9 @@ const policies = await merchant.getPolicies();
 
 1. **MCP** — opens a streamable HTTP connection, calls `initialize`, sniffs
    `serverInfo.capabilities.commerce` (or the `steelyard/commerce` extension).
-2. **ACP** — fetches a presumed `/acp/feed` endpoint, checks for an
+2. **ACP** — fetches a presumed `/protocol/acp/feed` endpoint, checks for an
    `application/feed+acp-products+json` content type.
-3. **UCP** — fetches a presumed `/.well-known/ucp` endpoint, checks the
+3. **UCP** — fetches a presumed `/.well-known/protocol/ucp` endpoint, checks the
    discovery shape against `ucp.json#/$defs/business_schema`.
 
 The **first match wins**. The returned `Merchant` carries the protocol it
@@ -57,7 +57,7 @@ identical-shape methods regardless of source.
 `connect()` enforces the [pre-1.0 minor-match rule](../concepts/versioning.md):
 
 ```typescript
-import { isCompatibleReadVersion } from "@steelyard/client";
+import { isCompatibleReadVersion } from "@steelyard/buyer/client";
 
 isCompatibleReadVersion("0.1");    // true
 isCompatibleReadVersion("0.1.9");  // true (patch)
@@ -76,7 +76,7 @@ narrow this automatically with `"error" in result` checks.
 
 ## Verification
 
-`packages/client/src/client.test.ts` runs the buyer SDK against the
+`packages/buyer/src/client/client.test.ts` runs the buyer SDK against the
 coffee-shop example and asserts identical results across all three
 protocols. Coverage: ≥ 95% line, 100% on `connect()` paths.
 
