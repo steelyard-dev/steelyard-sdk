@@ -1,4 +1,6 @@
 export { fileBoxStore, memoryBoxStore, type BoxStore } from "./boxstore.js";
+export type { NewAddress } from "./address.js";
+export type { NewCard, RawCard } from "./card.js";
 export {
   openVaultBox,
   sealVaultBox,

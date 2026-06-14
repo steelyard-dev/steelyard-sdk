@@ -1,7 +1,23 @@
+import type { BillingAddress, BillingPayload, CardMetadata } from "@steelyard/core";
 import { randomBytes, createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, basename, resolve, join } from "node:path";
+import {
+  createStoredAddress,
+  publicAddress,
+  type NewAddress,
+  type StoredAddress
+} from "./address.js";
 import { fileBoxStore, type BoxStore } from "./boxstore.js";
+import {
+  cardMetadata,
+  createStoredCard,
+  pickStoredCard,
+  rawCard,
+  type NewCard,
+  type RawCard,
+  type StoredCard
+} from "./card.js";
 import { openVaultBox, sealVaultBox, VAULT_KEY_BYTES } from "./crypto.js";
 import { packVaultBox, unpackVaultBox } from "./format.js";
 import { createVaultHeader, type VaultHeader } from "./header.js";
@@ -27,8 +43,8 @@ export interface VaultOpenOptions {
 
 interface VaultRecord {
   profile: { name: string; email?: string };
-  cards: unknown[];
-  addresses: unknown[];
+  cards: StoredCard[];
+  addresses: StoredAddress[];
 }
 
 export class BuyerVault {
@@ -36,6 +52,9 @@ export class BuyerVault {
   readonly ledgerPath: string;
   readonly uuid: string;
   #profile: { name: string; email?: string };
+  #header: VaultHeader;
+  #boxStore: BoxStore;
+  #boxName: string;
   #masterKey: Uint8Array;
   #isOpen = true;
 
@@ -43,12 +62,18 @@ export class BuyerVault {
     path: string;
     uuid: string;
     profile: { name: string; email?: string };
+    header: VaultHeader;
+    boxStore: BoxStore;
+    boxName: string;
     masterKey: Uint8Array;
   }) {
     this.path = opts.path;
     this.ledgerPath = join(dirname(opts.path), "spend-ledger.jsonl");
     this.uuid = opts.uuid;
     this.#profile = opts.profile;
+    this.#header = opts.header;
+    this.#boxStore = opts.boxStore;
+    this.#boxName = opts.boxName;
     this.#masterKey = opts.masterKey;
   }
 
@@ -83,6 +108,9 @@ export class BuyerVault {
         path: location.path,
         uuid: header.uuid,
         profile: opts.profile,
+        header,
+        boxStore: location.boxStore,
+        boxName: location.name,
         masterKey
       });
     } catch (error) {
@@ -117,6 +145,9 @@ export class BuyerVault {
       path: location.path,
       uuid: header.uuid,
       profile: record.profile,
+      header,
+      boxStore: location.boxStore,
+      boxName: location.name,
       masterKey
     });
   }
@@ -138,10 +169,120 @@ export class BuyerVault {
     return this.#isOpen;
   }
 
+  async addCard(card: NewCard): Promise<CardMetadata> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    const stored = createStoredCard(card, card.id ?? nextId("card"));
+    if (record.cards.some((existing) => existing.id === stored.id)) {
+      throw new Error(`card already exists: ${stored.id}`);
+    }
+    record.cards.push(stored);
+    await this.writeCurrentRecord(record);
+    return cardMetadata(stored);
+  }
+
+  async removeCard(id: string): Promise<void> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    const next = record.cards.filter((card) => card.id !== id);
+    if (next.length === record.cards.length) throw new Error(`card not found: ${id}`);
+    record.cards = next;
+    await this.writeCurrentRecord(record);
+  }
+
+  async listCards(): Promise<CardMetadata[]> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    return record.cards.map(cardMetadata);
+  }
+
+  async pickCard(opts: { merchant: string }): Promise<CardMetadata | null> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    const card = pickStoredCard(record.cards, opts.merchant);
+    return card ? cardMetadata(card) : null;
+  }
+
+  async revealCard(id: string): Promise<RawCard> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    const card = record.cards.find((candidate) => candidate.id === id);
+    if (!card) throw new Error(`card not found: ${id}`);
+    return rawCard(card);
+  }
+
+  async addAddress(address: NewAddress): Promise<BillingAddress> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    const stored = createStoredAddress(address, address.id ?? nextId("addr"), {
+      makeDefault: record.addresses.length === 0
+    });
+    if (record.addresses.some((existing) => existing.id === stored.id)) {
+      throw new Error(`address already exists: ${stored.id}`);
+    }
+    record.addresses.push(stored);
+    await this.writeCurrentRecord(record);
+    return publicAddress(stored);
+  }
+
+  async removeAddress(id: string): Promise<void> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    const removed = record.addresses.find((address) => address.id === id);
+    if (!removed) throw new Error(`address not found: ${id}`);
+    record.addresses = record.addresses.filter((address) => address.id !== id);
+    if (removed.default && record.addresses.length) {
+      record.addresses[0]!.default = true;
+    }
+    await this.writeCurrentRecord(record);
+  }
+
+  async setDefaultAddress(id: string): Promise<void> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    if (!record.addresses.some((address) => address.id === id)) {
+      throw new Error(`address not found: ${id}`);
+    }
+    record.addresses = record.addresses.map((address) => ({ ...address, default: address.id === id }));
+    await this.writeCurrentRecord(record);
+  }
+
+  async listAddresses(): Promise<BillingAddress[]> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    return record.addresses.map(publicAddress);
+  }
+
+  async billing(opts: { addressId?: string } = {}): Promise<BillingPayload> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    const address = opts.addressId
+      ? record.addresses.find((candidate) => candidate.id === opts.addressId)
+      : record.addresses.find((candidate) => candidate.default) ?? record.addresses[0];
+    if (!address) throw new Error("no billing address configured");
+    return {
+      name: record.profile.name,
+      ...(record.profile.email ? { email: record.profile.email } : {}),
+      address: publicAddress(address)
+    };
+  }
+
   async close(): Promise<void> {
     if (!this.#isOpen) return;
     this.#masterKey.fill(0);
     this.#isOpen = false;
+  }
+
+  private async readCurrentRecord(): Promise<VaultRecord> {
+    const bytes = await this.#boxStore.read(this.#boxName);
+    if (!bytes) throw new Error(`vault file not found at ${this.path}`);
+    const packed = unpackVaultBox(bytes);
+    const header = parseHeader(packed.header);
+    return readRecord(packed, header, this.#masterKey);
+  }
+
+  private async writeCurrentRecord(record: VaultRecord): Promise<void> {
+    await writeRecord(this.#boxStore, this.#boxName, this.#header, this.#masterKey, record);
   }
 
   private assertOpen(): void {
@@ -214,7 +355,7 @@ function readRecord(
     nonce: packed.nonce,
     ciphertext: packed.ciphertext
   });
-  return JSON.parse(new TextDecoder().decode(plaintext)) as VaultRecord;
+  return normalizeVaultRecord(JSON.parse(new TextDecoder().decode(plaintext)));
 }
 
 function parseHeader(bytes: Uint8Array): VaultHeader {
@@ -228,6 +369,26 @@ function parseHeader(bytes: Uint8Array): VaultHeader {
     throw new Error("vault header is unsupported");
   }
   return parsed;
+}
+
+function normalizeVaultRecord(value: unknown): VaultRecord {
+  if (!value || typeof value !== "object") throw new Error("vault record is malformed");
+  const record = value as Partial<VaultRecord>;
+  if (!record.profile || typeof record.profile.name !== "string") {
+    throw new Error("vault profile is malformed");
+  }
+  return {
+    profile: {
+      name: record.profile.name,
+      ...(typeof record.profile.email === "string" ? { email: record.profile.email } : {})
+    },
+    cards: Array.isArray(record.cards) ? (record.cards as StoredCard[]) : [],
+    addresses: Array.isArray(record.addresses) ? (record.addresses as StoredAddress[]) : []
+  };
+}
+
+function nextId(prefix: "card" | "addr"): string {
+  return `${prefix}_${randomBytes(4).toString("hex")}`;
 }
 
 function validKdf(kdf: VaultHeader["kdf"]): boolean {
