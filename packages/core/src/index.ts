@@ -9,7 +9,18 @@ export type {
   Offer,
   Policies,
   Policy,
-  Price
+  Price,
+  ApprovalProof,
+  BillingAddress,
+  BillingPayload,
+  CardMetadata,
+  Decision,
+  PurchaseIntent,
+  Rule,
+  SimpleCard,
+  SimpleLimits,
+  SpendLimits,
+  SpendReceipt
 } from "./schemas.js";
 export type { ErrorCode } from "./errors.js";
 export type { ValidationResult } from "./validate.js";

@@ -100,6 +100,105 @@ export const ManifestSchema = z.object({
 });
 export type Manifest = z.infer<typeof ManifestSchema>;
 
+export interface BillingAddress {
+  id?: string;
+  line1: string;
+  line2?: string;
+  city: string;
+  postal_code: string;
+  country: string;
+  state?: string;
+}
+
+export interface SimpleCard {
+  number: string;
+  exp: string;
+  name: string;
+}
+
+export interface SimpleLimits {
+  [currency: string]: number | undefined;
+}
+
+export interface ApprovalProof {
+  source: "user" | "out-of-band" | string;
+  signature?: string;
+  ts: string;
+}
+
+export interface CardMetadata {
+  id: string;
+  name_on_card: string;
+  exp: string;
+  brand: "visa" | "mastercard" | "amex" | "discover" | "other";
+  last4: string;
+  tags: string[];
+}
+
+export interface BillingPayload {
+  name: string;
+  email?: string;
+  address: BillingAddress;
+}
+
+export interface SpendReceipt {
+  ts: string;
+  intent_id: string;
+  merchant_domain: string;
+  amount: number;
+  currency: string;
+  status: "completed" | "failed";
+  rule?: string;
+}
+
+export interface SpendLimits {
+  daily?: Record<string, number>;
+  weekly?: Record<string, number>;
+  monthly?: Record<string, number>;
+}
+
+export interface Rule {
+  name: string;
+  effect: "can" | "cannot";
+  action: "buy";
+  where?: {
+    merchant_domain?: string | string[];
+    currency?: string | string[];
+    amount?: {
+      lte?: number;
+      gte?: number;
+      between?: [number, number];
+    };
+    offer_category?: string | string[];
+  };
+  requires_approval_above?: {
+    amount: number;
+    currency: string;
+  };
+}
+
+export type Decision =
+  | { status: "allowed"; rule: string }
+  | { status: "denied"; reason: string }
+  | {
+      status: "approval_required";
+      threshold: { amount: number; currency: string };
+      matched_rule: string;
+    };
+
+export interface PurchaseIntent {
+  merchant: {
+    domain: string;
+    declared_domain?: string;
+    transport_url: string;
+    protocol: "mcp" | "acp" | "ucp";
+  };
+  offer: { id: string; title: string; categories: string[] };
+  amount: number;
+  currency: string;
+  intent_id?: string;
+}
+
 export const CommerceConfigSchema = z
   .object({
     identity: MerchantIdentitySchema,

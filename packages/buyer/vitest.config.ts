@@ -11,11 +11,10 @@ export default defineConfig({
         branches: 70,
         statements: 95
       },
-      include: ["src/client/**/*.ts", "src/vault/**/*.ts"],
+      include: ["src/client/**/*.ts", "src/policy/**/*.ts", "src/vault/**/*.ts"],
       exclude: [
         "src/**/*.test.ts",
-        // policy/ and wallet/ stay out of coverage until they have real code + tests.
-        "src/policy/**",
+        // wallet/ stays out of coverage until it has real code + tests.
         "src/wallet/**"
       ]
     }
