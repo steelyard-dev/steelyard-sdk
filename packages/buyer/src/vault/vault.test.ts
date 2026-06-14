@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   BuyerVault,
-  VAULT_KEY_SERVICE,
-  accountForVault,
   memoryBoxStore,
   memoryKeystore,
   passwordKeystore
 } from "./index.js";
 import { unpackVaultBox } from "./format.js";
-import { passwordKeystoreWithParams } from "./keystore.js";
+import { VAULT_KEY_SERVICE, passwordKeystoreWithParams } from "./keystore.js";
+import { accountForVault } from "./vault.js";
 
 function fastPasswordKeystore(password: string) {
   return passwordKeystoreWithParams({

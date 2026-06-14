@@ -33,8 +33,12 @@ vi.mock("@napi-rs/keyring", () => ({
 
 const vaultModule = await import("./index.js");
 const recoveryModule = await import("./recovery.js");
-const { BuyerVault, accountForVault, memoryKeystore, VAULT_KEY_SERVICE } = vaultModule;
+const vaultInternals = await import("./vault.js");
+const keystoreInternals = await import("./keystore.js");
+const { BuyerVault, memoryKeystore } = vaultModule;
 const { _resetRecoveryWarningForTests } = recoveryModule;
+const { accountForVault } = vaultInternals;
+const { VAULT_KEY_SERVICE } = keystoreInternals;
 
 async function withTemp<T>(fn: (root: string) => Promise<T>): Promise<T> {
   const root = await mkdtemp(join(tmpdir(), "steelyard-recovery-"));

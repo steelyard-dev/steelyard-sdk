@@ -12,6 +12,11 @@
       "types": "./dist/client/index.d.ts",
       "import": "./dist/client/index.js",
       "require": "./dist/client/index.cjs"
+    },
+    "./vault": {
+      "types": "./dist/vault/index.d.ts",
+      "import": "./dist/vault/index.js",
+      "require": "./dist/vault/index.cjs"
     }
   },
   "scripts": {
