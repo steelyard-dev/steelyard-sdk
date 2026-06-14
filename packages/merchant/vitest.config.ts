@@ -12,12 +12,7 @@ export default defineConfig({
         statements: 95
       },
       include: ["src/**/*.ts"],
-      exclude: [
-        "src/**/*.test.ts",
-        "src/**/index.ts",
-        // policy/ is scaffolded but not yet implemented.
-        "src/policy/**"
-      ]
+      exclude: ["src/**/*.test.ts", "src/**/index.ts"]
     }
   }
 });

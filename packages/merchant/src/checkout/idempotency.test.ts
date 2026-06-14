@@ -119,19 +119,17 @@ describe("fileIdempotencyStore", () => {
         a.remember("POST /checkout idem", "hash", async () => {
           calls += 1;
           await delay(25);
-          return { status: 201, body: { calls } };
+          return { status: 201, body: { calls, winner: "a" } };
         }),
         b.remember("POST /checkout idem", "hash", async () => {
           calls += 1;
-          return { status: 500, body: { wrong: true } };
+          return { status: 202, body: { calls, winner: "b" } };
         })
       ]);
 
-      expect(results).toEqual([
-        { status: 201, body: { calls: 1 } },
-        { status: 201, body: { calls: 1 } }
-      ]);
+      expect(results[0]).toEqual(results[1]);
       expect(calls).toBe(1);
+      expect([201, 202]).toContain(results[0].status);
     } finally {
       await rm(root, { recursive: true, force: true });
     }

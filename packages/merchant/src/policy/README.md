@@ -1,37 +1,27 @@
-# `@steelyard/merchant/policy` (scaffolded; not yet shipped)
+# `@steelyard/merchant/policy`
 
-Merchant-side counterpart to `@steelyard/buyer/policy`. Declarative rules for
-which agents the merchant accepts purchases from, rate limits per agent
-identity, currency / region restrictions, and (future) reputation gating.
-
-The shape mirrors the buyer policy:
+Merchant-side checkout policy loader. The YAML shape mirrors
+`@steelyard/buyer/policy` and is parsed by the shared strict
+`@steelyard/core/policy-yaml` parser.
 
 ```yaml
-# ./.steelyard/merchant-policy.yml
 version: "0.1"
 default: deny
 
 rules:
-  - name: "accept tier-1 agent runtimes"
-    can: sell
+  - name: "accept coffee purchases"
+    can: buy
     where:
-      agent_identity: ["claude-desktop", "cursor", "vercel-ai-sdk"]
+      merchant_domain: coffee.example
       currency: USD
-
-  - name: "block sanctioned regions"
-    cannot: sell
-    where:
-      buyer_country: ["XX", "YY"]
 ```
-
-API (planned):
 
 ```typescript
 import { MerchantPolicy } from "@steelyard/merchant/policy";
 
-const policy = await MerchantPolicy.load();
-const decision = policy.evaluate(incoming_purchase);
+const policy = MerchantPolicy.fromPath("/etc/steelyard/merchant-policy.yml");
+const decision = await policy.evaluate(intent);
 ```
 
-This subpath is **not yet in `package.json#exports`** — it ships when the
-implementation is complete (no-stubs rule).
+`fromPath()` stats the file on every `evaluate()` call and reparses when the
+mtime changes. If the file is deleted, evaluation throws `MerchantPolicyMissing`.

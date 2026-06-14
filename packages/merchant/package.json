@@ -12,6 +12,11 @@
       "types": "./dist/checkout/index.d.ts",
       "import": "./dist/checkout/index.js",
       "require": "./dist/checkout/index.cjs"
+    },
+    "./policy": {
+      "types": "./dist/policy/index.d.ts",
+      "import": "./dist/policy/index.js",
+      "require": "./dist/policy/index.cjs"
     }
   },
   "scripts": {
