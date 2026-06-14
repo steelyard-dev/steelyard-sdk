@@ -17,6 +17,11 @@
       "types": "./dist/vault/index.d.ts",
       "import": "./dist/vault/index.js",
       "require": "./dist/vault/index.cjs"
+    },
+    "./policy": {
+      "types": "./dist/policy/index.d.ts",
+      "import": "./dist/policy/index.js",
+      "require": "./dist/policy/index.cjs"
     }
   },
   "scripts": {

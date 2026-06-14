@@ -2,7 +2,8 @@ import { access, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { Decision, PurchaseIntent, Rule, SpendLimits } from "@steelyard/core";
-import { evaluatePolicy, type PolicySpendContext } from "./evaluate.js";
+import type { BuyerVault } from "../vault/index.js";
+import { evaluatePolicy } from "./evaluate.js";
 import { parsePolicyYaml, type ParsedPolicyDocument } from "./schema.js";
 
 export interface BuyerPolicyLoadOptions {
@@ -44,7 +45,7 @@ export class BuyerPolicy {
     return BuyerPolicy.load({ ...opts, paths: [projectPolicyPath()] });
   }
 
-  async evaluate(intent: PurchaseIntent, ctx: { vault?: PolicySpendContext } = {}): Promise<Decision> {
+  async evaluate(intent: PurchaseIntent, ctx: { vault?: BuyerVault } = {}): Promise<Decision> {
     return evaluatePolicy(this.#documents, intent, ctx);
   }
 }

@@ -1,10 +1,11 @@
 import { defineConfig } from "tsup";
 
-// /policy and root stay out of `exports` until their v0.2 criteria ship complete
-// (no-stubs rule). When they're ready, add their entries here AND in package.json.
+// Root stays out of `exports` until the Wallet facade ships complete
+// (no-stubs rule). When ready, add its entry here AND in package.json.
 export default defineConfig({
   entry: {
     "client/index": "src/client/index.ts",
+    "policy/index": "src/policy/index.ts",
     "vault/index": "src/vault/index.ts"
   },
   format: ["esm", "cjs"],

@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PurchaseIntent } from "@steelyard/core";
-import { BuyerPolicy, _resetPermissiveWarningForTests } from "./index.js";
+import type { BuyerVault } from "../vault/index.js";
+import { BuyerPolicy, _resetPermissiveWarningForTests } from "./load.js";
 
 const originalCwd = process.cwd();
 
@@ -56,7 +57,7 @@ limits:
     expect(policy.rules.map((rule) => rule.name)).toEqual(["allow coffee"]);
     expect(policy.limits.daily?.USD).toBe(1000);
     await expect(policy.evaluate(intent, {
-      vault: { spendInWindow: async () => 0 }
+      vault: { spendInWindow: async () => 0 } as unknown as BuyerVault
     })).resolves.toEqual({ status: "allowed", rule: "allow coffee" });
   });
 

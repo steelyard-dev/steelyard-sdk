@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { PurchaseIntent } from "@steelyard/core";
-import { domainMatches, evaluatePolicy, normalizeMerchantDomain, parsePolicyYaml } from "./index.js";
+import { evaluatePolicy } from "./evaluate.js";
+import { domainMatches } from "./glob.js";
+import { normalizeMerchantDomain } from "./normalize.js";
+import { parsePolicyYaml } from "./schema.js";
 
 const intent: PurchaseIntent = {
   merchant: {
@@ -51,6 +54,7 @@ rules:
 
   it("rejects oversize files and rules with ambiguous effects", () => {
     expect(() => parsePolicyYaml("x".repeat(1024 * 1024 + 1))).toThrow(/exceeds 1 MB/);
+    expect(() => parsePolicyYaml('version: "0.1"\ndefault: deny\nrules: nope\n')).toThrow(/\/rules/);
     expect(() => parsePolicyYaml(`
 version: "0.1"
 default: deny
