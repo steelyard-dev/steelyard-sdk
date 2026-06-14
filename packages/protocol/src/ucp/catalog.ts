@@ -73,8 +73,9 @@ export interface UcpProductResponse {
 }
 
 // AJV instance loaded with the full UCP schema graph that catalog responses
-// transitively reference. The vendored spec at protocols/ucp/source/schemas/
-// is the source of truth; spec-schemas.ts owns the import list.
+// transitively reference. The vendored runtime spec under
+// packages/protocol/spec/ucp/2026-04-17 is the source of truth; spec-schemas.ts
+// owns the import list.
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
 for (const schema of ALL_SCHEMAS) {

@@ -2,19 +2,19 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-import availableInstrumentSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/available_payment_instrument.json";
-import capabilitySchema from "../../spec/ucp/2026-04-08/schemas/capability.json";
-import embeddedConfigSchema from "../../spec/ucp/2026-04-08/schemas/transports/embedded_config.json";
-import handlerSchema from "../../spec/ucp/2026-04-08/schemas/payment_handler.json";
-import profileSchema from "../../spec/ucp/2026-04-08/schemas/profile.json";
-import reverseDomainNameSchema from "../../spec/ucp/2026-04-08/schemas/common/types/reverse_domain_name.json";
-import serviceSchema from "../../spec/ucp/2026-04-08/schemas/service.json";
-import ucpSchema from "../../spec/ucp/2026-04-08/schemas/ucp.json";
+import availableInstrumentSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/available_payment_instrument.json";
+import capabilitySchema from "../../spec/ucp/2026-04-17/schemas/capability.json";
+import embeddedConfigSchema from "../../spec/ucp/2026-04-17/schemas/transports/embedded_config.json";
+import handlerSchema from "../../spec/ucp/2026-04-17/schemas/payment_handler.json";
+import profileSchema from "../../spec/ucp/2026-04-17/schemas/profile.json";
+import reverseDomainNameSchema from "../../spec/ucp/2026-04-17/schemas/common/types/reverse_domain_name.json";
+import serviceSchema from "../../spec/ucp/2026-04-17/schemas/service.json";
+import ucpSchema from "../../spec/ucp/2026-04-17/schemas/ucp.json";
 import type { Manifest } from "@steelyard/core";
 
 export const UCP_WELL_KNOWN_PATH = "/.well-known/ucp";
 export const UCP_API_PATH = "/api";
-export const UCP_VERSION = "2026-04-08";
+export const UCP_VERSION = "2026-04-17";
 export const UCP_SHOPPING_SERVICE = "dev.ucp.shopping";
 export const UCP_CATALOG_SEARCH_CAPABILITY = "dev.ucp.shopping.catalog.search";
 export const UCP_CATALOG_LOOKUP_CAPABILITY = "dev.ucp.shopping.catalog.lookup";

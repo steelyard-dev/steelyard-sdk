@@ -9,46 +9,46 @@
 //   2. Add it to the ALL_SCHEMAS array
 //   3. AJV will resolve $refs across the whole set at compile-validator time
 
-import amountSchema from "../../spec/ucp/2026-04-08/schemas/common/types/amount.json";
-import descriptionSchema from "../../spec/ucp/2026-04-08/schemas/common/types/description.json";
-import errorCodeSchema from "../../spec/ucp/2026-04-08/schemas/common/types/error_code.json";
-import infoCodeSchema from "../../spec/ucp/2026-04-08/schemas/common/types/info_code.json";
-import linkSchema from "../../spec/ucp/2026-04-08/schemas/common/types/link.json";
-import mediaSchema from "../../spec/ucp/2026-04-08/schemas/common/types/media.json";
-import messageSchema from "../../spec/ucp/2026-04-08/schemas/common/types/message.json";
-import messageErrorSchema from "../../spec/ucp/2026-04-08/schemas/common/types/message_error.json";
-import messageInfoSchema from "../../spec/ucp/2026-04-08/schemas/common/types/message_info.json";
-import messageWarningSchema from "../../spec/ucp/2026-04-08/schemas/common/types/message_warning.json";
-import paginationSchema from "../../spec/ucp/2026-04-08/schemas/common/types/pagination.json";
-import priceSchema from "../../spec/ucp/2026-04-08/schemas/common/types/price.json";
-import reverseDomainNameSchema from "../../spec/ucp/2026-04-08/schemas/common/types/reverse_domain_name.json";
-import warningCodeSchema from "../../spec/ucp/2026-04-08/schemas/common/types/warning_code.json";
+import amountSchema from "../../spec/ucp/2026-04-17/schemas/common/types/amount.json";
+import descriptionSchema from "../../spec/ucp/2026-04-17/schemas/common/types/description.json";
+import errorCodeSchema from "../../spec/ucp/2026-04-17/schemas/common/types/error_code.json";
+import infoCodeSchema from "../../spec/ucp/2026-04-17/schemas/common/types/info_code.json";
+import linkSchema from "../../spec/ucp/2026-04-17/schemas/common/types/link.json";
+import mediaSchema from "../../spec/ucp/2026-04-17/schemas/common/types/media.json";
+import messageSchema from "../../spec/ucp/2026-04-17/schemas/common/types/message.json";
+import messageErrorSchema from "../../spec/ucp/2026-04-17/schemas/common/types/message_error.json";
+import messageInfoSchema from "../../spec/ucp/2026-04-17/schemas/common/types/message_info.json";
+import messageWarningSchema from "../../spec/ucp/2026-04-17/schemas/common/types/message_warning.json";
+import paginationSchema from "../../spec/ucp/2026-04-17/schemas/common/types/pagination.json";
+import priceSchema from "../../spec/ucp/2026-04-17/schemas/common/types/price.json";
+import reverseDomainNameSchema from "../../spec/ucp/2026-04-17/schemas/common/types/reverse_domain_name.json";
+import warningCodeSchema from "../../spec/ucp/2026-04-17/schemas/common/types/warning_code.json";
 
-import attributionSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/attribution.json";
-import availablePaymentInstrumentSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/available_payment_instrument.json";
-import categorySchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/category.json";
-import contextSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/context.json";
-import detailOptionValueSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/detail_option_value.json";
-import inputCorrelationSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/input_correlation.json";
-import optionValueSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/option_value.json";
-import priceFilterSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/price_filter.json";
-import priceRangeSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/price_range.json";
-import productSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/product.json";
-import productOptionSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/product_option.json";
-import ratingSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/rating.json";
-import searchFiltersSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/search_filters.json";
-import selectedOptionSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/selected_option.json";
-import signalsSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/signals.json";
-import variantSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/variant.json";
+import attributionSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/attribution.json";
+import availablePaymentInstrumentSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/available_payment_instrument.json";
+import categorySchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/category.json";
+import contextSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/context.json";
+import detailOptionValueSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/detail_option_value.json";
+import inputCorrelationSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/input_correlation.json";
+import optionValueSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/option_value.json";
+import priceFilterSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/price_filter.json";
+import priceRangeSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/price_range.json";
+import productSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/product.json";
+import productOptionSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/product_option.json";
+import ratingSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/rating.json";
+import searchFiltersSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/search_filters.json";
+import selectedOptionSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/selected_option.json";
+import signalsSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/signals.json";
+import variantSchema from "../../spec/ucp/2026-04-17/schemas/shopping/types/variant.json";
 
-import catalogLookupSchema from "../../spec/ucp/2026-04-08/schemas/shopping/catalog_lookup.json";
-import catalogSearchSchema from "../../spec/ucp/2026-04-08/schemas/shopping/catalog_search.json";
+import catalogLookupSchema from "../../spec/ucp/2026-04-17/schemas/shopping/catalog_lookup.json";
+import catalogSearchSchema from "../../spec/ucp/2026-04-17/schemas/shopping/catalog_search.json";
 
-import capabilitySchema from "../../spec/ucp/2026-04-08/schemas/capability.json";
-import paymentHandlerSchema from "../../spec/ucp/2026-04-08/schemas/payment_handler.json";
-import serviceSchema from "../../spec/ucp/2026-04-08/schemas/service.json";
-import ucpSchema from "../../spec/ucp/2026-04-08/schemas/ucp.json";
-import embeddedConfigSchema from "../../spec/ucp/2026-04-08/schemas/transports/embedded_config.json";
+import capabilitySchema from "../../spec/ucp/2026-04-17/schemas/capability.json";
+import paymentHandlerSchema from "../../spec/ucp/2026-04-17/schemas/payment_handler.json";
+import serviceSchema from "../../spec/ucp/2026-04-17/schemas/service.json";
+import ucpSchema from "../../spec/ucp/2026-04-17/schemas/ucp.json";
+import embeddedConfigSchema from "../../spec/ucp/2026-04-17/schemas/transports/embedded_config.json";
 
 /**
  * Every UCP JSON Schema this package validates against at runtime. Order

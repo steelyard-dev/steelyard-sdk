@@ -25,7 +25,7 @@
     }
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/copy-specs.mjs",
     "test": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
