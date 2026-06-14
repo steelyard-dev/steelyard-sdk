@@ -1,4 +1,4 @@
-import type { BillingAddress, BillingPayload, CardMetadata } from "@steelyard/core";
+import type { BillingAddress, BillingPayload, CardMetadata, SpendReceipt } from "@steelyard/core";
 import { randomBytes, createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, basename, resolve, join } from "node:path";
@@ -27,6 +27,12 @@ import {
   osKeystore,
   type Keystore
 } from "./keystore.js";
+import {
+  listSpend as listSpendReceipts,
+  recordSpend as appendSpendReceipt,
+  spendInWindow as sumSpendInWindow,
+  type SpendWindow
+} from "./ledger.js";
 
 export interface VaultInitOptions {
   profile: { name: string; email?: string };
@@ -265,6 +271,21 @@ export class BuyerVault {
       ...(record.profile.email ? { email: record.profile.email } : {}),
       address: publicAddress(address)
     };
+  }
+
+  async recordSpend(receipt: SpendReceipt): Promise<void> {
+    this.assertOpen();
+    await appendSpendReceipt(this.ledgerPath, receipt);
+  }
+
+  async spendInWindow(window: SpendWindow, currency: string): Promise<number> {
+    this.assertOpen();
+    return sumSpendInWindow(this.ledgerPath, window, currency);
+  }
+
+  async listSpend(opts: { since?: Date; until?: Date } = {}): Promise<SpendReceipt[]> {
+    this.assertOpen();
+    return listSpendReceipts(this.ledgerPath, opts);
   }
 
   async close(): Promise<void> {

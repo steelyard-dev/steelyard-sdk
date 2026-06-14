@@ -16,4 +16,5 @@ export {
   VAULT_KEY_SERVICE,
   type Keystore
 } from "./keystore.js";
+export type { SpendWindow } from "./ledger.js";
 export { BuyerVault, accountForVault, type VaultInitOptions, type VaultOpenOptions } from "./vault.js";
