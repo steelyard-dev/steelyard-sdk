@@ -1,0 +1,44 @@
+{
+  "name": "@steelyard/cli",
+  "version": "0.2.0",
+  "description": "Command-line tools for Steelyard commerce manifests.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "steelyard": "./bin/steelyard"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    },
+    "./commands/validate": {
+      "types": "./dist/commands/validate.d.ts",
+      "import": "./dist/commands/validate.js"
+    },
+    "./commands/manifest": {
+      "types": "./dist/commands/manifest.d.ts",
+      "import": "./dist/commands/manifest.js"
+    },
+    "./commands/doctor": {
+      "types": "./dist/commands/doctor.d.ts",
+      "import": "./dist/commands/doctor.js"
+    }
+  },
+  "files": [
+    "bin",
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup && chmod +x dist/cli.js bin/steelyard",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo coverage"
+  },
+  "dependencies": {
+    "@steelyard/core": "workspace:^",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "cac": "^7.0.0"
+  }
+}
