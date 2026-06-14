@@ -11,7 +11,7 @@
   "scripts": {
     "build": "echo '@steelyard/merchant: no entry points yet (policy scaffolded only)' && exit 0",
     "test": "echo '@steelyard/merchant: no tests yet (policy scaffolded only)' && exit 0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "echo '@steelyard/merchant: no entry points yet (policy scaffolded only)' && exit 0"
   },
   "dependencies": {
     "@steelyard/core": "workspace:^"
