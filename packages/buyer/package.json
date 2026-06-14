@@ -18,6 +18,16 @@
       "import": "./dist/client/index.js",
       "require": "./dist/client/index.cjs"
     },
+    "./client/acp": {
+      "types": "./dist/client/acp.d.ts",
+      "import": "./dist/client/acp.js",
+      "require": "./dist/client/acp.cjs"
+    },
+    "./client/ucp": {
+      "types": "./dist/client/ucp.d.ts",
+      "import": "./dist/client/ucp.js",
+      "require": "./dist/client/ucp.cjs"
+    },
     "./vault": {
       "types": "./dist/vault/index.d.ts",
       "import": "./dist/vault/index.js",
@@ -40,13 +50,13 @@
     "@noble/ciphers": "^2.2.0",
     "@noble/hashes": "^1.8.0",
     "@steelyard/core": "workspace:^",
+    "@steelyard/protocol": "workspace:^",
     "picomatch": "^4.0.4",
     "proper-lockfile": "^4.1.2",
     "yaml": "^2.9.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@steelyard/protocol": "workspace:^",
     "@types/picomatch": "^4.0.3",
     "@types/proper-lockfile": "^4.1.4"
   }
