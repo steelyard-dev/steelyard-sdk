@@ -31,7 +31,7 @@ The discovery doc advertises the shopping service at
 ```json
 {
   "ucp": {
-    "version": "2026-04-08",
+    "version": "2026-04-17",
     "services": {
       "dev.ucp.shopping": [
         { "version": "2026-04-17", "endpoint": "https://acme.example/api", "transport": "rest" },
@@ -46,13 +46,16 @@ The discovery doc advertises the shopping service at
     }
   },
   "merchant": { "name": "Acme Coffee", "domain": "acme.example" },
-  "links": { "commerce_manifest": "https://acme.example/commerce/manifest" }
+  "links": { "commerce_manifest": "https://acme.example/.well-known/commerce.json" }
 }
 ```
 
 The shape conforms to `ucp.json#/$defs/business_schema`. A buyer SDK can
 walk the `services` map by reverse-domain name to find what the merchant
 supports.
+
+`links.commerce_manifest` points at the v0.4 well-known manifest. The older
+`/commerce/manifest` draft path is not served as a redirect.
 
 ## Catalog APIs
 
@@ -117,7 +120,7 @@ non-compliance notice.
 ## Verification
 
 [`packages/protocol/src/ucp/ucp.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/protocol/src/ucp/ucp.test.ts)
-runs 14 cases including spec-conformance for discovery + search + lookup +
+runs 15 cases including spec-conformance for discovery + search + lookup +
 get_product, plus adversarial tests that tamper each response and assert AJV
 throws.
 

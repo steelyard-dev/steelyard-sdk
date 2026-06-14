@@ -1,5 +1,5 @@
 site_name: Steelyard
-site_description: The open-source SDK for agentic commerce. Define commerce once. Expose it across MCP, ACP, and UCP.
+site_description: The open-source SDK for agentic commerce. Define commerce once. Expose it as commerce.json, HTTP, MCP, ACP, and UCP.
 site_url: https://steelyard.dev
 site_author: Steelyard contributors
 repo_url: https://github.com/interfacelabs/steelyard-sdk
@@ -51,6 +51,7 @@ nav:
   - Getting started:
     - Quickstart: getting-started.md
     - Your first purchase: guides/your-first-purchase.md
+    - Static manifest: guides/static-manifest.md
     - Migrating from v0.2: guides/migrating-from-v0.2.md
     - Stripe test mode: guides/stripe-test-mode.md
   - Concepts:
@@ -60,9 +61,12 @@ nav:
     - Mandates: concepts/mandates.md
     - Approval and 3DS: concepts/approval-and-3ds.md
     - Reservations: concepts/reservations.md
+    - Integrity: concepts/integrity.md
     - Versioning: concepts/versioning.md
     - Error taxonomy: concepts/errors.md
   - Protocols:
+    - Commerce manifest: protocols/commerce-manifest.md
+    - HTTP API: protocols/http.md
     - MCP: protocols/mcp.md
     - ACP: protocols/acp.md
     - ACP checkout: protocols/acp-checkout.md
@@ -81,6 +85,7 @@ nav:
     - "@steelyard/protocol/ucp": packages/ucp.md
     - "@steelyard/buyer/client": packages/client.md
     - "@steelyard/agent": packages/agent.md
+    - "@steelyard/cli": packages/cli.md
   - Architecture: architecture.md
 
 markdown_extensions:

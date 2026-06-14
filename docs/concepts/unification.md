@@ -34,12 +34,14 @@ You write `defineCommerce({...})` **once**:
 ```mermaid
 graph LR
   A[defineCommerce config] --> B[Manifest]
-  B --> C[Steelyard.mcp]
-  B --> D[Steelyard.acp]
-  B --> E[Steelyard.ucp]
-  C --> F[MCP server<br/>list_offers + resources]
-  D --> G[ACP feed<br/>ProductsResponse]
-  E --> H[UCP discovery<br/>+ shopping service]
+  B --> C[commerce.json]
+  B --> D[/commerce HTTP API]
+  B --> E[Steelyard.mcp]
+  B --> F[Steelyard.acp]
+  B --> G[Steelyard.ucp]
+  E --> H[MCP server<br/>list_offers + resources]
+  F --> I[ACP feed<br/>ProductsResponse]
+  G --> J[UCP discovery<br/>+ shopping service]
 ```
 
 Each adapter takes the same `Manifest` and emits a protocol-conformant
@@ -49,11 +51,13 @@ What does not differ is the source of truth.
 ## What this buys you
 
 - **One config to update** when you add a product, change a price, or revise a
-  policy. All three protocol surfaces reflect the change on the next request.
+  policy. Static JSON, HTTP, and all three protocol surfaces reflect the same
+  source of truth.
 - **Real spec compliance.** Steelyard validates ACP feeds against the
   vendored `schema.feed.json` with AJV at emit time. UCP catalog responses
   are AJV-validated against the official `catalog_search.json` and
-  `catalog_lookup.json` schemas. MCP uses the official SDK.
+  `catalog_lookup.json` schemas. The v0.4 commerce manifest and HTTP API are
+  validated against authored Steelyard JSON Schemas. MCP uses the official SDK.
 - **A unified buyer SDK.** `@steelyard/buyer/client` connects to a merchant, sniffs
   which protocol it speaks, and returns the **same** `Merchant` handle
   regardless. Methods like `search()` and `getOffer()` return identical
@@ -61,7 +65,7 @@ What does not differ is the source of truth.
 
 ## Current limits
 
-- **MCP checkout is not implemented.** MCP remains read-side in v0.3.
+- **MCP checkout is not implemented.** MCP remains read-side in v0.4.
 - **No hosted merchant backend.** Steelyard is a library, not a backend. The
   merchant runs `defineCommerce()` in its own process; Steelyard doesn't
   proxy or cache for you.
@@ -72,7 +76,7 @@ What does not differ is the source of truth.
 
 - :material-script-text: [`defineCommerce`](define-commerce.md) — the
   shape of the config.
-- :material-protocol: [Protocols](../protocols/mcp.md) — what each
+- :material-protocol: [Protocols](../protocols/commerce-manifest.md) — what each
   surface looks like on the wire.
 - :material-shopping-search: [`@steelyard/buyer/client`](../packages/client.md) —
   the buyer SDK that consumes any of the three.

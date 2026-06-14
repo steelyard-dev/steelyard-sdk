@@ -5,19 +5,25 @@
 ```mermaid
 graph TD
   core["@steelyard/core<br/><i>schema · types · ErrorCode · zod</i>"]
+  cm["@steelyard/protocol/commerce-manifest<br/><i>/.well-known/commerce.json</i>"]
+  http["@steelyard/protocol/http<br/><i>/commerce read API</i>"]
   mcp["@steelyard/protocol/mcp<br/><i>tools + resources<br/>@modelcontextprotocol/sdk</i>"]
   acp["@steelyard/protocol/acp<br/><i>ProductsResponse<br/>AJV spec validation</i>"]
   ucp["@steelyard/protocol/ucp<br/><i>discovery + catalog<br/>AJV spec validation</i>"]
   merchant["@steelyard/merchant<br/><i>ACP/UCP checkout assembly</i>"]
   client["@steelyard/buyer/client<br/><i>auto-detect buyer SDK</i>"]
   agent["@steelyard/agent<br/><i>LLM-driven CLI</i>"]
+  cli["@steelyard/cli<br/><i>manifest · validate · doctor</i>"]
   example["examples/coffee-shop<br/><i>private; not published</i>"]
 
+  core --> cm
+  core --> http
   core --> mcp
   core --> acp
   core --> ucp
   core --> client
   core --> merchant
+  core --> cli
   acp --> merchant
   ucp --> merchant
   mcp --> client
@@ -25,6 +31,8 @@ graph TD
   ucp --> client
   client --> agent
   core --> example
+  cm --> example
+  http --> example
   mcp --> example
   acp --> example
   ucp --> example
@@ -71,6 +79,8 @@ emit time:
 
 | Adapter | Validator | Schema |
 |---------|-----------|--------|
+| `@steelyard/protocol/commerce-manifest` | AJV2020 | `packages/core/spec/commerce-manifest/0.1/commerce-manifest.schema.json` |
+| `@steelyard/protocol/http` | AJV2020 | `packages/core/spec/http/0.1/*.schema.json` |
 | `@steelyard/protocol/acp` | AJV2020 | `protocols/acp/spec/2026-04-17/json-schema/schema.feed.json` |
 | `@steelyard/protocol/ucp` (discovery) | AJV2020 | `protocols/ucp/source/schemas/ucp.json` + transitive deps |
 | `@steelyard/protocol/ucp` (catalog) | AJV2020 | `protocols/ucp/source/schemas/shopping/catalog_*.json` |
@@ -95,7 +105,8 @@ release.
 
 ## What's next
 
-- :material-protocol: [MCP](protocols/mcp.md), [ACP](protocols/acp.md),
+- :material-protocol: [Commerce manifest](protocols/commerce-manifest.md),
+  [HTTP API](protocols/http.md), [MCP](protocols/mcp.md), [ACP](protocols/acp.md),
   [UCP](protocols/ucp.md) — per-protocol surface details.
 - :material-tag: [Versioning](concepts/versioning.md) — the read-side
   capability rule.

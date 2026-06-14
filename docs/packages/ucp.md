@@ -71,6 +71,9 @@ import {
 - `validateUcpDiscovery(doc)` / `assertValidUcpDiscovery(doc)` —
   spec-validates against the vendored business-profile schema.
 
+The discovery `links.commerce_manifest` field points at
+`${baseUrl}/.well-known/commerce.json`.
+
 ### Catalog
 
 - `searchCatalog(manifest, body)` → `UcpCatalogResponse` — validated against
@@ -85,7 +88,7 @@ Plus matching `validate*` / `assertValid*` helpers for each response type.
 
 ## Verification
 
-`packages/protocol/src/ucp/ucp.test.ts` runs 14 cases including adversarial spec
+`packages/protocol/src/ucp/ucp.test.ts` runs 15 cases including adversarial spec
 tampering (drop `inputs` from a lookup variant — must throw). Coverage:
 ≥ 95% lines.
 

@@ -1,7 +1,8 @@
 # Quickstart
 
 The 60-second demo: spin up an example coffee shop that exposes its catalog
-across all three protocols, then have an LLM-driven agent CLI explore it.
+as `commerce.json`, plain HTTP, and all three agentic protocols, then have an
+LLM-driven agent CLI explore it.
 
 ## Prerequisites
 
@@ -31,8 +32,8 @@ You should see something like:
 Steelyard coffee shop listening on http://127.0.0.1:3000
 ```
 
-**Same `defineCommerce({...})` config, three live protocol endpoints.** This
-is the unification.
+**Same `defineCommerce({...})` config, static JSON plus four live read
+surfaces.** This is the unification.
 
 ## Send the buyer agent to explore
 
@@ -52,9 +53,9 @@ npx @steelyard/agent --merchant http://127.0.0.1:3000/mcp \
 Either way, the agent connects, fetches the offers, and prints an answer.
 
 !!! tip "Switch protocols, same answer"
-    Re-run the command pointing at `/acp/feed` or `/.well-known/ucp`. The
-    agent returns the **identical offer list** because all three endpoints
-    are emitted from the same config.
+    Re-run the command pointing at `/acp/feed` or `/.well-known/ucp`, or fetch
+    `/commerce/products` directly. The returned offer list is emitted from the
+    same config.
 
 ## What's next
 
@@ -64,3 +65,5 @@ Either way, the agent connects, fetches the offers, and prints an answer.
   see the [buyer SDK guide](packages/client.md).
 - :material-tools: Build your own multi-protocol merchant — see
   [`defineCommerce`](concepts/define-commerce.md).
+- :material-file-code: Generate static `commerce.json` — see the
+  [static manifest guide](guides/static-manifest.md).
