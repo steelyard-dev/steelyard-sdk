@@ -3,6 +3,8 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: {
     "mcp/index": "src/mcp/index.ts",
+    "commerce-manifest/index": "src/commerce-manifest/index.ts",
+    "http/index": "src/http/index.ts",
     "acp/index": "src/acp/index.ts",
     "acp/checkout": "src/acp/checkout.ts",
     "ucp/index": "src/ucp/index.ts",

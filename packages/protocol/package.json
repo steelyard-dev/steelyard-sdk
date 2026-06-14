@@ -13,6 +13,16 @@
       "import": "./dist/mcp/index.js",
       "require": "./dist/mcp/index.cjs"
     },
+    "./commerce-manifest": {
+      "types": "./dist/commerce-manifest/index.d.ts",
+      "import": "./dist/commerce-manifest/index.js",
+      "require": "./dist/commerce-manifest/index.cjs"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js",
+      "require": "./dist/http/index.cjs"
+    },
     "./acp": {
       "types": "./dist/acp/index.d.ts",
       "import": "./dist/acp/index.js",
