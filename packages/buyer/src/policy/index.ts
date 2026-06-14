@@ -1,3 +1,4 @@
+export { BuyerPolicy, _resetPermissiveWarningForTests, type BuyerPolicyLoadOptions } from "./load.js";
 export { evaluatePolicy, type PolicySpendContext } from "./evaluate.js";
 export { domainMatches } from "./glob.js";
 export { normalizeCurrency, normalizeMerchantDomain } from "./normalize.js";
