@@ -4,11 +4,22 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { createAcpFeedHandler } from "@steelyard/protocol/acp";
-import { defineCommerce } from "@steelyard/core";
+import { buildAcpFeed, createAcpFeedHandler } from "@steelyard/protocol/acp";
+import { defineCommerce, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
 import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
-import { createUcpHandler } from "@steelyard/protocol/ucp";
-import { Steelyard, connect, isCompatibleReadVersion, type Merchant } from "./index.js";
+import { buildUcpDiscovery, createUcpHandler } from "@steelyard/protocol/ucp";
+import {
+  applyCompleteRequest as applyAcpComplete,
+  applyCreateRequest as applyAcpCreate,
+  type CheckoutSession
+} from "@steelyard/protocol/acp/checkout";
+import {
+  applyUcpComplete,
+  applyUcpCreate,
+  applyUcpUpdate,
+  type Checkout as UcpCheckout
+} from "@steelyard/protocol/ucp/checkout";
+import { MerchantNoCheckout, Steelyard, connect, isCompatibleReadVersion, type Merchant } from "./index.js";
 
 const manifest = defineCommerce({
   identity: { name: "Acme Coffee", domain: "coffee.example", currencies: ["usd"] },
@@ -42,7 +53,15 @@ const manifest = defineCommerce({
   ]
 });
 
+const now = new Date("2026-01-02T03:04:05.000Z");
+
 let server: NodeServer | undefined;
+
+interface CapturedRequest {
+  path: string;
+  idempotencyKey?: string;
+  body: unknown;
+}
 
 afterEach(async () => {
   if (server) {
@@ -59,10 +78,18 @@ describe("Steelyard.connect", () => {
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("mcp");
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    expect(merchant.supports("read")).toBe(true);
+    expect(merchant.supports("checkout")).toBe(false);
     await expectMerchantBasics(merchant);
+    expect((await merchant.lookup("single") as { title: string }).title).toBe("Single Espresso");
     expect((await merchant.getManifest() as { identity: { name: string } }).identity.name).toBe("Acme Coffee");
     expect((await merchant.getPolicies() as unknown[])).toHaveLength(6);
     expect(await merchant.getOffer("missing")).toMatchObject({ error: "not_found" });
+    await expect(merchant.purchase(purchaseIntent("mcp", `${base}/mcp`), { port: {} as never })).rejects.toMatchObject({
+      name: "MerchantNoCheckout",
+      protocol: "mcp",
+      reason: expect.stringContaining("MCP checkout")
+    });
     await expect(merchant.close?.()).resolves.toBeUndefined();
   });
 
@@ -72,10 +99,15 @@ describe("Steelyard.connect", () => {
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("acp");
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    expect(merchant.supports("read")).toBe(true);
+    expect(merchant.supports("checkout")).toBe(false);
+    expect(merchant.supports("discounts")).toBe(false);
+    expect((merchant.supports as (capability: string) => boolean)("unknown")).toBe(false);
     expect((await merchant.search("") as { id: string }[]).map((offer) => offer.id)).toEqual([
       "double",
       "single"
     ]);
+    expect((await merchant.lookup("single") as { title: string }).title).toBe("Single Espresso");
     expect((await merchant.search("double") as { id: string }[]).map((offer) => offer.id)).toEqual(["double"]);
     expect((await merchant.getManifest() as { identity: { name: string } }).identity.name).toBe("Acme Coffee");
     expect((await merchant.getPolicies() as { type: string }[]).map((policy) => policy.type)).toEqual([
@@ -90,6 +122,9 @@ describe("Steelyard.connect", () => {
       error: "not_found",
       error_detail: "Offer not found: missing"
     });
+    await expect(merchant.purchase(purchaseIntent("acp", `${base}/acp/feed`), { port: {} as never })).rejects.toBeInstanceOf(
+      MerchantNoCheckout
+    );
   });
 
   it("detects UCP discovery and uses the REST catalog service", async () => {
@@ -98,13 +133,22 @@ describe("Steelyard.connect", () => {
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    expect(merchant.supports("read")).toBe(true);
+    expect(merchant.supports("checkout")).toBe(false);
+    expect(merchant.supports("checkout:steelyard")).toBe(false);
+    expect(merchant.supports("discounts")).toBe(false);
+    expect((merchant.supports as (capability: string) => boolean)("unknown")).toBe(false);
     await expectMerchantBasics(merchant);
+    expect((await merchant.lookup("single") as { title: string }).title).toBe("Single Espresso");
     expect((await merchant.getManifest() as { identity: { name: string } }).identity.name).toBe("Acme Coffee");
     expect(await merchant.getOffer("missing")).toEqual({
       error: "not_found",
       error_detail: "HTTP 404"
     });
     expect((await merchant.getPolicies()) as unknown[]).toEqual([]);
+    await expect(merchant.purchase(purchaseIntent("ucp", base), { port: {} as never })).rejects.toBeInstanceOf(
+      MerchantNoCheckout
+    );
   });
 
   it("falls back from a base URL to UCP well-known discovery", async () => {
@@ -112,6 +156,108 @@ describe("Steelyard.connect", () => {
     const merchant = await connect(base);
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
+  });
+
+  it("sniffs ACP checkout capability from capabilities.services", async () => {
+    const base = await startAcpCapabilityServer(["read", "checkout"]);
+    const merchant = await connect(`${base}/acp/feed`);
+
+    expect(isMerchant(merchant) && merchant.protocol).toBe("acp");
+    if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    expect(merchant.supports("checkout")).toBe(true);
+    expect(merchant.supports("checkout:steelyard")).toBe(false);
+  });
+
+  it("normalizes ACP well-known discovery URLs to the checkout route base", async () => {
+    const base = await startAcpCapabilityServer(["read", "checkout"]);
+    const merchant = await connect(`${base}/.well-known/acp.json`);
+
+    expect(isMerchant(merchant) && merchant.protocol).toBe("acp");
+    if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    expect(merchant.url).toBe(`${base}/acp`);
+    expect(merchant.supports("checkout")).toBe(true);
+  });
+
+  it("accepts legacy UCP discovery capability keys for read compatibility", async () => {
+    const base = await startLegacyUcpDiscoveryServer();
+    const merchant = await connect(base);
+
+    expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
+    if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    expect(merchant.supports("read")).toBe(true);
+    expect(merchant.supports("checkout")).toBe(false);
+  });
+
+  it("sniffs UCP checkout and Steelyard-mode capabilities independently", async () => {
+    const steelyardBase = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: true });
+    const steelyardMerchant = await connect(steelyardBase);
+
+    expect(isMerchant(steelyardMerchant) && steelyardMerchant.protocol).toBe("ucp");
+    if (!isMerchant(steelyardMerchant)) throw new Error("Expected merchant");
+    expect(steelyardMerchant.supports("checkout")).toBe(true);
+    expect(steelyardMerchant.supports("checkout:steelyard")).toBe(true);
+
+    server?.closeAllConnections();
+    await new Promise<void>((resolve) => server!.close(() => resolve()));
+    server = undefined;
+
+    const ap2Base = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: false });
+    const ap2Merchant = await connect(ap2Base);
+
+    expect(isMerchant(ap2Merchant) && ap2Merchant.protocol).toBe("ucp");
+    if (!isMerchant(ap2Merchant)) throw new Error("Expected merchant");
+    expect(ap2Merchant.supports("checkout")).toBe(true);
+    expect(ap2Merchant.supports("checkout:steelyard")).toBe(false);
+  });
+
+  it("routes ACP merchant.purchase through the checkout driver", async () => {
+    const { base, requests } = await startAcpCheckoutServer();
+    const merchant = await connect(`${base}/acp/feed`, { delegatePaymentUrl: `${base}/delegate-override` });
+
+    expect(isMerchant(merchant) && merchant.supports("checkout")).toBe(true);
+    if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    const receipt = await merchant.purchase(purchaseIntent("acp", `${base}/acp/feed`), {
+      port: testPort(),
+      idempotencyKey: "purchase_acp",
+      clock: () => now
+    });
+
+    const checkoutRequests = requests.filter((request) => request.idempotencyKey);
+    expect(receipt.reference.acp?.checkout_session_id).toBe("cs_1");
+    expect(checkoutRequests.map((request) => request.path)).toEqual([
+      "/acp/checkout_sessions",
+      "/delegate-override",
+      "/acp/checkout_sessions/cs_1/complete"
+    ]);
+    expect(checkoutRequests.map((request) => request.idempotencyKey)).toEqual([
+      "purchase_acp:create",
+      "purchase_acp:delegate",
+      "purchase_acp:complete"
+    ]);
+  });
+
+  it("routes UCP merchant.purchase with Steelyard-mode support", async () => {
+    const { base, requests } = await startUcpCheckoutServer();
+    const port = testPort();
+    const merchant = await connect(base, { delegatePaymentUrl: `${base}/delegate-override` });
+
+    expect(isMerchant(merchant) && merchant.supports("checkout:steelyard")).toBe(true);
+    if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    const receipt = await merchant.purchase(purchaseIntent("ucp", base), {
+      port,
+      idempotencyKey: "purchase_ucp",
+      clock: () => now
+    });
+
+    const checkoutRequests = requests.filter((request) => request.idempotencyKey);
+    expect(receipt.reference.ucp?.checkout_id).toBe("checkout_1");
+    expect(port.signMandatePayloads[0]?.aud).toBe(`${base}/.well-known/ucp`);
+    expect(checkoutRequests.map((request) => request.path)).toEqual([
+      "/api/checkout",
+      "/api/checkout/checkout_1",
+      "/delegate-override",
+      "/api/checkout/checkout_1/complete"
+    ]);
   });
 
   it("returns protocol_mismatch when no probe matches", async () => {
@@ -184,6 +330,237 @@ async function startMerchantServer(): Promise<string> {
   return `http://127.0.0.1:${port}`;
 }
 
+async function startAcpCapabilityServer(services: string[]): Promise<string> {
+  server = createServer((req, res) => {
+    if (req.method === "GET" && (req.url?.startsWith("/acp/feed") || req.url?.startsWith("/.well-known/acp.json"))) {
+      sendJson(res, {
+        ...buildAcpFeed(manifest),
+        merchant: { domain: "coffee.example" },
+        capabilities: { services }
+      });
+      return;
+    }
+    sendJson(res, { error: "not_found" }, 404);
+  });
+  await listen(server);
+  const { port } = server.address() as { port: number };
+  return `http://127.0.0.1:${port}`;
+}
+
+async function startLegacyUcpDiscoveryServer(): Promise<string> {
+  server = createServer((req, res) => {
+    if (req.method === "GET" && req.url?.startsWith("/.well-known/ucp")) {
+      const baseUrl = `http://${req.headers.host}`;
+      sendJson(res, {
+        ucp: {
+          version: "2026-04-17",
+          services: {
+            "dev.ucp.shopping": [
+              {
+                version: "2026-04-17",
+                transport: "rest",
+                endpoint: `${baseUrl}/api`
+              }
+            ]
+          },
+          capabilities: {
+            "dev.ucp.shopping.catalog.search": [{ version: "2026-04-17" }]
+          },
+          payment_handlers: {}
+        },
+        merchant: { name: "Acme Coffee", domain: "coffee.example" },
+        links: { commerce_manifest: `${baseUrl}/commerce/manifest` }
+      });
+      return;
+    }
+    sendJson(res, { error: "not_found" }, 404);
+  });
+  await listen(server);
+  const { port } = server.address() as { port: number };
+  return `http://127.0.0.1:${port}`;
+}
+
+async function startUcpDiscoveryServer(opts: { checkout: boolean; steelyardMandate: boolean }): Promise<string> {
+  server = createServer((req, res) => {
+    if (req.method === "GET" && req.url?.startsWith("/.well-known/ucp")) {
+      sendJson(res, buildUcpDiscovery(manifest, { baseUrl: `http://${req.headers.host}`, ...opts }));
+      return;
+    }
+    sendJson(res, { error: "not_found" }, 404);
+  });
+  await listen(server);
+  const { port } = server.address() as { port: number };
+  return `http://127.0.0.1:${port}`;
+}
+
+async function startAcpCheckoutServer(): Promise<{ base: string; requests: CapturedRequest[] }> {
+  const requests: CapturedRequest[] = [];
+  let session: CheckoutSession | undefined;
+  server = createServer(async (req, res) => {
+    if (req.method === "GET" && req.url?.startsWith("/acp/feed")) {
+      sendJson(res, {
+        ...buildAcpFeed(manifest),
+        merchant: { domain: "coffee.example" },
+        capabilities: { services: ["read", "checkout"] }
+      });
+      return;
+    }
+
+    const body = await readJsonBody(req);
+    requests.push({ path: req.url ?? "/", idempotencyKey: idempotencyKey(req), body });
+    if (req.method === "POST" && req.url === "/acp/checkout_sessions") {
+      session = withAcpHandler(applyAcpCreate(body as Record<string, unknown>, { manifest, now, sessionId: "cs_1" }).next);
+      sendJson(res, session);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/delegate-override") {
+      sendJson(res, { id: "vt_1", created: now.toISOString(), metadata: {} });
+      return;
+    }
+    if (req.method === "POST" && req.url === "/acp/checkout_sessions/cs_1/complete" && session) {
+      sendJson(res, applyAcpComplete(session, body as Record<string, unknown>, {
+        now,
+        pspResult: { ok: true, psp_payment_id: "pi_1", status: "captured" }
+      }).next);
+      return;
+    }
+    sendJson(res, { error: "not_found" }, 404);
+  });
+  await listen(server);
+  const { port } = server.address() as { port: number };
+  return { base: `http://127.0.0.1:${port}`, requests };
+}
+
+async function startUcpCheckoutServer(): Promise<{ base: string; requests: CapturedRequest[] }> {
+  const requests: CapturedRequest[] = [];
+  let checkout: UcpCheckout | undefined;
+  server = createServer(async (req, res) => {
+    if (req.method === "GET" && req.url?.startsWith("/.well-known/ucp")) {
+      sendJson(res, buildUcpDiscovery(manifest, {
+        baseUrl: `http://${req.headers.host}`,
+        checkout: true,
+        steelyardMandate: true
+      }));
+      return;
+    }
+
+    const body = await readJsonBody(req);
+    requests.push({ path: req.url ?? "/", idempotencyKey: idempotencyKey(req), body });
+    if (req.method === "POST" && req.url === "/api/checkout") {
+      checkout = withUcpHandler(applyUcpCreate(body as Record<string, unknown>, {
+        now,
+        checkoutId: "checkout_1",
+        currency: "USD",
+        links: []
+      }).next);
+      sendJson(res, checkout);
+      return;
+    }
+    if (req.method === "PATCH" && req.url === "/api/checkout/checkout_1" && checkout) {
+      checkout = applyUcpUpdate(checkout, body as Record<string, unknown>, { now }).next;
+      sendJson(res, checkout);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/delegate-override") {
+      sendJson(res, { id: "vt_1", created: now.toISOString(), metadata: {} });
+      return;
+    }
+    if (req.method === "POST" && req.url === "/api/checkout/checkout_1/complete" && checkout) {
+      sendJson(res, applyUcpComplete(checkout, body as { payment: { instruments: [] } }, {
+        now,
+        mandateOk: { subject_id: "subject_1", key_id: "mk_test" },
+        pspResult: { ok: true, psp_payment_id: "pi_1", status: "captured" },
+        orderId: "order_checkout_1",
+        permalinkUrl: "https://coffee.example/orders/order_checkout_1"
+      }).next);
+      return;
+    }
+    sendJson(res, { error: "not_found" }, 404);
+  });
+  await listen(server);
+  const { port } = server.address() as { port: number };
+  return { base: `http://127.0.0.1:${port}`, requests };
+}
+
+function withAcpHandler(session: CheckoutSession): CheckoutSession {
+  return {
+    ...session,
+    capabilities: {
+      payment: {
+        handlers: [
+          {
+            id: "stripe",
+            name: "dev.steelyard.vault_token",
+            display_name: "Vault token",
+            version: "2026-04-17",
+            spec: "https://steelyard.dev/specs/payment/vault-token",
+            requires_delegate_payment: true,
+            requires_pci_compliance: false,
+            psp: "stripe",
+            config_schema: "https://steelyard.dev/schemas/payment-handler-config.json",
+            instrument_schemas: ["https://steelyard.dev/schemas/vault-token-instrument.json"],
+            config: {}
+          }
+        ]
+      }
+    }
+  };
+}
+
+function withUcpHandler(checkout: UcpCheckout): UcpCheckout {
+  return {
+    ...checkout,
+    ucp: {
+      ...(checkout.ucp as Record<string, unknown>),
+      payment_handlers: {
+        "net.steelyard": [
+          {
+            id: "stripe",
+            version: "2026-04-17",
+            spec: "https://steelyard.dev/specs/payment/vault-token",
+            schema: "https://ucp.dev/schemas/payment_handler.json",
+            config: { token_type: "vault_token" }
+          }
+        ]
+      }
+    }
+  };
+}
+
+function testPort(): WalletDriverPort & { signMandatePayloads: Record<string, unknown>[] } {
+  const signMandatePayloads: Record<string, unknown>[] = [];
+  return {
+    signMandatePayloads,
+    billing: {
+      name: "Ada Lovelace",
+      email: "ada@example.com",
+      address: { line1: "1 Coffee St", city: "London", postal_code: "SW1A", country: "GB" }
+    },
+    async withRawCard(fn) {
+      return await fn({
+        id: "card_1",
+        pan: "4242424242424242",
+        cvc: "123",
+        exp: "12/30",
+        name_on_card: "Ada Lovelace",
+        brand: "visa",
+        last4: "4242",
+        tags: []
+      });
+    },
+    async signMandate(payload) {
+      signMandatePayloads.push(payload as Record<string, unknown>);
+      return { jwt: "signed.jwt", key_id: "mk_test" };
+    },
+    async pairwiseSubject(audience) {
+      return `sub:${audience}`;
+    },
+    async mandatePublicKey() {
+      return { jwk: { kty: "OKP", crv: "Ed25519", x: "test" }, key_id: "mk_test" };
+    }
+  };
+}
+
 function createVersionedMcpHandler(version: string) {
   const transports = new Map<string, StreamableHTTPServerTransport>();
   return async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -226,10 +603,34 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   return raw ? JSON.parse(raw) : {};
 }
 
+function idempotencyKey(req: IncomingMessage): string | undefined {
+  const value = req.headers["idempotency-key"];
+  return Array.isArray(value) ? value[0] : value;
+}
+
 async function listen(target: NodeServer): Promise<void> {
   await new Promise<void>((resolve) => target.listen(0, () => resolve()));
 }
 
+function sendJson(res: ServerResponse, body: unknown, status = 200): void {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
 function isMerchant(value: unknown): value is Merchant {
   return !!value && typeof value === "object" && "search" in value;
+}
+
+function purchaseIntent(protocol: PurchaseIntent["merchant"]["protocol"], transportUrl: string): PurchaseIntent {
+  return {
+    merchant: {
+      domain: "coffee.example",
+      transport_url: transportUrl,
+      protocol
+    },
+    offer: { id: "double", title: "Double Espresso", categories: ["espresso"] },
+    amount: 450,
+    currency: "USD",
+    intent_id: "intent_test"
+  };
 }

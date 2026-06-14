@@ -4,11 +4,16 @@ import { createServer, request, type Server as NodeServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { defineCommerce } from "@steelyard/core";
 import {
-  UCP_CATALOG_LOOKUP_CAPABILITY,
+  UCP_CATALOG_LOOKUP_CAPABILITY_ID,
   UCP_CATALOG_SEARCH_CAPABILITY,
+  UCP_CATALOG_SEARCH_CAPABILITY_ID,
+  UCP_CHECKOUT_CAPABILITY_ID,
+  UCP_SHOPPING_DOMAIN,
   UCP_SHOPPING_SERVICE,
   UCP_VERSION,
   UCP_WELL_KNOWN_PATH,
+  STEELYARD_DOMAIN,
+  STEELYARD_MANDATE_V01_ID,
   assertValidGetProductResponse,
   assertValidLookupResponse,
   assertValidSearchResponse,
@@ -74,14 +79,31 @@ describe("buildUcpDiscovery", () => {
       expect.objectContaining({ transport: "rest", endpoint: "https://shop.example/api" }),
       expect.objectContaining({ transport: "mcp", endpoint: "https://shop.example/mcp" })
     ]);
-    expect(Object.keys(doc.ucp.capabilities)).toEqual([
-      UCP_CATALOG_SEARCH_CAPABILITY,
-      UCP_CATALOG_LOOKUP_CAPABILITY
+    expect(Object.keys(doc.ucp.capabilities)).toEqual([UCP_SHOPPING_DOMAIN]);
+    expect(doc.ucp.capabilities[UCP_SHOPPING_DOMAIN]?.map((capability) => capability.id)).toEqual([
+      UCP_CATALOG_SEARCH_CAPABILITY_ID,
+      UCP_CATALOG_LOOKUP_CAPABILITY_ID
     ]);
     expect(doc.ucp.payment_handlers).toEqual({});
     expect(doc.links.commerce_manifest).toBe("https://shop.example/commerce/manifest");
     expect(validateUcpDiscovery(doc).valid).toBe(true);
     expect(() => assertValidUcpDiscovery(doc)).not.toThrow();
+  });
+
+  it("can advertise checkout and Steelyard-mode mandate capabilities separately", () => {
+    const doc = buildUcpDiscovery(manifest, {
+      baseUrl: "https://shop.example/",
+      checkout: true,
+      steelyardMandate: true
+    });
+
+    expect(doc.ucp.capabilities[UCP_SHOPPING_DOMAIN]?.map((capability) => capability.id)).toContain(
+      UCP_CHECKOUT_CAPABILITY_ID
+    );
+    expect(doc.ucp.capabilities[STEELYARD_DOMAIN]).toEqual([
+      expect.objectContaining({ id: STEELYARD_MANDATE_V01_ID })
+    ]);
+    expect(validateUcpDiscovery(doc).valid).toBe(true);
   });
 
   it("reports schema errors for invalid discovery documents", () => {

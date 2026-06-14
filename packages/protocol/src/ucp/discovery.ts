@@ -16,10 +16,17 @@ export const UCP_WELL_KNOWN_PATH = "/.well-known/ucp";
 export const UCP_API_PATH = "/api";
 export const UCP_VERSION = "2026-04-17";
 export const UCP_SHOPPING_SERVICE = "dev.ucp.shopping";
+export const UCP_SHOPPING_DOMAIN = UCP_SHOPPING_SERVICE;
 export const UCP_CATALOG_SEARCH_CAPABILITY = "dev.ucp.shopping.catalog.search";
 export const UCP_CATALOG_LOOKUP_CAPABILITY = "dev.ucp.shopping.catalog.lookup";
+export const UCP_CATALOG_SEARCH_CAPABILITY_ID = "catalog.search";
+export const UCP_CATALOG_LOOKUP_CAPABILITY_ID = "catalog.lookup";
+export const UCP_CHECKOUT_CAPABILITY_ID = "checkout";
+export const STEELYARD_DOMAIN = "net.steelyard";
+export const STEELYARD_MANDATE_V01_ID = "checkout_mandate.v0.1";
 
 export interface UcpEntity {
+  id?: string;
   version: string;
   spec?: string;
   schema?: string;
@@ -65,9 +72,43 @@ const validateBusinessProfile = loadBusinessProfileValidator();
 
 export function buildUcpDiscovery(
   manifest: Manifest,
-  opts: { baseUrl: string }
+  opts: { baseUrl: string; checkout?: boolean; steelyardMandate?: boolean }
 ): UcpDiscoveryDoc {
   const base = opts.baseUrl.replace(/\/$/, "");
+  const capabilities: Record<string, UcpEntity[]> = {
+    [UCP_SHOPPING_DOMAIN]: [
+      {
+        id: UCP_CATALOG_SEARCH_CAPABILITY_ID,
+        version: UCP_VERSION,
+        spec: `https://ucp.dev/${UCP_VERSION}/specification/catalog-search`,
+        schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/catalog_search.json`
+      },
+      {
+        id: UCP_CATALOG_LOOKUP_CAPABILITY_ID,
+        version: UCP_VERSION,
+        spec: `https://ucp.dev/${UCP_VERSION}/specification/catalog-lookup`,
+        schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/catalog_lookup.json`
+      }
+    ]
+  };
+  if (opts.checkout) {
+    capabilities[UCP_SHOPPING_DOMAIN]!.push({
+      id: UCP_CHECKOUT_CAPABILITY_ID,
+      version: UCP_VERSION,
+      spec: `https://ucp.dev/${UCP_VERSION}/specification/checkout`,
+      schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/checkout.json`
+    });
+  }
+  if (opts.steelyardMandate) {
+    capabilities[STEELYARD_DOMAIN] = [
+      {
+        id: STEELYARD_MANDATE_V01_ID,
+        version: UCP_VERSION,
+        spec: "https://steelyard.dev/specification/checkout-mandate-v0.1",
+        schema: "https://steelyard.dev/schemas/checkout-mandate-v0.1.json"
+      }
+    ];
+  }
   return {
     ucp: {
       version: UCP_VERSION,
@@ -89,22 +130,7 @@ export function buildUcpDiscovery(
           }
         ]
       },
-      capabilities: {
-        [UCP_CATALOG_SEARCH_CAPABILITY]: [
-          {
-            version: UCP_VERSION,
-            spec: `https://ucp.dev/${UCP_VERSION}/specification/catalog-search`,
-            schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/catalog_search.json`
-          }
-        ],
-        [UCP_CATALOG_LOOKUP_CAPABILITY]: [
-          {
-            version: UCP_VERSION,
-            spec: `https://ucp.dev/${UCP_VERSION}/specification/catalog-lookup`,
-            schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/catalog_lookup.json`
-          }
-        ]
-      },
+      capabilities,
       payment_handlers: {}
     },
     merchant: { name: manifest.identity.name, domain: manifest.identity.domain },

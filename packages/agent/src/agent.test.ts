@@ -26,8 +26,12 @@ const offers = [
 ];
 
 const merchant: Merchant = {
+  id: "coffee.example",
   protocol: "mcp",
+  url: "http://merchant",
+  supports: (capability) => capability === "read",
   search: async () => offers,
+  lookup: async (id) => offers.find((offer) => offer.id === id) ?? { error: "not_found" },
   getOffer: async (id) => offers.find((offer) => offer.id === id) ?? { error: "not_found" },
   getManifest: async () => ({
     schemaVersion: "0.1",
@@ -35,7 +39,10 @@ const merchant: Merchant = {
     catalog: { offers },
     policies: []
   }),
-  getPolicies: async () => [{ type: "returns", summary: "Prepared drinks are final." }]
+  getPolicies: async () => [{ type: "returns", summary: "Prepared drinks are final." }],
+  purchase: async () => {
+    throw new Error("checkout is unavailable");
+  }
 };
 
 describe("runAgent", () => {

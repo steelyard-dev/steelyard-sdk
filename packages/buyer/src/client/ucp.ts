@@ -23,7 +23,7 @@ import {
 
 export interface UcpDriverOpts extends DriverBaseOpts {
   merchantUrl: string | URL;
-  merchantProfile?: { ucp?: { payment_handlers?: Record<string, PaymentHandlerLike[]> } };
+  merchantProfile?: { ucp?: { payment_handlers?: Record<string, unknown> } };
   supportsSteelyardMode?: boolean;
 }
 

@@ -2,28 +2,77 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import {
   COMMERCE_READ_VERSION,
+  canonicalMerchantAudience,
   defineCommerce,
+  type ApprovalProof,
+  type ApprovalResume,
   type ErrorCode,
   type Manifest,
   type Offer,
   type Policies,
-  type Policy
+  type Policy,
+  type PurchaseIntent,
+  type Receipt,
+  type WalletDriverPort
 } from "@steelyard/core";
+import {
+  STEELYARD_DOMAIN,
+  STEELYARD_MANDATE_V01_ID,
+  UCP_CATALOG_SEARCH_CAPABILITY,
+  UCP_CATALOG_SEARCH_CAPABILITY_ID,
+  UCP_CHECKOUT_CAPABILITY_ID,
+  UCP_SHOPPING_DOMAIN,
+  UCP_SHOPPING_SERVICE,
+  UCP_WELL_KNOWN_PATH
+} from "@steelyard/protocol/ucp";
+import { acpDriver } from "./acp.js";
+import { ucpDriver } from "./ucp.js";
 
 export type Protocol = "mcp" | "acp" | "ucp";
+export type MerchantCapability = "read" | "checkout" | "checkout:steelyard" | "discounts";
 
 export interface SteelyardError {
   error: ErrorCode;
   error_detail?: string;
 }
 
+export interface ConnectOptions {
+  delegatePaymentUrl?: string;
+}
+
+export interface PurchaseOpts {
+  port: WalletDriverPort;
+  approval?: ApprovalProof;
+  resume?: ApprovalResume;
+  idempotencyKey?: string;
+  clock?: () => Date;
+  onTotalsKnown?: (finalTotal: number, currency: string) => Promise<void> | void;
+}
+
 export interface Merchant {
+  id: string;
   protocol: Protocol;
+  url: string;
+  supports(capability: MerchantCapability): boolean;
   search(query: string): Promise<Offer[] | SteelyardError>;
+  lookup(id: string): Promise<Offer | SteelyardError>;
   getOffer(id: string): Promise<Offer | SteelyardError>;
   getManifest(): Promise<Manifest | SteelyardError>;
   getPolicies(): Promise<Policies | SteelyardError>;
+  purchase(intent: PurchaseIntent, opts: PurchaseOpts): Promise<Receipt>;
   close?(): Promise<void>;
+}
+
+export class MerchantNoCheckout extends Error {
+  readonly protocol: Protocol;
+  readonly reason: string;
+
+  constructor(opts: { protocol: Protocol; reason: string }) {
+    super(opts.reason);
+    this.name = "MerchantNoCheckout";
+    this.protocol = opts.protocol;
+    this.reason = opts.reason;
+  }
 }
 
 type DetectionResult = Merchant | SteelyardError | undefined;
@@ -32,17 +81,17 @@ export const Steelyard = {
   connect
 };
 
-export async function connect(url: string): Promise<Merchant | SteelyardError> {
+export async function connect(url: string, opts: ConnectOptions = {}): Promise<Merchant | SteelyardError> {
   const parsed = parseUrl(url);
   if ("error" in parsed) return parsed;
 
   const mcp = await detectMcp(parsed);
   if (mcp) return mcp;
 
-  const acp = await detectAcp(parsed);
+  const acp = await detectAcp(parsed, opts);
   if (acp) return acp;
 
-  const ucp = await detectUcp(parsed);
+  const ucp = await detectUcp(parsed, opts);
   if (ucp) return ucp;
 
   return fail("protocol_mismatch", "Could not detect MCP, ACP, or UCP at the supplied URL.");
@@ -76,26 +125,31 @@ async function detectMcp(url: URL): Promise<DetectionResult> {
   }
 }
 
-async function detectAcp(url: URL): Promise<DetectionResult> {
+async function detectAcp(url: URL, opts: ConnectOptions): Promise<DetectionResult> {
   const feed = await fetchJson(url);
   if (isError(feed)) return feed.error === "network_error" ? feed : undefined;
   if (!isAcpFeed(feed)) return undefined;
-  return acpMerchant(url, feed);
+  return acpMerchant(url, feed, opts);
 }
 
-async function detectUcp(url: URL): Promise<DetectionResult> {
-  const discoveryUrl = url.pathname.endsWith("/.well-known/ucp")
+async function detectUcp(url: URL, opts: ConnectOptions): Promise<DetectionResult> {
+  const discoveryUrl = url.pathname.endsWith(UCP_WELL_KNOWN_PATH)
     ? url
-    : new URL("/.well-known/ucp", url);
+    : new URL(UCP_WELL_KNOWN_PATH, url);
   const doc = await fetchJson(discoveryUrl);
   if (isError(doc)) return doc.error === "network_error" ? doc : undefined;
   if (!isUcpDiscovery(doc)) return undefined;
-  return ucpMerchant(doc, discoveryUrl);
+  return ucpMerchant(doc, discoveryUrl, opts);
 }
 
 function mcpMerchant(client: Client, url: URL): Merchant {
-  return {
+  const merchant: Merchant = {
+    id: url.host,
     protocol: "mcp",
+    url: url.toString(),
+    supports(capability) {
+      return capability === "read";
+    },
     async search(query) {
       return mapCall(async () => {
         const result = await client.callTool({ name: "list_offers", arguments: { query } });
@@ -110,6 +164,9 @@ function mcpMerchant(client: Client, url: URL): Merchant {
         return parseOffer(toolText(result));
       });
     },
+    async lookup(id) {
+      return merchant.getOffer(id);
+    },
     async getManifest() {
       return mapCall(async () => {
         const resource = await client.readResource({ uri: "commerce://manifest" });
@@ -122,17 +179,35 @@ function mcpMerchant(client: Client, url: URL): Merchant {
         return JSON.parse(resourceText(resource)) as Policies;
       }, "not_found");
     },
+    async purchase() {
+      throw new MerchantNoCheckout({
+        protocol: "mcp",
+        reason: "v0.3 does not support MCP checkout - deferred to v0.4"
+      });
+    },
     async close() {
       await closeQuietly(client);
     }
   };
+  return merchant;
 }
 
-function acpMerchant(url: URL, initialFeed: unknown): Merchant {
+function acpMerchant(url: URL, initialFeed: unknown, config: ConnectOptions): Merchant {
   const loadOffers = async () => acpOffersFromFeed(isAcpFeed(initialFeed) ? initialFeed : await fetchJson(url), url);
   const loadPolicies = async () => acpPoliciesFromFeed(isAcpFeed(initialFeed) ? initialFeed : await fetchJson(url));
-  return {
+  const checkoutUrl = acpCheckoutBaseUrl(url).toString();
+  const checkoutSupported = acpSupportsService(initialFeed, "checkout");
+  const merchant: Merchant = {
+    id: acpMerchantId(initialFeed, url),
     protocol: "acp",
+    url: checkoutUrl,
+    supports(capability) {
+      if (capability === "read") return true;
+      if (capability === "checkout") return checkoutSupported;
+      if (capability === "checkout:steelyard") return false;
+      if (capability === "discounts") return acpSupportsService(initialFeed, "discounts");
+      return false;
+    },
     async search(query) {
       return mapCall(async () => filterOffers(await loadOffers(), query));
     },
@@ -150,21 +225,59 @@ function acpMerchant(url: URL, initialFeed: unknown): Merchant {
     },
     async getPolicies() {
       return mapCall(loadPolicies);
+    },
+    async lookup(id) {
+      return merchant.getOffer(id);
+    },
+    async purchase(intent, opts) {
+      if (!checkoutSupported) {
+        throw new MerchantNoCheckout({
+          protocol: "acp",
+          reason: "ACP discovery did not advertise checkout"
+        });
+      }
+      return acpDriver.purchase(intent, {
+        merchantId: merchant.id,
+        merchantUrl: checkoutUrl,
+        delegatePaymentUrl: config.delegatePaymentUrl,
+        port: opts.port,
+        idempotencyKey: opts.idempotencyKey,
+        clock: opts.clock,
+        onTotalsKnown: opts.onTotalsKnown
+      });
     }
   };
+  return merchant;
 }
 
-function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL): Merchant {
+function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOptions): Merchant {
   const endpoint = restEndpoint(doc) ?? new URL("/api", discoveryUrl).toString();
   const identity = { name: doc.merchant?.name ?? discoveryUrl.host, domain: doc.merchant?.domain };
+  const id = canonicalMerchantAudience({
+    id: doc.merchant?.domain ?? discoveryUrl.host,
+    protocol: "ucp",
+    discoveryUrl: discoveryUrl.toString()
+  });
+  const checkoutSupported = ucpHasCapability(doc, UCP_SHOPPING_DOMAIN, UCP_CHECKOUT_CAPABILITY_ID);
   const post = (path: string, body: unknown) => fetchJson(new URL(`${endpoint.replace(/\/$/, "")}${path}`), {
     method: "POST",
     body: JSON.stringify(body),
     headers: { "content-type": "application/json" }
   });
 
-  return {
+  const merchant: Merchant = {
+    id,
     protocol: "ucp",
+    url: endpoint,
+    supports(capability) {
+      if (capability === "read") return true;
+      if (capability === "checkout") return checkoutSupported;
+      if (capability === "checkout:steelyard") {
+        return checkoutSupported && ucpHasCapability(doc, STEELYARD_DOMAIN, STEELYARD_MANDATE_V01_ID);
+      }
+      if (capability === "discounts") return false;
+      return false;
+    },
     async search(query) {
       return mapCall(async () => {
         const response = await post("/catalog/search", { query });
@@ -181,6 +294,9 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL): Merchant {
         return ucpProductToOffer(product);
       });
     },
+    async lookup(id) {
+      return merchant.getOffer(id);
+    },
     async getManifest() {
       return mapCall(async () => {
         const response = await post("/catalog/search", {});
@@ -190,8 +306,28 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL): Merchant {
     },
     async getPolicies() {
       return [];
+    },
+    async purchase(intent, opts) {
+      if (!checkoutSupported) {
+        throw new MerchantNoCheckout({
+          protocol: "ucp",
+          reason: "UCP discovery did not advertise checkout"
+        });
+      }
+      return ucpDriver.purchase(intent, {
+        merchantId: merchant.id,
+        merchantUrl: endpoint,
+        merchantProfile: doc,
+        supportsSteelyardMode: merchant.supports("checkout:steelyard"),
+        delegatePaymentUrl: config.delegatePaymentUrl,
+        port: opts.port,
+        idempotencyKey: opts.idempotencyKey,
+        clock: opts.clock,
+        onTotalsKnown: opts.onTotalsKnown
+      });
     }
   };
+  return merchant;
 }
 
 function readMcpCommerceVersion(client: Client): string | undefined {
@@ -318,7 +454,44 @@ function findOffer(offers: Offer[], id: string): Offer | SteelyardError {
 }
 
 function restEndpoint(doc: UcpDiscovery): string | undefined {
-  return doc.ucp.services["dev.ucp.shopping"]?.find((service) => service.transport === "rest")?.endpoint;
+  return doc.ucp.services[UCP_SHOPPING_SERVICE]?.find((service) => service.transport === "rest")?.endpoint;
+}
+
+function acpMerchantId(feed: unknown, url: URL): string {
+  const merchant = objectRecord(objectRecord(feed).merchant);
+  const domain = merchant.domain;
+  const id = merchant.id;
+  return typeof domain === "string" && domain ? domain : typeof id === "string" && id ? id : url.host;
+}
+
+function acpSupportsService(feed: unknown, service: string): boolean {
+  const services = objectRecord(objectRecord(feed).capabilities).services;
+  return Array.isArray(services) && services.includes(service);
+}
+
+function acpCheckoutBaseUrl(url: URL): URL {
+  const checkoutUrl = new URL(url);
+  checkoutUrl.search = "";
+  checkoutUrl.hash = "";
+  if (checkoutUrl.pathname.endsWith("/feed")) {
+    checkoutUrl.pathname = checkoutUrl.pathname.slice(0, -"/feed".length) || "/";
+  } else if (checkoutUrl.pathname.endsWith("/.well-known/acp.json")) {
+    checkoutUrl.pathname = "/acp";
+  }
+  return checkoutUrl;
+}
+
+function ucpHasCapability(doc: UcpDiscovery, domain: string, id: string): boolean {
+  const bucket = doc.ucp.capabilities?.[domain];
+  return Array.isArray(bucket) && bucket.some((entry) => objectRecord(entry).id === id);
+}
+
+function ucpHasLegacyCapability(doc: UcpDiscovery, key: string): boolean {
+  return Array.isArray(doc.ucp.capabilities?.[key]);
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
 function policyTypeFromLink(type: string): Policy["type"] {
@@ -348,7 +521,10 @@ function isAcpFeed(value: unknown): value is AcpFeed {
 
 function isUcpDiscovery(value: unknown): value is UcpDiscovery {
   const doc = value as UcpDiscovery;
-  return !!doc?.ucp?.services?.["dev.ucp.shopping"] && !!doc.ucp.capabilities?.["dev.ucp.shopping.catalog.search"];
+  return !!doc?.ucp?.services?.[UCP_SHOPPING_SERVICE] && (
+    ucpHasCapability(doc, UCP_SHOPPING_DOMAIN, UCP_CATALOG_SEARCH_CAPABILITY_ID)
+    || ucpHasLegacyCapability(doc, UCP_CATALOG_SEARCH_CAPABILITY)
+  );
 }
 
 function isError(value: unknown): value is SteelyardError {
@@ -374,6 +550,8 @@ function fail(error: ErrorCode, error_detail?: string): SteelyardError {
 
 interface AcpFeed {
   products: AcpProduct[];
+  capabilities?: { services?: string[] };
+  merchant?: { id?: string; domain?: string };
 }
 
 interface AcpProduct {
@@ -399,6 +577,7 @@ interface UcpDiscovery {
   ucp: {
     services: Record<string, { transport?: string; endpoint?: string }[]>;
     capabilities?: Record<string, unknown>;
+    payment_handlers?: Record<string, unknown>;
   };
   merchant?: { name?: string; domain?: string };
 }
