@@ -1,0 +1,19 @@
+{
+  "name": "@steelyard/merchant",
+  "version": "0.2.0",
+  "description": "Merchant-side primitives for Steelyard: policy engine and (future) trust controls. Subpath imports.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {},
+  "scripts": {
+    "build": "echo '@steelyard/merchant: no entry points yet (policy scaffolded only)' && exit 0",
+    "test": "echo '@steelyard/merchant: no tests yet (policy scaffolded only)' && exit 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@steelyard/core": "workspace:^"
+  }
+}

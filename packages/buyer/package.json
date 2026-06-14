@@ -1,0 +1,29 @@
+{
+  "name": "@steelyard/buyer",
+  "version": "0.2.0",
+  "description": "Buyer-side primitives for Steelyard: unified client, policy engine, local vault. Subpath imports.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js",
+      "require": "./dist/client/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@steelyard/core": "workspace:^"
+  },
+  "devDependencies": {
+    "@steelyard/protocol": "workspace:^"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "@steelyard/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Core read-side commerce manifest, validation, and types for Steelyard.",
   "license": "MIT",
   "type": "module",

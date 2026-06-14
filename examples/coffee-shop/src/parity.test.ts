@@ -2,7 +2,7 @@ import { type Server as NodeServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { Steelyard, type Merchant } from "@steelyard/client";
+import { Steelyard, type Merchant } from "@steelyard/buyer/client";
 import type { Manifest, Offer, Policies } from "@steelyard/core";
 import { createCoffeeShopServer } from "./server.js";
 

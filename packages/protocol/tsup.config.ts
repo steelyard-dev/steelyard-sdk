@@ -2,7 +2,9 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   entry: {
-    index: "src/index.ts"
+    "mcp/index": "src/mcp/index.ts",
+    "acp/index": "src/acp/index.ts",
+    "ucp/index": "src/ucp/index.ts"
   },
   format: ["esm", "cjs"],
   dts: true,

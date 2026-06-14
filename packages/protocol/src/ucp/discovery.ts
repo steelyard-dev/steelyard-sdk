@@ -2,14 +2,14 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-import availableInstrumentSchema from "../spec/2026-04-08/schemas/shopping/types/available_payment_instrument.json";
-import capabilitySchema from "../spec/2026-04-08/schemas/capability.json";
-import embeddedConfigSchema from "../spec/2026-04-08/schemas/transports/embedded_config.json";
-import handlerSchema from "../spec/2026-04-08/schemas/payment_handler.json";
-import profileSchema from "../spec/2026-04-08/schemas/profile.json";
-import reverseDomainNameSchema from "../spec/2026-04-08/schemas/common/types/reverse_domain_name.json";
-import serviceSchema from "../spec/2026-04-08/schemas/service.json";
-import ucpSchema from "../spec/2026-04-08/schemas/ucp.json";
+import availableInstrumentSchema from "../../spec/ucp/2026-04-08/schemas/shopping/types/available_payment_instrument.json";
+import capabilitySchema from "../../spec/ucp/2026-04-08/schemas/capability.json";
+import embeddedConfigSchema from "../../spec/ucp/2026-04-08/schemas/transports/embedded_config.json";
+import handlerSchema from "../../spec/ucp/2026-04-08/schemas/payment_handler.json";
+import profileSchema from "../../spec/ucp/2026-04-08/schemas/profile.json";
+import reverseDomainNameSchema from "../../spec/ucp/2026-04-08/schemas/common/types/reverse_domain_name.json";
+import serviceSchema from "../../spec/ucp/2026-04-08/schemas/service.json";
+import ucpSchema from "../../spec/ucp/2026-04-08/schemas/ucp.json";
 import type { Manifest } from "@steelyard/core";
 
 export const UCP_WELL_KNOWN_PATH = "/.well-known/ucp";

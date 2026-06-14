@@ -1,0 +1,38 @@
+{
+  "name": "@steelyard/protocol",
+  "version": "0.2.0",
+  "description": "Protocol adapters for Steelyard: MCP, ACP, UCP. Subpath imports per protocol.",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js",
+      "require": "./dist/mcp/index.cjs"
+    },
+    "./acp": {
+      "types": "./dist/acp/index.d.ts",
+      "import": "./dist/acp/index.js",
+      "require": "./dist/acp/index.cjs"
+    },
+    "./ucp": {
+      "types": "./dist/ucp/index.d.ts",
+      "import": "./dist/ucp/index.js",
+      "require": "./dist/ucp/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@steelyard/core": "workspace:^",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  }
+}

@@ -1,6 +1,6 @@
 {
   "name": "@steelyard/example-coffee-shop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Coffee shop example merchant for Steelyard.",
   "type": "module",
@@ -14,10 +14,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@steelyard/acp": "workspace:*",
-    "@steelyard/client": "workspace:*",
+    "@steelyard/buyer": "workspace:*",
     "@steelyard/core": "workspace:*",
-    "@steelyard/mcp": "workspace:*",
-    "@steelyard/ucp": "workspace:*"
+    "@steelyard/protocol": "workspace:*"
   }
 }

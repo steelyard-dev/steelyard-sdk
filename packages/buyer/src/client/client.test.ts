@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { createAcpFeedHandler } from "@steelyard/acp";
+import { createAcpFeedHandler } from "@steelyard/protocol/acp";
 import { defineCommerce } from "@steelyard/core";
-import { createMcpHttpHandler } from "@steelyard/mcp";
-import { createUcpHandler } from "@steelyard/ucp";
+import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
+import { createUcpHandler } from "@steelyard/protocol/ucp";
 import { Steelyard, connect, isCompatibleReadVersion, type Merchant } from "./index.js";
 
 const manifest = defineCommerce({

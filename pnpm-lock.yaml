@@ -38,47 +38,29 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
-      '@steelyard/acp':
+      '@steelyard/buyer':
         specifier: workspace:*
-        version: link:../../packages/acp
-      '@steelyard/client':
-        specifier: workspace:*
-        version: link:../../packages/client
+        version: link:../../packages/buyer
       '@steelyard/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@steelyard/mcp':
+      '@steelyard/protocol':
         specifier: workspace:*
-        version: link:../../packages/mcp
-      '@steelyard/ucp':
-        specifier: workspace:*
-        version: link:../../packages/ucp
-
-  packages/acp:
-    dependencies:
-      '@steelyard/core':
-        specifier: workspace:^
-        version: link:../core
-      ajv:
-        specifier: ^8.17.1
-        version: 8.20.0
-      ajv-formats:
-        specifier: ^3.0.1
-        version: 3.0.1(ajv@8.20.0)
+        version: link:../../packages/protocol
 
   packages/agent:
     dependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.71.0
         version: 0.71.2(zod@3.25.76)
-      '@steelyard/client':
+      '@steelyard/buyer':
         specifier: workspace:^
-        version: link:../client
+        version: link:../buyer
       '@steelyard/core':
         specifier: workspace:^
         version: link:../core
 
-  packages/client:
+  packages/buyer:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
@@ -87,15 +69,9 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
-      '@steelyard/acp':
+      '@steelyard/protocol':
         specifier: workspace:^
-        version: link:../acp
-      '@steelyard/mcp':
-        specifier: workspace:^
-        version: link:../mcp
-      '@steelyard/ucp':
-        specifier: workspace:^
-        version: link:../ucp
+        version: link:../protocol
 
   packages/core:
     dependencies:
@@ -103,17 +79,17 @@ importers:
         specifier: ^3.23.8
         version: 3.25.76
 
-  packages/mcp:
+  packages/merchant:
     dependencies:
-      '@modelcontextprotocol/sdk':
-        specifier: ^1.29.0
-        version: 1.29.0(zod@3.25.76)
       '@steelyard/core':
         specifier: workspace:^
         version: link:../core
 
-  packages/ucp:
+  packages/protocol:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.29.0
+        version: 1.29.0(zod@3.25.76)
       '@steelyard/core':
         specifier: workspace:^
         version: link:../core

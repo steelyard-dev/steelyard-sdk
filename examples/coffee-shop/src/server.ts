@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { createAcpFeedHandler } from "@steelyard/acp";
-import { createMcpHttpHandler } from "@steelyard/mcp";
-import { createUcpHandler } from "@steelyard/ucp";
+import { createAcpFeedHandler } from "@steelyard/protocol/acp";
+import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
+import { createUcpHandler } from "@steelyard/protocol/ucp";
 import { coffeeShopManifest } from "./catalog.js";
 
 export function createCoffeeShopHandler() {
