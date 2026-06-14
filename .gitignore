@@ -50,3 +50,4 @@ pnpm-debug.log*
 # Temp
 /tmp/
 *.tmp
+VERIFY.md

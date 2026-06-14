@@ -1,0 +1,30 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
+  "files": {
+    "includes": [
+      ".github/**",
+      "examples/**",
+      "packages/**",
+      "README.md",
+      "mkdocs.yml",
+      "package.json",
+      "pnpm-workspace.yaml",
+      "tsconfig.base.json",
+      "turbo.json",
+      "!**/dist",
+      "!**/coverage",
+      "!**/node_modules"
+    ]
+  },
+  "linter": {
+    "rules": {
+      "style": "off",
+      "suspicious": {
+        "noExplicitAny": "off"
+      },
+      "correctness": {
+        "noUnusedFunctionParameters": "off"
+      }
+    }
+  }
+}

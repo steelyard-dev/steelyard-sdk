@@ -77,7 +77,9 @@ export interface UcpProductResponse {
 // is the source of truth; spec-schemas.ts owns the import list.
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
-ALL_SCHEMAS.forEach((schema) => ajv.addSchema(schema));
+for (const schema of ALL_SCHEMAS) {
+  ajv.addSchema(schema);
+}
 
 const validateSearchResponseFn = loadValidator(
   `${CATALOG_SEARCH_SCHEMA_ID}#/$defs/search_response`,

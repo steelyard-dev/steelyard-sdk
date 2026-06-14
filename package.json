@@ -12,9 +12,11 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
+    "lint": "biome lint --files-ignore-unknown=true .",
     "clean": "turbo run clean && rm -rf node_modules"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.0",
     "@changesets/cli": "^2.27.9",
     "@types/node": "^22.9.0",
     "@vitest/coverage-v8": "^2.1.9",

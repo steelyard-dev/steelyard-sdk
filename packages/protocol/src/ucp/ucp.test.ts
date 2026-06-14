@@ -121,7 +121,7 @@ describe("catalog mapping", () => {
     const product = getProduct(manifest, { id: "single" });
 
     expect(lookup.products.map((item) => item.id)).toEqual(["single"]);
-    expect(product?.variants[0]!.availability).toEqual({ available: true, status: "preorder" });
+    expect(product?.variants[0]?.availability).toEqual({ available: true, status: "preorder" });
     expect(getProduct(manifest, { id: "missing" })).toBeUndefined();
   });
 

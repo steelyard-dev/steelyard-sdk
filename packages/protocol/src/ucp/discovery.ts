@@ -47,7 +47,7 @@ export interface UcpValidationResult {
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
-[
+const discoverySchemas = [
   reverseDomainNameSchema,
   embeddedConfigSchema,
   availableInstrumentSchema,
@@ -56,7 +56,10 @@ addFormats(ajv);
   capabilitySchema,
   handlerSchema,
   profileSchema
-].forEach((schema) => ajv.addSchema(schema));
+];
+for (const schema of discoverySchemas) {
+  ajv.addSchema(schema);
+}
 
 const validateBusinessProfile = loadBusinessProfileValidator();
 

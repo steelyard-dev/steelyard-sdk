@@ -19,8 +19,7 @@ import {
   BuyerVault,
   fileBoxStore,
   osKeystore,
-  passwordKeystore,
-  type NewCard
+  passwordKeystore
 } from "../vault/index.js";
 import { openVaultBox, sealVaultBox } from "../vault/crypto.js";
 import { packVaultBox, unpackVaultBox } from "../vault/format.js";
