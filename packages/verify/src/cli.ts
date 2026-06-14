@@ -268,7 +268,8 @@ function addVciCases(cases: VerifyCase[]): void {
     ["VCI-08", "Ubuntu keychain lane keeps dbus scope", linuxKeychain, assertLinuxKeychainWorkflow],
     ["VCI-09", "Ubuntu password lane is present", passwordLane, (ctx) => assertWorkflowContains(ctx, "lane: password")],
     ["VCI-10", "CI covers file store CAS behavior through tests", allLanes, (ctx) => assertWorkflowContains(ctx, "pnpm test")],
-    ["VCI-11", "CI scans coffee-shop routes for delegate_payment", allLanes, (ctx) => assertWorkflowContains(ctx, "scan:routes")]
+    ["VCI-11", "CI scans coffee-shop routes for delegate_payment", allLanes, (ctx) => assertWorkflowContains(ctx, "scan:routes")],
+    ["VCI-12", "CI validates commerce manifests from examples", allLanes, (ctx) => assertWorkflowContains(ctx, "pnpm validate-examples")]
   ];
   for (const [id, title, lanes, run] of entries) {
     cases.push({

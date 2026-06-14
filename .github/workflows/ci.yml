@@ -47,6 +47,8 @@ jobs:
         run: pnpm test
         env:
           STEELYARD_TEST_KEYSTORE: ${{ matrix.lane }}
+      - name: Validate examples
+        run: pnpm validate-examples
       - name: Buyer examples
         run: |
           STEELYARD_EXAMPLE_DRY_RUN=1 pnpm --filter @steelyard/example-coffee-shop buy:wallet

@@ -3,7 +3,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { Steelyard, type Merchant } from "@steelyard/buyer/client";
-import type { Offer } from "@steelyard/core";
+import {
+  COMMERCE_MANIFEST_PATH,
+  validateCommerceManifest,
+  type CommerceManifestDoc,
+  type Offer
+} from "@steelyard/core";
 import { createCoffeeShopServer } from "./server.js";
 
 let server: NodeServer | undefined;
@@ -66,6 +71,28 @@ describe("coffee-shop protocol parity", () => {
       () => acp.getPolicies(),
       () => ucp.getPolicies()
     );
+  });
+
+  it("links UCP discovery to the served v0.4 manifest and HTTP API", async () => {
+    const base = await start();
+
+    const discoveryResponse = await fetch(`${base}/.well-known/ucp`);
+    const discovery = await discoveryResponse.json() as { links: { commerce_manifest: string } };
+    expect(discovery.links.commerce_manifest).toBe(`${base}${COMMERCE_MANIFEST_PATH}`);
+
+    const manifestResponse = await fetch(discovery.links.commerce_manifest);
+    expect(manifestResponse.status).toBe(200);
+    const manifest = await manifestResponse.json() as CommerceManifestDoc;
+    expect(validateCommerceManifest(manifest).valid).toBe(true);
+    expect(manifest.peers.http?.url).toBe(`${base}/commerce`);
+
+    const productsResponse = await fetch(`${base}/commerce/products?query=double`);
+    expect(productsResponse.status).toBe(200);
+    const products = await productsResponse.json() as { products: Array<{ id: string }> };
+    expect(products.products.map((product) => product.id)).toEqual(["double"]);
+
+    const oldManifestResponse = await fetch(`${base}/commerce/manifest`);
+    expect(oldManifestResponse.status).toBe(404);
   });
 });
 

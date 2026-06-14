@@ -10,7 +10,7 @@ import profileSchema from "../../spec/ucp/2026-04-17/schemas/profile.json";
 import reverseDomainNameSchema from "../../spec/ucp/2026-04-17/schemas/common/types/reverse_domain_name.json";
 import serviceSchema from "../../spec/ucp/2026-04-17/schemas/service.json";
 import ucpSchema from "../../spec/ucp/2026-04-17/schemas/ucp.json";
-import type { Manifest } from "@steelyard/core";
+import { COMMERCE_MANIFEST_PATH, type Manifest } from "@steelyard/core";
 
 export const UCP_WELL_KNOWN_PATH = "/.well-known/ucp";
 export const UCP_API_PATH = "/api";
@@ -134,7 +134,7 @@ export function buildUcpDiscovery(
       payment_handlers: {}
     },
     merchant: { name: manifest.identity.name, domain: manifest.identity.domain },
-    links: { commerce_manifest: `${base}/commerce/manifest` }
+    links: { commerce_manifest: `${base}${COMMERCE_MANIFEST_PATH}` }
   };
 }
 

@@ -2,7 +2,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createServer, request, type Server as NodeServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { defineCommerce } from "@steelyard/core";
+import { COMMERCE_MANIFEST_PATH, defineCommerce } from "@steelyard/core";
 import {
   UCP_CATALOG_LOOKUP_CAPABILITY_ID,
   UCP_CATALOG_SEARCH_CAPABILITY,
@@ -85,7 +85,7 @@ describe("buildUcpDiscovery", () => {
       UCP_CATALOG_LOOKUP_CAPABILITY_ID
     ]);
     expect(doc.ucp.payment_handlers).toEqual({});
-    expect(doc.links.commerce_manifest).toBe("https://shop.example/commerce/manifest");
+    expect(doc.links.commerce_manifest).toBe(`https://shop.example${COMMERCE_MANIFEST_PATH}`);
     expect(validateUcpDiscovery(doc).valid).toBe(true);
     expect(() => assertValidUcpDiscovery(doc)).not.toThrow();
   });
