@@ -54,6 +54,7 @@ nav:
     - Static manifest: guides/static-manifest.md
     - Migrating from v0.2: guides/migrating-from-v0.2.md
     - Migrating from v0.4: guides/migrating-from-v0.4.md
+    - Release history: releases.md
     - Stripe test mode: guides/stripe-test-mode.md
   - Concepts:
     - The unification thesis: concepts/unification.md
