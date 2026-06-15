@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createServer, type RequestListener, type Server } from "node:http";
-import { defineCommerce, type Decision, type PurchaseIntent } from "@steelyard/core";
+import { defineCommerce, type Decision, type EcJwk, type PurchaseIntent } from "@steelyard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mockMandateVerifier } from "../mandate/index.js";
 import type { MerchantPolicy } from "../policy/index.js";
@@ -46,6 +46,42 @@ const ucpPaymentComplete = {
   ]
 };
 
+function b64urlHex(value: string): string {
+  return Buffer.from(value, "hex").toString("base64url");
+}
+
+const merchantP256PublicKey = {
+  kid: "merchant-p256",
+  kty: "EC",
+  crv: "P-256",
+  x: b64urlHex("60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6"),
+  y: b64urlHex("7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299"),
+  use: "sig",
+  alg: "ES256"
+} satisfies EcJwk;
+
+const merchantP256PrivateKey = {
+  ...merchantP256PublicKey,
+  d: b64urlHex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721")
+} satisfies EcJwk;
+
+const merchantP384PrivateKey = {
+  kid: "merchant-p384",
+  kty: "EC",
+  crv: "P-384",
+  x: b64urlHex(
+    "EC3A4E415B4E19A4568618029F427FA5DA9A8BC4AE92E02E06AAE5286B300C64" +
+      "DEF8F0EA9055866064A254515480BC13"
+  ),
+  y: b64urlHex(
+    "8015D9B72D7D57244EA8EF9AC0C621896708A59367F9DFB9F54CA84B3F1C9DB1" +
+      "288B231C3AE0D4FE7344FD2533264720"
+  ),
+  d: b64urlHex("6B9D3DAD2E1B8C1C05B19875B6659F4DE23C3B667BF297BA9AA47740787137D8" + "96D5724E4C70A825F872C9EA60D2EDF5"),
+  use: "sig",
+  alg: "ES384"
+} satisfies EcJwk;
+
 const servers: Server[] = [];
 
 afterEach(async () => {
@@ -83,6 +119,122 @@ describe("createMerchantCheckout", () => {
         clock: () => now
       })
     ).toThrow(/mandateVerifier/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: { auth: { hms: { enabled: false, signingKeys: [], activeKid: "" } } },
+        clock: () => now
+      })
+    ).not.toThrow();
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: { auth: { hms: { enabled: true, signingKeys: [], activeKid: "merchant-p256" } } },
+        clock: () => now
+      })
+    ).toThrow(/signingKeys/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }],
+              activeKid: "missing"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).toThrow(/activeKid/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES384" }],
+              activeKid: "merchant-p256"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).toThrow(/ES256/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PublicKey, algorithm: "ES256" }],
+              activeKid: "merchant-p256"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).toThrow(/private d/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [
+                { kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" },
+                { kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }
+              ],
+              activeKid: "merchant-p256"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).toThrow(/duplicate/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [
+                { kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" },
+                { kid: "merchant-p384", privateKeyJwk: merchantP384PrivateKey, algorithm: "ES384" }
+              ],
+              activeKid: "merchant-p384"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).not.toThrow();
     expect(() =>
       createMerchantCheckout(manifest, {
         protocols: ["acp"],

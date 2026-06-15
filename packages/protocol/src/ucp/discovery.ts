@@ -10,7 +10,7 @@ import profileSchema from "../../spec/ucp/2026-04-17/schemas/profile.json";
 import reverseDomainNameSchema from "../../spec/ucp/2026-04-17/schemas/common/types/reverse_domain_name.json";
 import serviceSchema from "../../spec/ucp/2026-04-17/schemas/service.json";
 import ucpSchema from "../../spec/ucp/2026-04-17/schemas/ucp.json";
-import { COMMERCE_MANIFEST_PATH, type Manifest } from "@steelyard/core";
+import { COMMERCE_MANIFEST_PATH, assertValidEcJwk, type EcJwk, type Manifest } from "@steelyard/core";
 
 export const UCP_WELL_KNOWN_PATH = "/.well-known/ucp";
 export const UCP_API_PATH = "/api";
@@ -39,8 +39,27 @@ export interface UcpDiscoveryDoc {
     capabilities: Record<string, UcpEntity[]>;
     payment_handlers: Record<string, UcpEntity[]>;
   };
+  signing_keys?: UcpPublicSigningKey[];
   merchant: { name: string; domain?: string };
   links: { commerce_manifest: string };
+}
+
+export type UcpPublicSigningKey = Omit<EcJwk, "d">;
+
+export interface UcpDiscoveryHmsConfig {
+  enabled: boolean;
+  signingKeys: readonly EcJwk[];
+}
+
+export interface UcpDiscoveryOptions {
+  baseUrl: string;
+  checkout?: boolean;
+  steelyardMandate?: boolean;
+  ucp?: {
+    auth?: {
+      hms?: UcpDiscoveryHmsConfig;
+    };
+  };
 }
 
 export interface UcpValidationResult {
@@ -68,7 +87,7 @@ const validateBusinessProfile = loadBusinessProfileValidator();
 
 export function buildUcpDiscovery(
   manifest: Manifest,
-  opts: { baseUrl: string; checkout?: boolean; steelyardMandate?: boolean }
+  opts: UcpDiscoveryOptions
 ): UcpDiscoveryDoc {
   const base = opts.baseUrl.replace(/\/$/, "");
   const capabilities: Record<string, UcpEntity[]> = {};
@@ -98,7 +117,7 @@ export function buildUcpDiscovery(
       }
     ];
   }
-  return {
+  const doc: UcpDiscoveryDoc = {
     ucp: {
       version: UCP_VERSION,
       services: {
@@ -128,6 +147,14 @@ export function buildUcpDiscovery(
       commerce_manifest: `${base}${COMMERCE_MANIFEST_PATH}`
     }
   };
+  const hms = opts.ucp?.auth?.hms;
+  if (hms?.enabled) {
+    if (hms.signingKeys.length === 0) {
+      throw new Error("ucp.auth.hms.signingKeys is required when HMS is enabled");
+    }
+    doc.signing_keys = hms.signingKeys.map(publicSigningKey);
+  }
+  return doc;
 }
 
 export function validateUcpDiscovery(doc: unknown): UcpValidationResult {
@@ -148,4 +175,17 @@ function loadBusinessProfileValidator(): ValidateFunction<UcpDiscoveryDoc> {
     | undefined;
   if (!validate) throw new Error("Unable to load UCP business profile schema");
   return validate;
+}
+
+function publicSigningKey(value: EcJwk): UcpPublicSigningKey {
+  const jwk = assertValidEcJwk(value, { allowPrivate: true });
+  return {
+    kid: jwk.kid,
+    kty: "EC",
+    crv: jwk.crv,
+    x: jwk.x,
+    y: jwk.y,
+    ...(jwk.use ? { use: jwk.use } : {}),
+    ...(jwk.alg ? { alg: jwk.alg } : {})
+  };
 }

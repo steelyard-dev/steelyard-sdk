@@ -2,9 +2,12 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { IncomingMessage, RequestListener, ServerResponse } from "node:http";
 import {
+  assertValidEcJwk,
   canonicalMerchantAudience,
   systemClock,
   totalAmount,
+  type EcJwk,
+  type HmsAlgorithm,
   type Manifest,
   type Offer,
   type PurchaseIntent,
@@ -45,10 +48,27 @@ export interface MerchantCheckoutOpts {
   policy?: MerchantPolicy;
   mandateVerifier?: MandateVerifier;
   steelyardMandate?: boolean;
+  ucp?: {
+    auth?: {
+      hms?: UcpHmsAuthConfig;
+    };
+  };
   idempotency: IdempotencyStore;
   clock?: () => Date;
   merchantAudience?: string;
   baseUrl?: string;
+}
+
+export interface HmsSigningKey {
+  kid: string;
+  privateKeyJwk: EcJwk;
+  algorithm: HmsAlgorithm;
+}
+
+export interface UcpHmsAuthConfig {
+  enabled: boolean;
+  signingKeys: HmsSigningKey[];
+  activeKid: string;
 }
 
 export interface AcpRoutes {
@@ -92,6 +112,7 @@ export function createMerchantCheckout(manifest: Manifest, opts: MerchantCheckou
   if (protocols.has("ucp") && opts.steelyardMandate && !opts.mandateVerifier) {
     throw new MerchantCheckoutConfigError("mandateVerifier is required when steelyardMandate is enabled");
   }
+  validateUcpHmsAuthConfig(protocols.has("ucp") ? opts.ucp?.auth?.hms : undefined);
   assertPspCurrencySupport(manifest, opts.psp);
 
   const ctx = new MerchantCheckoutContext(manifest, opts);
@@ -672,6 +693,37 @@ function assertPspCurrencySupport(manifest: Manifest, psp: PspAdapter): void {
   const unsupported = offerCurrencies(manifest).filter((currency) => !supportedSet.has(currency));
   if (unsupported.length) {
     throw new MerchantCheckoutConfigError(`PSP ${psp.name} does not support currencies: ${unsupported.join(", ")}`);
+  }
+}
+
+function validateUcpHmsAuthConfig(config: UcpHmsAuthConfig | undefined): void {
+  if (!config?.enabled) return;
+  if (!Array.isArray(config.signingKeys) || config.signingKeys.length === 0) {
+    throw new MerchantCheckoutConfigError("ucp.auth.hms.signingKeys is required when HMS is enabled");
+  }
+
+  let activeFound = false;
+  const seenKids = new Set<string>();
+  for (const signingKey of config.signingKeys) {
+    if (seenKids.has(signingKey.kid)) {
+      throw new MerchantCheckoutConfigError(`duplicate HMS signing key kid: ${signingKey.kid}`);
+    }
+    seenKids.add(signingKey.kid);
+
+    const jwk = assertValidEcJwk(signingKey.privateKeyJwk, { allowPrivate: true });
+    if (!jwk.d) throw new MerchantCheckoutConfigError(`HMS signing key ${signingKey.kid} must include private d`);
+    if (signingKey.kid !== jwk.kid) {
+      throw new MerchantCheckoutConfigError(`HMS signing key ${signingKey.kid} must match privateKeyJwk.kid`);
+    }
+    const expected = jwk.crv === "P-256" ? "ES256" : "ES384";
+    if (signingKey.algorithm !== expected) {
+      throw new MerchantCheckoutConfigError(`HMS signing key ${signingKey.kid} algorithm must be ${expected}`);
+    }
+    if (signingKey.kid === config.activeKid) activeFound = true;
+  }
+
+  if (!activeFound) {
+    throw new MerchantCheckoutConfigError("ucp.auth.hms.activeKid must match a configured signing key");
   }
 }
 

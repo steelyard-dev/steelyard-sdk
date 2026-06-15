@@ -63,6 +63,7 @@ nav:
     - Approval and 3DS: concepts/approval-and-3ds.md
     - Reservations: concepts/reservations.md
     - Integrity: concepts/integrity.md
+    - Key rotation: concepts/key-rotation.md
     - Versioning: concepts/versioning.md
     - Error taxonomy: concepts/errors.md
   - Protocols:

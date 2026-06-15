@@ -32,6 +32,13 @@ export {
   buildUcpDiscovery,
   validateUcpDiscovery
 } from "./discovery.js";
-export type { UcpDiscoveryDoc, UcpEntity, UcpValidationResult } from "./discovery.js";
+export type {
+  UcpDiscoveryDoc,
+  UcpDiscoveryHmsConfig,
+  UcpDiscoveryOptions,
+  UcpEntity,
+  UcpPublicSigningKey,
+  UcpValidationResult
+} from "./discovery.js";
 export { createUcpHandler } from "./http.js";
 export type { UcpHandlerOptions } from "./http.js";

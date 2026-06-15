@@ -2,7 +2,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createServer, request, type Server as NodeServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { COMMERCE_MANIFEST_PATH, defineCommerce } from "@steelyard/core";
+import { COMMERCE_MANIFEST_PATH, defineCommerce, type EcJwk } from "@steelyard/core";
 import {
   UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,
@@ -25,6 +25,7 @@ import {
   validateSearchResponse,
   validateUcpDiscovery,
   type UcpCatalogResponse,
+  type UcpDiscoveryDoc,
   type UcpLookupResponse,
   type UcpProductResponse
 } from "./index.js";
@@ -162,6 +163,52 @@ describe("buildUcpDiscovery", () => {
     expect(validateUcpDiscovery(doc).valid).toBe(true);
   });
 
+  it("publishes public-only HTTP Message Signature keys at profile top level", () => {
+    const doc = buildUcpDiscovery(manifest, {
+      baseUrl: "https://shop.example/",
+      ucp: {
+        auth: {
+          hms: {
+            enabled: true,
+            signingKeys: [merchantP256PrivateKey, merchantP384PublicKey]
+          }
+        }
+      }
+    });
+
+    expect(doc.signing_keys).toEqual([
+      {
+        kid: "merchant-p256",
+        kty: "EC",
+        crv: "P-256",
+        x: merchantP256PrivateKey.x,
+        y: merchantP256PrivateKey.y,
+        use: "sig",
+        alg: "ES256"
+      },
+      merchantP384PublicKey
+    ]);
+    expect(doc.ucp).not.toHaveProperty("signing_keys");
+    expect(JSON.stringify(doc)).not.toContain("\"d\":");
+    expect(validateUcpDiscovery(doc).valid).toBe(true);
+  });
+
+  it("rejects enabled HTTP Message Signature publishing without keys", () => {
+    expect(() =>
+      buildUcpDiscovery(manifest, {
+        baseUrl: "https://shop.example/",
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: []
+            }
+          }
+        }
+      })
+    ).toThrow(/signingKeys/);
+  });
+
   it("reports schema errors for invalid discovery documents", () => {
     const result = validateUcpDiscovery({ ucp: { version: "bad" } });
 
@@ -186,6 +233,37 @@ function sortJson(value: unknown): unknown {
       .map(([key, item]) => [key, sortJson(item)])
   );
 }
+
+function b64urlHex(value: string): string {
+  return Buffer.from(value, "hex").toString("base64url");
+}
+
+const merchantP256PrivateKey = {
+  kid: "merchant-p256",
+  kty: "EC",
+  crv: "P-256",
+  x: b64urlHex("60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6"),
+  y: b64urlHex("7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299"),
+  d: b64urlHex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721"),
+  use: "sig",
+  alg: "ES256"
+} satisfies EcJwk;
+
+const merchantP384PublicKey = {
+  kid: "merchant-p384",
+  kty: "EC",
+  crv: "P-384",
+  x: b64urlHex(
+    "EC3A4E415B4E19A4568618029F427FA5DA9A8BC4AE92E02E06AAE5286B300C64" +
+      "DEF8F0EA9055866064A254515480BC13"
+  ),
+  y: b64urlHex(
+    "8015D9B72D7D57244EA8EF9AC0C621896708A59367F9DFB9F54CA84B3F1C9DB1" +
+      "288B231C3AE0D4FE7344FD2533264720"
+  ),
+  use: "sig",
+  alg: "ES384"
+} satisfies EcJwk;
 
 describe("catalog mapping", () => {
   it("searches catalog products and returns UCP-shaped prices, variants, and capabilities", () => {
@@ -315,6 +393,39 @@ describe("createUcpHandler", () => {
 
     const product = await httpRequest(`${base}/api/catalog/product`, "POST", { id: "single" });
     expect((product.body as UcpProductResponse).product.id).toBe("single");
+  });
+
+  it("passes HTTP Message Signature publishing options through discovery", async () => {
+    server = createServer(createUcpHandler(manifest, {
+      baseUrl: "https://public.example",
+      ucp: {
+        auth: {
+          hms: {
+            enabled: true,
+            signingKeys: [merchantP256PrivateKey]
+          }
+        }
+      }
+    }));
+    await new Promise<void>((resolve) => server!.listen(0, () => resolve()));
+    const { port } = server.address() as { port: number };
+    const base = `http://127.0.0.1:${port}`;
+
+    const discovery = await httpRequest(`${base}/.well-known/ucp`, "GET");
+    const body = discovery.body as UcpDiscoveryDoc;
+
+    expect(body.signing_keys).toEqual([
+      {
+        kid: "merchant-p256",
+        kty: "EC",
+        crv: "P-256",
+        x: merchantP256PrivateKey.x,
+        y: merchantP256PrivateKey.y,
+        use: "sig",
+        alg: "ES256"
+      }
+    ]);
+    expect(JSON.stringify(body)).not.toContain("\"d\":");
   });
 
   it("supports HEAD discovery and request-derived base URLs", async () => {
