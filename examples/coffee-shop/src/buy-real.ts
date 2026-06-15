@@ -34,6 +34,7 @@ try {
 
   try {
     const merchant = await Steelyard.connect(discoveryUrl(shop.baseUrl, protocol), {
+      allowPrivateNetwork: true,
       delegatePaymentUrl: delegate.delegatePaymentUrl
     });
     if ("error" in merchant) throw new Error(merchant.error_detail ?? merchant.error);

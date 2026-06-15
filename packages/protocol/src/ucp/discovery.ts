@@ -44,6 +44,16 @@ export interface UcpDiscoveryDoc {
   links: { commerce_manifest: string };
 }
 
+export interface UcpProfileDoc {
+  ucp: {
+    version: string;
+    services?: Record<string, UcpEntity[]>;
+    capabilities?: Record<string, UcpEntity[]>;
+    payment_handlers?: Record<string, UcpEntity[]>;
+  };
+  signing_keys?: UcpPublicSigningKey[];
+}
+
 export type UcpPublicSigningKey = Omit<EcJwk, "d">;
 
 export interface UcpDiscoveryHmsConfig {
@@ -84,6 +94,7 @@ for (const schema of discoverySchemas) {
 }
 
 const validateBusinessProfile = loadBusinessProfileValidator();
+const validateProfile = loadProfileValidator();
 
 export function buildUcpDiscovery(
   manifest: Manifest,
@@ -162,10 +173,22 @@ export function validateUcpDiscovery(doc: unknown): UcpValidationResult {
   return { valid, errors: validateBusinessProfile.errors };
 }
 
+export function validateUcpProfile(doc: unknown): UcpValidationResult {
+  const valid = validateProfile(doc);
+  return { valid, errors: validateProfile.errors };
+}
+
 export function assertValidUcpDiscovery(doc: unknown): asserts doc is UcpDiscoveryDoc {
   const result = validateUcpDiscovery(doc);
   if (!result.valid) {
     throw new Error(`UCP discovery failed business profile validation: ${ajv.errorsText(result.errors)}`);
+  }
+}
+
+export function assertValidUcpProfile(doc: unknown): asserts doc is UcpProfileDoc {
+  const result = validateUcpProfile(doc);
+  if (!result.valid) {
+    throw new Error(`UCP profile failed validation: ${ajv.errorsText(result.errors)}`);
   }
 }
 
@@ -174,6 +197,14 @@ function loadBusinessProfileValidator(): ValidateFunction<UcpDiscoveryDoc> {
     | ValidateFunction<UcpDiscoveryDoc>
     | undefined;
   if (!validate) throw new Error("Unable to load UCP business profile schema");
+  return validate;
+}
+
+function loadProfileValidator(): ValidateFunction<UcpProfileDoc> {
+  const validate = ajv.getSchema("https://ucp.dev/schemas/profile.json") as
+    | ValidateFunction<UcpProfileDoc>
+    | undefined;
+  if (!validate) throw new Error("Unable to load UCP profile schema");
   return validate;
 }
 

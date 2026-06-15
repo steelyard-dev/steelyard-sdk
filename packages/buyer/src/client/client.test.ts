@@ -176,7 +176,7 @@ describe("Steelyard.connect", () => {
 
   it("detects UCP discovery and uses the REST catalog service", async () => {
     const base = await startMerchantServer();
-    const merchant = await connect(`${base}/.well-known/ucp`);
+    const merchant = await connect(`${base}/.well-known/ucp`, { allowPrivateNetwork: true });
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
@@ -200,16 +200,25 @@ describe("Steelyard.connect", () => {
     );
   });
 
+  it("requires explicit private-network opt-in for loopback UCP discovery", async () => {
+    const base = await startMerchantServer();
+
+    await expect(connect(`${base}/.well-known/ucp`)).resolves.toMatchObject({
+      error: "protocol_mismatch",
+      error_detail: expect.stringContaining("HTTPS")
+    });
+  });
+
   it("falls back from a base URL to UCP well-known discovery", async () => {
     const base = await startMerchantServer();
-    const merchant = await connect(base);
+    const merchant = await connect(base, { allowPrivateNetwork: true });
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
   });
 
   it("uses the default UCP REST endpoint and maps UCP product fallbacks", async () => {
     const base = await startUcpDefaultEndpointServer();
-    const merchant = await connect(base);
+    const merchant = await connect(base, { allowPrivateNetwork: true });
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
@@ -253,7 +262,7 @@ describe("Steelyard.connect", () => {
 
   it("accepts legacy UCP discovery bucket/id capabilities for read compatibility", async () => {
     const base = await startLegacyUcpDiscoveryServer();
-    const merchant = await connect(base);
+    const merchant = await connect(base, { allowPrivateNetwork: true });
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
@@ -263,7 +272,7 @@ describe("Steelyard.connect", () => {
 
   it("sniffs UCP checkout and Steelyard-mode capabilities independently", async () => {
     const steelyardBase = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: true });
-    const steelyardMerchant = await connect(steelyardBase);
+    const steelyardMerchant = await connect(steelyardBase, { allowPrivateNetwork: true });
 
     expect(isMerchant(steelyardMerchant) && steelyardMerchant.protocol).toBe("ucp");
     if (!isMerchant(steelyardMerchant)) throw new Error("Expected merchant");
@@ -273,7 +282,7 @@ describe("Steelyard.connect", () => {
     await closeServer();
 
     const ap2Base = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: false });
-    const ap2Merchant = await connect(ap2Base);
+    const ap2Merchant = await connect(ap2Base, { allowPrivateNetwork: true });
 
     expect(isMerchant(ap2Merchant) && ap2Merchant.protocol).toBe("ucp");
     if (!isMerchant(ap2Merchant)) throw new Error("Expected merchant");
@@ -283,13 +292,13 @@ describe("Steelyard.connect", () => {
 
   it("sniffs canonical, legacy, mixed, and absent UCP checkout capabilities", async () => {
     const canonicalBase = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: true });
-    const canonicalMerchant = await connect(canonicalBase);
+    const canonicalMerchant = await connect(canonicalBase, { allowPrivateNetwork: true });
     expect(isMerchant(canonicalMerchant) && canonicalMerchant.supports("checkout")).toBe(true);
     expect(isMerchant(canonicalMerchant) && canonicalMerchant.supports("checkout:steelyard")).toBe(true);
     await closeServer();
 
     const legacyBase = await startLegacyUcpDiscoveryServer({ checkout: true, steelyardMandate: true });
-    const legacyMerchant = await connect(legacyBase);
+    const legacyMerchant = await connect(legacyBase, { allowPrivateNetwork: true });
     expect(isMerchant(legacyMerchant) && legacyMerchant.supports("checkout")).toBe(true);
     expect(isMerchant(legacyMerchant) && legacyMerchant.supports("checkout:steelyard")).toBe(true);
     await closeServer();
@@ -300,13 +309,13 @@ describe("Steelyard.connect", () => {
       [UCP_CHECKOUT_CAPABILITY]: [{ version: "2026-04-17" }],
       [steelyardAlias.bucket]: [{ id: steelyardAlias.id, version: "2026-04-17" }]
     });
-    const mixedMerchant = await connect(mixedBase);
+    const mixedMerchant = await connect(mixedBase, { allowPrivateNetwork: true });
     expect(isMerchant(mixedMerchant) && mixedMerchant.supports("checkout")).toBe(true);
     expect(isMerchant(mixedMerchant) && mixedMerchant.supports("checkout:steelyard")).toBe(true);
     await closeServer();
 
     const absentBase = await startUcpDiscoveryServer({ checkout: false, steelyardMandate: false });
-    const absentMerchant = await connect(absentBase);
+    const absentMerchant = await connect(absentBase, { allowPrivateNetwork: true });
     expect(isMerchant(absentMerchant) && absentMerchant.supports("checkout")).toBe(false);
     expect(isMerchant(absentMerchant) && absentMerchant.supports("checkout:steelyard")).toBe(false);
   });
@@ -340,7 +349,7 @@ describe("Steelyard.connect", () => {
   it("routes UCP merchant.purchase with Steelyard-mode support", async () => {
     const { base, requests } = await startUcpCheckoutServer();
     const port = testPort();
-    const merchant = await connect(base, { delegatePaymentUrl: `${base}/delegate-override` });
+    const merchant = await connect(base, { allowPrivateNetwork: true, delegatePaymentUrl: `${base}/delegate-override` });
 
     expect(isMerchant(merchant) && merchant.supports("checkout:steelyard")).toBe(true);
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
@@ -369,7 +378,7 @@ describe("Steelyard.connect", () => {
     await listen(server);
     const { port } = server.address() as { port: number };
 
-    expect(await connect(`http://127.0.0.1:${port}/unknown`)).toEqual({
+    expect(await connect(`http://127.0.0.1:${port}/unknown`, { allowPrivateNetwork: true })).toEqual({
       error: "protocol_mismatch",
       error_detail: "Could not detect MCP, ACP, or UCP at the supplied URL."
     });
@@ -558,9 +567,7 @@ async function startUcpDefaultEndpointServer(): Promise<string> {
         ucp: {
           version: "2026-04-17",
           services: {
-            "dev.ucp.shopping": [
-              { version: "2026-04-17", transport: "other" }
-            ]
+            "dev.ucp.shopping": []
           },
           capabilities: {
             [UCP_CATALOG_SEARCH_CAPABILITY]: [{ version: "2026-04-17" }]

@@ -21,7 +21,9 @@ import {
   UCP_CATALOG_SEARCH_CAPABILITY,
   UCP_CHECKOUT_CAPABILITY,
   UCP_SHOPPING_SERVICE,
-  UCP_WELL_KNOWN_PATH
+  UCP_WELL_KNOWN_PATH,
+  UcpProfileCache,
+  UcpProfileFetchError
 } from "@steelyard/protocol/ucp";
 import { acpDriver } from "./acp.js";
 import { ucpDriver } from "./ucp.js";
@@ -35,7 +37,9 @@ export interface SteelyardError {
 }
 
 export interface ConnectOptions {
+  allowPrivateNetwork?: boolean;
   delegatePaymentUrl?: string;
+  ucpProfileCache?: UcpProfileCache;
 }
 
 export interface PurchaseOpts {
@@ -87,6 +91,8 @@ export const Steelyard = {
   connect
 };
 
+const defaultUcpProfileCache = new UcpProfileCache();
+
 export async function connect(url: string, opts: ConnectOptions = {}): Promise<Merchant | SteelyardError> {
   const parsed = parseUrl(url);
   if ("error" in parsed) return parsed;
@@ -94,8 +100,10 @@ export async function connect(url: string, opts: ConnectOptions = {}): Promise<M
   const mcp = await detectMcp(parsed);
   if (mcp) return mcp;
 
-  const acp = await detectAcp(parsed, opts);
-  if (acp) return acp;
+  if (!parsed.pathname.endsWith(UCP_WELL_KNOWN_PATH)) {
+    const acp = await detectAcp(parsed, opts);
+    if (acp) return acp;
+  }
 
   const ucp = await detectUcp(parsed, opts);
   if (ucp) return ucp;
@@ -139,11 +147,18 @@ async function detectAcp(url: URL, opts: ConnectOptions): Promise<DetectionResul
 }
 
 async function detectUcp(url: URL, opts: ConnectOptions): Promise<DetectionResult> {
-  const discoveryUrl = url.pathname.endsWith(UCP_WELL_KNOWN_PATH)
+  const explicitDiscoveryUrl = url.pathname.endsWith(UCP_WELL_KNOWN_PATH);
+  const discoveryUrl = explicitDiscoveryUrl
     ? url
     : new URL(UCP_WELL_KNOWN_PATH, url);
-  const doc = await fetchJson(discoveryUrl);
-  if (isError(doc)) return doc.error === "network_error" ? doc : undefined;
+  let doc: unknown;
+  try {
+    doc = await (opts.ucpProfileCache ?? defaultUcpProfileCache).get(discoveryUrl, {
+      allowPrivateNetwork: opts.allowPrivateNetwork
+    });
+  } catch (error) {
+    return ucpProfileFetchFailure(error, explicitDiscoveryUrl);
+  }
   if (!isUcpDiscovery(doc)) return undefined;
   return ucpMerchant(doc, discoveryUrl, opts);
 }
@@ -582,6 +597,17 @@ async function closeQuietly(client: Client): Promise<void> {
 
 function fail(error: ErrorCode, error_detail?: string): SteelyardError {
   return error_detail ? { error, error_detail } : { error };
+}
+
+function ucpProfileFetchFailure(error: unknown, explicitDiscoveryUrl: boolean): DetectionResult {
+  if (!(error instanceof UcpProfileFetchError)) return fail("protocol_mismatch", (error as Error).message);
+  if (!explicitDiscoveryUrl && (error.code === "Ucp.ProfileHttp" || error.code === "Ucp.ProfileInvalid")) {
+    return undefined;
+  }
+  if (error.code === "Ucp.ProfileTimeout" || error.code === "Ucp.ProfileUnreachable") {
+    return fail("network_error", error.message);
+  }
+  return fail("protocol_mismatch", error.message);
 }
 
 interface AcpFeed {

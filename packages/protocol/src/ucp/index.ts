@@ -29,16 +29,33 @@ export {
   UCP_WELL_KNOWN_PATH,
   STEELYARD_CHECKOUT_MANDATE_V01,
   assertValidUcpDiscovery,
+  assertValidUcpProfile,
   buildUcpDiscovery,
-  validateUcpDiscovery
+  validateUcpDiscovery,
+  validateUcpProfile
 } from "./discovery.js";
 export type {
   UcpDiscoveryDoc,
   UcpDiscoveryHmsConfig,
   UcpDiscoveryOptions,
   UcpEntity,
+  UcpProfileDoc,
   UcpPublicSigningKey,
   UcpValidationResult
 } from "./discovery.js";
 export { createUcpHandler } from "./http.js";
 export type { UcpHandlerOptions } from "./http.js";
+export {
+  UCP_PROFILE_MAX_BYTES,
+  UCP_PROFILE_MAX_TTL_MS,
+  UCP_PROFILE_MIN_TTL_MS,
+  UcpProfileCache,
+  UcpProfileFetchError,
+  fetchUcpProfile,
+  resolveSigningKey
+} from "./profile.js";
+export type {
+  FetchUcpProfileOptions,
+  UcpProfileCacheOptions,
+  UcpProfileFetchErrorCode
+} from "./profile.js";
