@@ -42,8 +42,7 @@ integration commit:
 Rules:
 
 - **Update lands on the integration commit, not at tag time.** Reviewers
-  see the changelog entry alongside the code change. The user (not the
-  agent) creates the git tag separately per Guardrail #10.
+  see the changelog entry alongside the code change.
 - **Every GOAL.md's IN (Integration) category must list a criterion** for
   updating both files with the release's entry. No exception for patch
   releases.
