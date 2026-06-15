@@ -39,10 +39,8 @@ The discovery doc advertises the shopping service at
       ]
     },
     "capabilities": {
-      "dev.ucp.shopping": [
-        { "id": "catalog.search", "version": "2026-04-17" },
-        { "id": "catalog.lookup", "version": "2026-04-17" }
-      ]
+      "dev.ucp.shopping.catalog.search": [{ "version": "2026-04-17" }],
+      "dev.ucp.shopping.catalog.lookup": [{ "version": "2026-04-17" }]
     }
   },
   "merchant": { "name": "Acme Coffee", "domain": "acme.example" },
@@ -54,8 +52,10 @@ The shape conforms to `ucp.json#/$defs/business_schema`. A buyer SDK can
 walk the `services` map by reverse-domain name to find what the merchant
 supports.
 
-`links.commerce_manifest` points at the v0.4 well-known manifest. The older
-`/commerce/manifest` draft path is not served as a redirect.
+`links.commerce_manifest` is a Steelyard-defined link relation that points at
+the v0.4 well-known manifest. It is allowed by the UCP profile extension model,
+but it is not a UCP core relation. The older `/commerce/manifest` draft path is
+not served as a redirect.
 
 ## Catalog APIs
 
@@ -102,9 +102,10 @@ UCP catalog lookup response failed spec validation:
 
 ## Checkout
 
-v0.3 supports UCP checkout with Steelyard mandates. Discovery can advertise
-`dev.ucp.shopping` capability `checkout` plus `net.steelyard` capability
-`checkout_mandate.v0.1`.
+v0.4.1 supports base UCP checkout and optional Steelyard mandates. Discovery
+advertises checkout with the canonical UCP capability key
+`dev.ucp.shopping.checkout`. Steelyard mandate mode is advertised separately as
+`net.steelyard.checkout_mandate.v0_1`.
 
 See [UCP checkout](ucp-checkout.md) for route wiring and the AP2
 non-compliance notice.

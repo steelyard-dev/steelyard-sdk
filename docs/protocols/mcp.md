@@ -13,10 +13,7 @@ On `initialize`, the server advertises:
 {
   "serverInfo": {
     "name": "steelyard:Acme Coffee",
-    "version": "0.1.0",
-    "capabilities": {
-      "commerce": { "read": { "version": "0.1" } }
-    }
+    "version": "0.1.0"
   },
   "capabilities": {
     "tools": {},
@@ -30,10 +27,9 @@ On `initialize`, the server advertises:
 }
 ```
 
-The capability ships in two places: `serverInfo.capabilities.commerce` (the
-direct sniff site `@steelyard/buyer/client` uses) and `capabilities.extensions["steelyard/commerce"]`
-(the MCP-spec-canonical extension envelope, useful for tools that walk the
-extensions registry).
+The capability ships under `capabilities.extensions["steelyard/commerce"]`,
+the MCP extension-registry path. `serverInfo` is the SDK `Implementation`
+object and does not carry a `capabilities` subfield.
 
 See [Versioning](../concepts/versioning.md) for the compatibility rule on the
 `read.version` field.

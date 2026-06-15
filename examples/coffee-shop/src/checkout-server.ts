@@ -28,9 +28,11 @@ export interface RunningDelegatePayment {
 export async function startCoffeeShopCheckoutServer(opts: {
   clock?: () => Date;
   mandateVerifier?: MandateVerifier;
+  steelyardMandate?: boolean;
 } = {}): Promise<RunningCoffeeShopCheckout> {
   let baseUrl = "";
   let checkout: ReturnType<typeof createMerchantCheckout> | undefined;
+  const steelyardMandate = opts.steelyardMandate ?? true;
   const read = createCoffeeShopHandler();
   const server = createServer((req, res) => {
     const path = requestPath(req);
@@ -42,7 +44,7 @@ export async function startCoffeeShopCheckoutServer(opts: {
       sendJson(res, 200, buildUcpDiscovery(coffeeShopManifest, {
         baseUrl,
         checkout: true,
-        steelyardMandate: true
+        steelyardMandate
       }));
       return;
     }
@@ -63,15 +65,19 @@ export async function startCoffeeShopCheckoutServer(opts: {
   });
 
   baseUrl = await listen(server);
+  const mandateVerifier = steelyardMandate
+    ? opts.mandateVerifier ?? mockMandateVerifier({
+      allowInProduction: true,
+      alwaysOk: { subject_id: "buyer_example", key_id: "mk_example" }
+    })
+    : opts.mandateVerifier;
   checkout = createMerchantCheckout(coffeeShopManifest, {
     protocols: ["acp", "ucp"],
     store: memoryCheckoutSessionStore(),
     idempotency: memoryIdempotencyStore(),
     psp: mockPsp({ allowInProduction: true }),
-    mandateVerifier: opts.mandateVerifier ?? mockMandateVerifier({
-      allowInProduction: true,
-      alwaysOk: { subject_id: "buyer_example", key_id: "mk_example" }
-    }),
+    ...(mandateVerifier ? { mandateVerifier } : {}),
+    steelyardMandate,
     clock: opts.clock,
     baseUrl,
     merchantAudience: `${baseUrl}/.well-known/ucp`

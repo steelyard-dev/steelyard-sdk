@@ -114,7 +114,7 @@ export function applyUcpComplete(
   },
   ctx: {
     now: Date;
-    mandateOk: { subject_id: string; key_id: string };
+    mandateOk?: { subject_id: string; key_id: string };
     pspResult: PspCaptureResult;
     orderId: string;
     permalinkUrl: string;

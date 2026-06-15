@@ -46,7 +46,8 @@ const usage = await wallet.spendInWindow("daily", "USD");
 ```
 
 ACP receipts include `reference.acp.checkout_session_id`. UCP receipts include
-`reference.ucp.checkout_id` and a Steelyard mandate id.
+`reference.ucp.checkout_id`; `reference.ucp.mandate_id` is present only when
+Steelyard mandate mode was negotiated.
 
 ## Legacy `pay()`
 

@@ -53,7 +53,7 @@ sequenceDiagram
 
   Agent->>+Client: connect(url)
   Client->>+Merchant: initialize (MCP)
-  Merchant-->>-Client: serverInfo.capabilities.commerce<br/>{ read: { version: "0.1" } }
+  Merchant-->>-Client: capabilities.extensions["steelyard/commerce"]<br/>{ commerce: { read: { version: "0.1" } } }
   Note over Client: version handshake<br/>(pre-1.0 minor-match)
   Client-->>-Agent: { protocol: "mcp", ... }
 

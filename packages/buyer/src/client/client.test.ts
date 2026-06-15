@@ -8,8 +8,9 @@ import { buildAcpFeed } from "@steelyard/protocol/acp";
 import { defineCommerce, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
 import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
 import {
-  UCP_CATALOG_SEARCH_CAPABILITY_ID,
-  UCP_SHOPPING_DOMAIN,
+  STEELYARD_CHECKOUT_MANDATE_V01,
+  UCP_CATALOG_SEARCH_CAPABILITY,
+  UCP_CHECKOUT_CAPABILITY,
   buildUcpDiscovery,
   createUcpHandler
 } from "@steelyard/protocol/ucp";
@@ -24,7 +25,14 @@ import {
   applyUcpUpdate,
   type Checkout as UcpCheckout
 } from "@steelyard/protocol/ucp/checkout";
-import { MerchantNoCheckout, Steelyard, connect, isCompatibleReadVersion, type Merchant } from "./index.js";
+import {
+  MerchantNoCheckout,
+  Steelyard,
+  UCP_LEGACY_CAPABILITY_ALIASES,
+  connect,
+  isCompatibleReadVersion,
+  type Merchant
+} from "./index.js";
 
 const manifest = defineCommerce({
   identity: { name: "Acme Coffee", domain: "coffee.example", currencies: ["usd"] },
@@ -69,12 +77,16 @@ interface CapturedRequest {
 }
 
 afterEach(async () => {
+  await closeServer();
+});
+
+async function closeServer(): Promise<void> {
   if (server) {
     server.closeAllConnections();
     await new Promise<void>((resolve) => server!.close(() => resolve()));
     server = undefined;
   }
-});
+}
 
 describe("Steelyard.connect", () => {
   it("detects MCP first and exposes unified merchant methods", async () => {
@@ -239,7 +251,7 @@ describe("Steelyard.connect", () => {
     expect(merchant.supports("checkout")).toBe(true);
   });
 
-  it("accepts legacy UCP discovery capability keys for read compatibility", async () => {
+  it("accepts legacy UCP discovery bucket/id capabilities for read compatibility", async () => {
     const base = await startLegacyUcpDiscoveryServer();
     const merchant = await connect(base);
 
@@ -258,9 +270,7 @@ describe("Steelyard.connect", () => {
     expect(steelyardMerchant.supports("checkout")).toBe(true);
     expect(steelyardMerchant.supports("checkout:steelyard")).toBe(true);
 
-    server?.closeAllConnections();
-    await new Promise<void>((resolve) => server!.close(() => resolve()));
-    server = undefined;
+    await closeServer();
 
     const ap2Base = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: false });
     const ap2Merchant = await connect(ap2Base);
@@ -269,6 +279,36 @@ describe("Steelyard.connect", () => {
     if (!isMerchant(ap2Merchant)) throw new Error("Expected merchant");
     expect(ap2Merchant.supports("checkout")).toBe(true);
     expect(ap2Merchant.supports("checkout:steelyard")).toBe(false);
+  });
+
+  it("sniffs canonical, legacy, mixed, and absent UCP checkout capabilities", async () => {
+    const canonicalBase = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: true });
+    const canonicalMerchant = await connect(canonicalBase);
+    expect(isMerchant(canonicalMerchant) && canonicalMerchant.supports("checkout")).toBe(true);
+    expect(isMerchant(canonicalMerchant) && canonicalMerchant.supports("checkout:steelyard")).toBe(true);
+    await closeServer();
+
+    const legacyBase = await startLegacyUcpDiscoveryServer({ checkout: true, steelyardMandate: true });
+    const legacyMerchant = await connect(legacyBase);
+    expect(isMerchant(legacyMerchant) && legacyMerchant.supports("checkout")).toBe(true);
+    expect(isMerchant(legacyMerchant) && legacyMerchant.supports("checkout:steelyard")).toBe(true);
+    await closeServer();
+
+    const steelyardAlias = UCP_LEGACY_CAPABILITY_ALIASES[STEELYARD_CHECKOUT_MANDATE_V01]!;
+    const mixedBase = await startUcpCapabilitiesServer({
+      [UCP_CATALOG_SEARCH_CAPABILITY]: [{ version: "2026-04-17" }],
+      [UCP_CHECKOUT_CAPABILITY]: [{ version: "2026-04-17" }],
+      [steelyardAlias.bucket]: [{ id: steelyardAlias.id, version: "2026-04-17" }]
+    });
+    const mixedMerchant = await connect(mixedBase);
+    expect(isMerchant(mixedMerchant) && mixedMerchant.supports("checkout")).toBe(true);
+    expect(isMerchant(mixedMerchant) && mixedMerchant.supports("checkout:steelyard")).toBe(true);
+    await closeServer();
+
+    const absentBase = await startUcpDiscoveryServer({ checkout: false, steelyardMandate: false });
+    const absentMerchant = await connect(absentBase);
+    expect(isMerchant(absentMerchant) && absentMerchant.supports("checkout")).toBe(false);
+    expect(isMerchant(absentMerchant) && absentMerchant.supports("checkout:steelyard")).toBe(false);
   });
 
   it("routes ACP merchant.purchase through the checkout driver", async () => {
@@ -463,7 +503,23 @@ async function startAcpFallbackServer(): Promise<string> {
   return `http://127.0.0.1:${port}`;
 }
 
-async function startLegacyUcpDiscoveryServer(): Promise<string> {
+async function startLegacyUcpDiscoveryServer(
+  opts: { checkout?: boolean; steelyardMandate?: boolean } = {}
+): Promise<string> {
+  const capabilities: Record<string, { id: string; version: string }[]> = {};
+  for (const capabilityKey of [
+    UCP_CATALOG_SEARCH_CAPABILITY,
+    ...(opts.checkout ? [UCP_CHECKOUT_CAPABILITY] : []),
+    ...(opts.steelyardMandate ? [STEELYARD_CHECKOUT_MANDATE_V01] : [])
+  ]) {
+    const alias = UCP_LEGACY_CAPABILITY_ALIASES[capabilityKey]!;
+    capabilities[alias.bucket] ??= [];
+    capabilities[alias.bucket]!.push({ id: alias.id, version: "2026-04-17" });
+  }
+  return await startUcpCapabilitiesServer(capabilities);
+}
+
+async function startUcpCapabilitiesServer(capabilities: Record<string, unknown[]>): Promise<string> {
   server = createServer((req, res) => {
     if (req.method === "GET" && req.url?.startsWith("/.well-known/ucp")) {
       const baseUrl = `http://${req.headers.host}`;
@@ -479,9 +535,7 @@ async function startLegacyUcpDiscoveryServer(): Promise<string> {
               }
             ]
           },
-          capabilities: {
-            "dev.ucp.shopping.catalog.search": [{ version: "2026-04-17" }]
-          },
+          capabilities,
           payment_handlers: {}
         },
         merchant: { name: "Acme Coffee", domain: "coffee.example" },
@@ -509,9 +563,7 @@ async function startUcpDefaultEndpointServer(): Promise<string> {
             ]
           },
           capabilities: {
-            [UCP_SHOPPING_DOMAIN]: [
-              { id: UCP_CATALOG_SEARCH_CAPABILITY_ID, version: "2026-04-17" }
-            ]
+            [UCP_CATALOG_SEARCH_CAPABILITY]: [{ version: "2026-04-17" }]
           },
           payment_handlers: {}
         },

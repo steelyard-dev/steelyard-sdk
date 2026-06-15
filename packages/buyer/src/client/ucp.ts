@@ -64,7 +64,6 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
   const checkoutId = stringValue(checkout.id);
   const selected = selectedHandler(ucpHandlers(checkout, opts), opts.delegatePaymentUrl);
   if (!selected) throw new UcpNoCompatibleHandler(checkoutId);
-  if (opts.supportsSteelyardMode === false) throw new UcpSteelyardModeNotSupported(checkoutId);
 
   const instrumentId = `instrument_${key.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "1"}`;
   const tokenType = stringValue(selected.handler.config?.token_type, "vault_token");
@@ -102,24 +101,8 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     clock
   });
   const audience = opts.merchantId;
-  const publicKey = await opts.port.mandatePublicKey();
-  const mandatePayload = {
-    iss: publicKey.key_id,
-    sub: await opts.port.pairwiseSubject(audience),
-    aud: audience,
-    iat: Math.floor(clock().getTime() / 1000),
-    exp: Math.floor(clock().getTime() / 1000) + 300,
-    "steelyard:mandate_version": "v0.1",
-    "steelyard:checkout": canonicalMandateCheckout(checkout),
-    "steelyard:purchase_key": key,
-    "steelyard:payment": {
-      handler_id: selected.handler.id,
-      credential_id: vaultTokenId,
-      expires_at: new Date(clock().getTime() + 15 * 60_000).toISOString()
-    }
-  };
-  const signed = await opts.port.signMandate(mandatePayload);
-  const completeBody = {
+  let signed: { jwt: string; key_id: string } | undefined;
+  const completeBody: Record<string, unknown> = {
     payment: {
       instruments: [
         {
@@ -130,9 +113,28 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
           selected: true
         }
       ]
-    },
-    "steelyard.checkout_mandate": signed.jwt
+    }
   };
+  if (opts.supportsSteelyardMode === true && canSignSteelyardMandate(opts.port)) {
+    const publicKey = await opts.port.mandatePublicKey();
+    const mandatePayload = {
+      iss: publicKey.key_id,
+      sub: await opts.port.pairwiseSubject(audience),
+      aud: audience,
+      iat: Math.floor(clock().getTime() / 1000),
+      exp: Math.floor(clock().getTime() / 1000) + 300,
+      "steelyard:mandate_version": "v0.1",
+      "steelyard:checkout": canonicalMandateCheckout(checkout),
+      "steelyard:purchase_key": key,
+      "steelyard:payment": {
+        handler_id: selected.handler.id,
+        credential_id: vaultTokenId,
+        expires_at: new Date(clock().getTime() + 15 * 60_000).toISOString()
+      }
+    };
+    signed = await opts.port.signMandate(mandatePayload);
+    completeBody["steelyard.checkout_mandate"] = signed.jwt;
+  }
   const completed = asRecord(
     await postJson(joinUrl(opts.merchantUrl, `/checkout/${encodeURIComponent(checkoutId)}/complete`), completeBody, {
       idempotencyKey: `${key}:complete`,
@@ -140,14 +142,14 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     })
   );
   assertValidUcpCheckout(completed);
-  return ucpReceipt(intent, completed, vaultTokenId, signed.jwt, clock);
+  return ucpReceipt(intent, completed, vaultTokenId, signed?.jwt, clock);
 }
 
 function ucpReceipt(
   intent: PurchaseIntent,
   checkout: JsonRecord,
   vaultTokenId: string,
-  jwt: string,
+  jwt: string | undefined,
   clock: () => Date
 ): Receipt {
   const order = asRecord(checkout.order);
@@ -158,12 +160,18 @@ function ucpReceipt(
     reference: {
       ucp: {
         checkout_id: stringValue(checkout.id),
-        mandate_id: mandateId(jwt),
-        vault_token_id: vaultTokenId
+        vault_token_id: vaultTokenId,
+        ...(jwt ? { mandate_id: mandateId(jwt) } : {})
       }
     },
     ...(order.permalink_url ? { fulfillment: { permalink_url: String(order.permalink_url) } } : {})
   };
+}
+
+function canSignSteelyardMandate(port: UcpDriverOpts["port"]): boolean {
+  return typeof port.mandatePublicKey === "function"
+    && typeof port.pairwiseSubject === "function"
+    && typeof port.signMandate === "function";
 }
 
 function ucpHandlers(checkout: Checkout, opts: UcpDriverOpts): PaymentHandlerLike[] {

@@ -34,8 +34,8 @@ if (merchant.supports("checkout")) {
 
 `Steelyard.connect(url)` probes the URL in order:
 
-1. **MCP** — opens a streamable HTTP connection, calls `initialize`, sniffs
-   `serverInfo.capabilities.commerce` (or the `steelyard/commerce` extension).
+1. **MCP** — opens a streamable HTTP connection, calls `initialize`, and sniffs
+   `capabilities.extensions["steelyard/commerce"]`.
 2. **ACP** — fetches the supplied feed URL and looks for ACP `products`.
 3. **UCP** — fetches `/.well-known/ucp` when the supplied URL is not already
    the well-known path, then checks the discovery shape.

@@ -175,6 +175,7 @@ async function startMerchantCheckout(
     idempotency: memoryIdempotencyStore(),
     psp: mockPsp(),
     mandateVerifier: verifier,
+    steelyardMandate: true,
     clock,
     baseUrl,
     merchantAudience: `${baseUrl}/.well-known/ucp`

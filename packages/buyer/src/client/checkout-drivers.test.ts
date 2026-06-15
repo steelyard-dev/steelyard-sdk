@@ -224,20 +224,67 @@ describe("UCP checkout driver", () => {
     });
   });
 
-  it("refuses UCP Steelyard mandates when the merchant mode is absent", async () => {
+  it("completes vanilla UCP when Steelyard mode is absent", async () => {
     const merchant = await startUcpMerchant();
+    const port = testPort();
+    const receipt = await ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "https://coffee.example/.well-known/ucp",
+      delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+      supportsSteelyardMode: false,
+      port,
+      idempotencyKey: "purchase_ucp_vanilla",
+      clock: () => now
+    });
+
+    expect(receipt.reference.ucp).toMatchObject({ checkout_id: "checkout_1", vault_token_id: "vt_1" });
+    expect(receipt.reference.ucp?.mandate_id).toBeUndefined();
+    expect(port.signMandatePayloads).toHaveLength(0);
+    expect(merchant.requests.map((request) => request.idempotencyKey)).toEqual([
+      "purchase_ucp_vanilla:create",
+      "purchase_ucp_vanilla:update",
+      "purchase_ucp_vanilla:delegate",
+      "purchase_ucp_vanilla:complete"
+    ]);
+    expect(merchant.requests[3]!.body).not.toHaveProperty("steelyard.checkout_mandate");
+  });
+
+  it("skips mandate signing when Steelyard mode is advertised but the port cannot sign", async () => {
+    const merchant = await startUcpMerchant({ requireMandate: true });
+    const port = withoutMandateKey(testPort());
     await expect(
       ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
         merchantUrl: merchant.baseUrl,
         merchantId: "https://coffee.example/.well-known/ucp",
         delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
-        supportsSteelyardMode: false,
-        port: testPort(),
-        idempotencyKey: "purchase_ucp_blocked",
+        supportsSteelyardMode: true,
+        port,
+        idempotencyKey: "purchase_ucp_no_key",
         clock: () => now
       })
-    ).rejects.toThrow(/does not advertise Steelyard/);
-    expect(merchant.requests.map((request) => request.idempotencyKey)).toEqual(["purchase_ucp_blocked:create"]);
+    ).rejects.toThrow(/mandate_required/);
+    expect(port.signMandatePayloads).toHaveLength(0);
+    expect(merchant.requests[3]!.body).not.toHaveProperty("steelyard.checkout_mandate");
+  });
+
+  it("completes vanilla UCP when Steelyard mode and mandate keys are both absent", async () => {
+    const merchant = await startUcpMerchant();
+    const port = withoutMandateKey(testPort());
+    const receipt = await ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "https://coffee.example/.well-known/ucp",
+      delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+      supportsSteelyardMode: false,
+      port,
+      idempotencyKey: "purchase_ucp_plain",
+      clock: () => now
+    });
+
+    expect(receipt.reference.ucp).toEqual({
+      checkout_id: "checkout_1",
+      vault_token_id: "vt_1"
+    });
+    expect(port.signMandatePayloads).toHaveLength(0);
   });
 
   it("maps canceled and handlerless UCP checkouts to driver errors", async () => {
@@ -395,7 +442,9 @@ async function startAcpMerchant(opts: {
   return { baseUrl: await listen(server), requests };
 }
 
-async function startUcpMerchant(opts: { createStatus?: string; handlerCatalog?: boolean } = {}): Promise<{ baseUrl: string; requests: CapturedRequest[] }> {
+async function startUcpMerchant(
+  opts: { createStatus?: string; handlerCatalog?: boolean; requireMandate?: boolean } = {}
+): Promise<{ baseUrl: string; requests: CapturedRequest[] }> {
   const requests: CapturedRequest[] = [];
   let checkout: UcpCheckout | undefined;
   const server = createServer(async (req, res) => {
@@ -418,6 +467,13 @@ async function startUcpMerchant(opts: { createStatus?: string; handlerCatalog?: 
       return;
     }
     if (req.method === "POST" && req.url === "/checkout/checkout_1/complete" && checkout) {
+      if (opts.requireMandate && typeof body["steelyard.checkout_mandate"] !== "string") {
+        sendJson(res, 400, {
+          status: "canceled",
+          messages: { errors: [{ code: "mandate_required", message: "Steelyard mandate required" }] }
+        });
+        return;
+      }
       const completed = applyUcpComplete(checkout, body as { payment: { instruments: [] } }, {
         now,
         mandateOk: { subject_id: "subject_1", key_id: "mk_test" },
@@ -465,6 +521,16 @@ function testPort(): WalletDriverPort & { signMandatePayloads: Record<string, un
       return { jwk: { kty: "OKP", crv: "Ed25519", x: "test" }, key_id: "mk_test" };
     }
   };
+}
+
+function withoutMandateKey(
+  port: WalletDriverPort & { signMandatePayloads: Record<string, unknown>[] }
+): WalletDriverPort & { signMandatePayloads: Record<string, unknown>[] } {
+  const plain: Partial<WalletDriverPort> & { signMandatePayloads: Record<string, unknown>[] } = { ...port };
+  plain.signMandate = undefined;
+  plain.pairwiseSubject = undefined;
+  plain.mandatePublicKey = undefined;
+  return plain as WalletDriverPort & { signMandatePayloads: Record<string, unknown>[] };
 }
 
 function withAcpHandler(session: Record<string, unknown>): Record<string, unknown> {

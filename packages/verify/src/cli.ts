@@ -180,6 +180,7 @@ function addBehavioralCases(cases: VerifyCase[]): void {
   addCases(cases, "VBC", range("VBC-", 1, 8), "Backward compatibility", behavioral);
   addCases(cases, "VD", range("VD-", 1, 6), "Discovery capability sniffing", behavioral);
   addCases(cases, "VPSP", range("VPSP-", 1, 6), "PSP handler selection", behavioral);
+  addV041ConformanceCases(cases);
   cases.push({
     id: "docs:migration",
     suite: "docs",
@@ -188,6 +189,60 @@ function addBehavioralCases(cases: VerifyCase[]): void {
     evidence: ["docs/guides/migrating-from-v0.2.md", "README.md"],
     run: assertMigrationDocs
   });
+}
+
+function addV041ConformanceCases(cases: VerifyCase[]): void {
+  const entries: Array<[string, string, string[], (ctx: VerifyContext) => Promise<void>]> = [
+    [
+      "VK1",
+      "Canonical UCP discovery uses full capability keys",
+      ["packages/protocol/src/ucp/ucp.test.ts"],
+      (ctx) => runFocusedVitest(ctx, "vk-protocol-ucp", "@steelyard/protocol", "src/ucp/ucp.test.ts")
+    ],
+    [
+      "VK2",
+      "Legacy UCP bucket/id discovery still sniffs during migration",
+      ["packages/buyer/src/client/client.test.ts"],
+      (ctx) => runFocusedVitest(ctx, "vk-buyer-client", "@steelyard/buyer", "src/client/client.test.ts")
+    ],
+    [
+      "VK3",
+      "Vanilla UCP complete succeeds without a Steelyard mandate",
+      ["packages/merchant/src/checkout/server.test.ts"],
+      (ctx) => runFocusedVitest(ctx, "vk-merchant-checkout", "@steelyard/merchant", "src/checkout/server.test.ts")
+    ],
+    [
+      "VK4",
+      "Steelyard-mode UCP complete still verifies mandates",
+      ["packages/merchant/src/checkout/server.test.ts", "packages/buyer/src/client/checkout-drivers.test.ts"],
+      async (ctx) => {
+        await runFocusedVitest(ctx, "vk-merchant-checkout", "@steelyard/merchant", "src/checkout/server.test.ts");
+        await runFocusedVitest(ctx, "vk-buyer-ucp-driver", "@steelyard/buyer", "src/client/checkout-drivers.test.ts");
+      }
+    ]
+  ];
+  for (const [id, title, evidence, run] of entries) {
+    cases.push({
+      id,
+      suite: "VK",
+      title,
+      verifies: ["VE1"],
+      evidence,
+      run
+    });
+  }
+}
+
+async function runFocusedVitest(ctx: VerifyContext, key: string, pkg: string, testFile: string): Promise<void> {
+  await runCommandOnce(ctx, key, "pnpm", [
+    "--filter",
+    pkg,
+    "exec",
+    "vitest",
+    "run",
+    testFile,
+    "--coverage.enabled=false"
+  ]);
 }
 
 function addStaticCases(cases: VerifyCase[]): void {
@@ -708,7 +763,7 @@ function parseArgs(argv: string[]): VerifyArgs {
 function printHelp(): void {
   console.log(`Usage: pnpm verify [--suite <name>] [--lane <lane>] [--audit] [--check-clocks] [--check-mock-guards]
 
-Runs the Steelyard v0.3 verification harness and writes verify-report.json.`);
+Runs the Steelyard verification harness and writes verify-report.json.`);
 }
 
 function range(prefix: string, start: number, end: number): string[] {

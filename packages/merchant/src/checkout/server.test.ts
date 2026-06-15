@@ -72,6 +72,16 @@ describe("createMerchantCheckout", () => {
         idempotency: memoryIdempotencyStore(),
         clock: () => now
       })
+    ).not.toThrow();
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        steelyardMandate: true,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now
+      })
     ).toThrow(/mandateVerifier/);
     expect(() =>
       createMerchantCheckout(manifest, {
@@ -261,12 +271,19 @@ describe("createMerchantCheckout", () => {
 
   it("runs UCP checkout with mandate verification and maps mandate failures", async () => {
     const psp = recordingPsp();
+    const baseVerifier = mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "key_1" } });
     const okClient = await listen(
       createMerchantCheckout(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
-        mandateVerifier: mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "key_1" } }),
+        mandateVerifier: {
+          async verify(envelope, checkout, audience) {
+            if (typeof envelope["steelyard.checkout_mandate"] !== "string") return { ok: false, reason: "missing_mandate" };
+            return baseVerifier.verify(envelope, checkout, audience);
+          }
+        },
+        steelyardMandate: true,
         idempotency: memoryIdempotencyStore(),
         clock: () => now,
         merchantAudience: "https://coffee.example/.well-known/ucp"
@@ -303,6 +320,23 @@ describe("createMerchantCheckout", () => {
     expect(completed.body.order).not.toHaveProperty("status");
     expect(psp.captures[0]).toMatchObject({ handler_id: "stripe", idempotencyKey: `psp:ucp:${checkoutId}:capture` });
 
+    const missingCreated = await okClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-missing-create");
+    const missingId = stringField(missingCreated.body, "id");
+    await expect(
+      okClient.post(
+        `/ucp/api/checkout/${missingId}/complete`,
+        { payment: ucpPaymentComplete },
+        "ucp-missing-complete"
+      )
+    ).resolves.toMatchObject({
+      status: 400,
+      body: {
+        status: "canceled",
+        messages: { errors: [expect.objectContaining({ code: "mandate_required" })] }
+      }
+    });
+    expect(psp.captures).toHaveLength(1);
+
     const failingPsp = recordingPsp();
     const failClient = await listen(
       createMerchantCheckout(manifest, {
@@ -310,6 +344,7 @@ describe("createMerchantCheckout", () => {
         store: memoryCheckoutSessionStore(),
         psp: failingPsp.adapter,
         mandateVerifier: mockMandateVerifier({ alwaysReason: "audience_mismatch" }),
+        steelyardMandate: true,
         idempotency: memoryIdempotencyStore(),
         clock: () => now
       }).handler
@@ -330,6 +365,76 @@ describe("createMerchantCheckout", () => {
       }
     });
     expect(failingPsp.captures).toHaveLength(0);
+
+    const invalidPsp = recordingPsp();
+    const invalidClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: invalidPsp.adapter,
+        mandateVerifier: mockMandateVerifier({ alwaysReason: "bad_signature" }),
+        steelyardMandate: true,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now
+      }).handler
+    );
+    const invalidCreated = await invalidClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-invalid-create");
+    const invalidId = stringField(invalidCreated.body, "id");
+    await expect(
+      invalidClient.post(
+        `/ucp/api/checkout/${invalidId}/complete`,
+        { payment: ucpPaymentComplete, "steelyard.checkout_mandate": "mock.jwt" },
+        "ucp-invalid-complete"
+      )
+    ).resolves.toMatchObject({
+      status: 400,
+      body: {
+        status: "canceled",
+        messages: { errors: [expect.objectContaining({ code: "mandate_invalid" })] }
+      }
+    });
+    expect(invalidPsp.captures).toHaveLength(0);
+  });
+
+  it("runs vanilla UCP checkout without mandate verification", async () => {
+    const psp = recordingPsp();
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now
+      }).handler
+    );
+
+    const created = await client.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-vanilla-create");
+    const checkoutId = stringField(created.body, "id");
+    const completed = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      { payment: ucpPaymentComplete },
+      "ucp-vanilla-complete"
+    );
+
+    expect(completed).toMatchObject({
+      status: 200,
+      body: { status: "completed", order: { id: `order_${checkoutId}` } }
+    });
+    expect(psp.captures).toHaveLength(1);
+
+    const extraCreated = await client.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-extra-create");
+    const extraId = stringField(extraCreated.body, "id");
+    await expect(
+      client.post(
+        `/ucp/api/checkout/${extraId}/complete`,
+        { payment: ucpPaymentComplete, "steelyard.checkout_mandate": "ignored.jwt" },
+        "ucp-extra-complete"
+      )
+    ).resolves.toMatchObject({
+      status: 200,
+      body: { status: "completed", order: { id: `order_${extraId}` } }
+    });
+    expect(psp.captures).toHaveLength(2);
   });
 
   it("maps policy denials before route side effects", async () => {
@@ -352,6 +457,59 @@ describe("createMerchantCheckout", () => {
     });
     expect(policy.calls[0]).toMatchObject({ amount: 500, currency: "USD" });
     expect(psp.captures).toHaveLength(0);
+  });
+
+  it("maps validation and internal server errors to stable HTTP responses", async () => {
+    const validationPolicy = recordingPolicy();
+    const validationClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        policy: validationPolicy.instance,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now
+      }).handler
+    );
+    await expect(
+      validationClient.post(
+        "/ucp/api/checkout",
+        {
+          line_items: [
+            {
+              item: { id: "latte", title: "Latte", price: 500 },
+              quantity: 1,
+              totals: [{ type: "subtotal", display_text: "Subtotal", amount: 500 }]
+            }
+          ]
+        },
+        "ucp-validation-error"
+      )
+    ).resolves.toMatchObject({
+      status: 400,
+      body: { error: "bad_request", message: expect.stringContaining("failed spec validation") }
+    });
+    expect(validationPolicy.calls[0]).toMatchObject({ amount: 0, currency: "USD" });
+
+    const crashingPolicy = {
+      evaluate: vi.fn(async () => {
+        throw new Error("policy exploded");
+      })
+    } as unknown as MerchantPolicy;
+    const crashClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["acp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        policy: crashingPolicy,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now
+      }).handler
+    );
+    await expect(crashClient.post("/acp/checkout_sessions", acpCreateBody, "policy-crash")).resolves.toMatchObject({
+      status: 500,
+      body: { error: "internal_error", message: "policy exploded" }
+    });
   });
 });
 

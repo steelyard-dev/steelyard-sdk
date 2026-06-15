@@ -1,11 +1,11 @@
 # UCP Checkout
 
-Steelyard v0.3 supports UCP checkout through
-`@steelyard/merchant/checkout` and `@steelyard/buyer/client/ucp`.
+Steelyard supports UCP checkout through `@steelyard/merchant/checkout` and
+`@steelyard/buyer/client/ucp`.
 
-UCP checkout is advertised from the discovery document by adding the
-`checkout` capability to `dev.ucp.shopping`. Steelyard's mandate mode is
-advertised separately under `net.steelyard`.
+UCP checkout is advertised from the discovery document with the full capability
+key `dev.ucp.shopping.checkout`. Steelyard's mandate mode is advertised
+separately as `net.steelyard.checkout_mandate.v0_1`.
 
 ```ts
 const discovery = buildUcpDiscovery(manifest, {
@@ -27,7 +27,13 @@ Catalog routes stay at `/api/catalog/search`, `/api/catalog/lookup`, and
 
 ## Mandates
 
-Before completion, the buyer signs a Steelyard checkout mandate with:
+Steelyard mandates are opt-in. Set `steelyardMandate: true` on
+`createMerchantCheckout()` and pass a `mandateVerifier` when the merchant
+advertises `net.steelyard.checkout_mandate.v0_1`. Without that switch, vanilla
+UCP completion proceeds without a mandate.
+
+When mandate mode is negotiated, the buyer signs a Steelyard checkout mandate
+with:
 
 - `aud`: the canonical UCP discovery URL
 - `steelyard:checkout`: the canonical checkout snapshot
@@ -40,7 +46,7 @@ payment handler.
 
 ## AP2 notice
 
-Steelyard's v0.3 UCP checkout mandate is **not AP2 compliant**. It uses the
+Steelyard's UCP checkout mandate mode is **not AP2 compliant**. It uses the
 `steelyard.checkout_mandate` namespace and intentionally rejects AP2-namespaced
 mandates in the Steelyard verifier. AP2 support requires a separate
 compatibility layer and is not claimed by this release.

@@ -4,16 +4,13 @@ import { createServer, request, type Server as NodeServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { COMMERCE_MANIFEST_PATH, defineCommerce } from "@steelyard/core";
 import {
-  UCP_CATALOG_LOOKUP_CAPABILITY_ID,
+  UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,
-  UCP_CATALOG_SEARCH_CAPABILITY_ID,
-  UCP_CHECKOUT_CAPABILITY_ID,
-  UCP_SHOPPING_DOMAIN,
+  UCP_CHECKOUT_CAPABILITY,
   UCP_SHOPPING_SERVICE,
   UCP_VERSION,
   UCP_WELL_KNOWN_PATH,
-  STEELYARD_DOMAIN,
-  STEELYARD_MANDATE_V01_ID,
+  STEELYARD_CHECKOUT_MANDATE_V01,
   assertValidGetProductResponse,
   assertValidLookupResponse,
   assertValidSearchResponse,
@@ -79,11 +76,25 @@ describe("buildUcpDiscovery", () => {
       expect.objectContaining({ transport: "rest", endpoint: "https://shop.example/api" }),
       expect.objectContaining({ transport: "mcp", endpoint: "https://shop.example/mcp" })
     ]);
-    expect(Object.keys(doc.ucp.capabilities)).toEqual([UCP_SHOPPING_DOMAIN]);
-    expect(doc.ucp.capabilities[UCP_SHOPPING_DOMAIN]?.map((capability) => capability.id)).toEqual([
-      UCP_CATALOG_SEARCH_CAPABILITY_ID,
-      UCP_CATALOG_LOOKUP_CAPABILITY_ID
+    expect(Object.keys(doc.ucp.capabilities)).toEqual([
+      UCP_CATALOG_SEARCH_CAPABILITY,
+      UCP_CATALOG_LOOKUP_CAPABILITY
     ]);
+    expect(doc.ucp.capabilities[UCP_CATALOG_SEARCH_CAPABILITY]).toEqual([
+      expect.objectContaining({
+        version: UCP_VERSION,
+        spec: `https://ucp.dev/${UCP_VERSION}/specification/catalog-search`,
+        schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/catalog_search.json`
+      })
+    ]);
+    expect(doc.ucp.capabilities[UCP_CATALOG_LOOKUP_CAPABILITY]).toEqual([
+      expect.objectContaining({
+        version: UCP_VERSION,
+        spec: `https://ucp.dev/${UCP_VERSION}/specification/catalog-lookup`,
+        schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/catalog_lookup.json`
+      })
+    ]);
+    expect(Object.values(doc.ucp.capabilities).flat().some((capability) => "id" in capability)).toBe(false);
     expect(doc.ucp.payment_handlers).toEqual({});
     expect(doc.links.commerce_manifest).toBe(`https://shop.example${COMMERCE_MANIFEST_PATH}`);
     expect(validateUcpDiscovery(doc).valid).toBe(true);
@@ -97,12 +108,57 @@ describe("buildUcpDiscovery", () => {
       steelyardMandate: true
     });
 
-    expect(doc.ucp.capabilities[UCP_SHOPPING_DOMAIN]?.map((capability) => capability.id)).toContain(
-      UCP_CHECKOUT_CAPABILITY_ID
-    );
-    expect(doc.ucp.capabilities[STEELYARD_DOMAIN]).toEqual([
-      expect.objectContaining({ id: STEELYARD_MANDATE_V01_ID })
+    expect(Object.keys(doc.ucp.capabilities)).toEqual([
+      UCP_CHECKOUT_CAPABILITY,
+      UCP_CATALOG_SEARCH_CAPABILITY,
+      UCP_CATALOG_LOOKUP_CAPABILITY,
+      STEELYARD_CHECKOUT_MANDATE_V01
     ]);
+    expect(canonicalJson(doc.ucp.capabilities)).toBe(canonicalJson({
+      [UCP_CHECKOUT_CAPABILITY]: [
+        {
+          version: UCP_VERSION,
+          spec: `https://ucp.dev/${UCP_VERSION}/specification/checkout`,
+          schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/checkout.json`
+        }
+      ],
+      [UCP_CATALOG_SEARCH_CAPABILITY]: [
+        {
+          version: UCP_VERSION,
+          spec: `https://ucp.dev/${UCP_VERSION}/specification/catalog-search`,
+          schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/catalog_search.json`
+        }
+      ],
+      [UCP_CATALOG_LOOKUP_CAPABILITY]: [
+        {
+          version: UCP_VERSION,
+          spec: `https://ucp.dev/${UCP_VERSION}/specification/catalog-lookup`,
+          schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/catalog_lookup.json`
+        }
+      ],
+      [STEELYARD_CHECKOUT_MANDATE_V01]: [
+        {
+          version: UCP_VERSION,
+          spec: "https://steelyard.dev/specification/checkout-mandate-v0.1",
+          schema: "https://steelyard.dev/schemas/checkout-mandate-v0.1.json"
+        }
+      ]
+    }));
+    expect(doc.ucp.capabilities[UCP_CHECKOUT_CAPABILITY]).toEqual([
+      {
+        version: UCP_VERSION,
+        spec: `https://ucp.dev/${UCP_VERSION}/specification/checkout`,
+        schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/checkout.json`
+      }
+    ]);
+    expect(doc.ucp.capabilities[STEELYARD_CHECKOUT_MANDATE_V01]).toEqual([
+      {
+        version: UCP_VERSION,
+        spec: "https://steelyard.dev/specification/checkout-mandate-v0.1",
+        schema: "https://steelyard.dev/schemas/checkout-mandate-v0.1.json"
+      }
+    ]);
+    expect(Object.values(doc.ucp.capabilities).flat().some((capability) => "id" in capability)).toBe(false);
     expect(validateUcpDiscovery(doc).valid).toBe(true);
   });
 
@@ -116,6 +172,20 @@ describe("buildUcpDiscovery", () => {
     );
   });
 });
+
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(sortJson(value));
+}
+
+function sortJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortJson);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => [key, sortJson(item)])
+  );
+}
 
 describe("catalog mapping", () => {
   it("searches catalog products and returns UCP-shaped prices, variants, and capabilities", () => {

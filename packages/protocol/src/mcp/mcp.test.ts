@@ -139,11 +139,16 @@ describe("createMcpServer", () => {
     await waitFor(() => responses.length > 0);
     const response = responses[0] as {
       result: {
-        serverInfo: { capabilities: { commerce: typeof COMMERCE_CAPABILITY } };
+        serverInfo: Record<string, unknown>;
         capabilities: { extensions: Record<string, unknown> };
       };
     };
-    expect(response.result.serverInfo.capabilities.commerce).toEqual(COMMERCE_CAPABILITY);
+    expect(response.result.serverInfo).toEqual({
+      name: "steelyard:Coffee Shop",
+      version: "0.1.0"
+    });
+    expect(response.result.serverInfo).not.toHaveProperty("capabilities");
+    expect(response.result.capabilities).not.toHaveProperty("commerce");
     expect(response.result.capabilities.extensions["steelyard/commerce"]).toEqual({
       commerce: COMMERCE_CAPABILITY
     });

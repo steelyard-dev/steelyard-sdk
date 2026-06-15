@@ -27,7 +27,7 @@ import {
   type Checkout as UcpCheckout,
   type SelectedPaymentInstrument
 } from "@steelyard/protocol/ucp/checkout";
-import type { MandateVerifier } from "../mandate/index.js";
+import type { MandateVerificationResult, MandateVerifier } from "../mandate/index.js";
 import type { MerchantPolicy } from "../policy/index.js";
 import type { PspAdapter, PspCaptureResult } from "../psp/index.js";
 import { IdempotencyConflict, type IdempotencyResponse, type IdempotencyStore } from "./idempotency.js";
@@ -44,6 +44,7 @@ export interface MerchantCheckoutOpts {
   psp: PspAdapter;
   policy?: MerchantPolicy;
   mandateVerifier?: MandateVerifier;
+  steelyardMandate?: boolean;
   idempotency: IdempotencyStore;
   clock?: () => Date;
   merchantAudience?: string;
@@ -88,8 +89,8 @@ export function createMerchantCheckout(manifest: Manifest, opts: MerchantCheckou
   if (!protocols.has("acp") && !protocols.has("ucp")) {
     throw new MerchantCheckoutConfigError("createMerchantCheckout requires at least one protocol");
   }
-  if (protocols.has("ucp") && !opts.mandateVerifier) {
-    throw new MerchantCheckoutConfigError("mandateVerifier is required when UCP checkout is enabled");
+  if (protocols.has("ucp") && opts.steelyardMandate && !opts.mandateVerifier) {
+    throw new MerchantCheckoutConfigError("mandateVerifier is required when steelyardMandate is enabled");
   }
   assertPspCurrencySupport(manifest, opts.psp);
 
@@ -229,7 +230,9 @@ function createAcpRoutes(ctx: MerchantCheckoutContext): AcpRoutes {
 
 function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
   const mandateVerifier = ctx.opts.mandateVerifier;
-  if (!mandateVerifier) throw new MerchantCheckoutConfigError("mandateVerifier is required when UCP checkout is enabled");
+  if (ctx.opts.steelyardMandate && !mandateVerifier) {
+    throw new MerchantCheckoutConfigError("mandateVerifier is required when steelyardMandate is enabled");
+  }
 
   return {
     async createCheckout(req, res) {
@@ -283,21 +286,25 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
               )
             };
           }
-          const mandate = await mandateVerifier.verify(
-            body as Record<string, unknown>,
-            { ...claimed, payment: (body as Record<string, unknown>).payment },
-            ctx.ucpAudience
-          );
-          if (!mandate.ok) {
-            status = 400;
-            return {
-              next: checkoutCanceled(
-                claimed,
-                mandate.reason === "audience_mismatch" ? "mandate_audience_mismatch" : "mandate_invalid",
-                mandate.reason,
-                ctx.clock()
-              )
-            };
+          let mandateOk: Extract<MandateVerificationResult, { ok: true }> | undefined;
+          if (ctx.opts.steelyardMandate) {
+            const mandate = await mandateVerifier!.verify(
+              body as Record<string, unknown>,
+              { ...claimed, payment: (body as Record<string, unknown>).payment },
+              ctx.ucpAudience
+            );
+            if (!mandate.ok) {
+              status = 400;
+              return {
+                next: checkoutCanceled(
+                  claimed,
+                  mandateErrorCode(mandate.reason),
+                  mandate.reason,
+                  ctx.clock()
+                )
+              };
+            }
+            mandateOk = mandate;
           }
           const pspResult = await capture(ctx, "ucp", claimed, payment, idempotencyKey);
           if (!pspResult.ok) {
@@ -308,7 +315,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
           }
           const completed = applyUcpComplete(claimed as UcpCheckout, body as { payment: { instruments: SelectedPaymentInstrument[] } }, {
             now: ctx.clock(),
-            mandateOk: mandate,
+            mandateOk,
             pspResult,
             orderId: `order_${id}`,
             permalinkUrl: `https://example.com/orders/${encodeURIComponent(id)}`
@@ -436,6 +443,12 @@ function acpPaymentData(body: unknown): { vault_token: string; handler_id: strin
   if (!token) throw new HttpError(400, "vault_token_required");
   if (!handlerId) throw new HttpError(400, "payment_handler_required");
   return { vault_token: token, handler_id: handlerId };
+}
+
+function mandateErrorCode(reason: string): string {
+  if (reason === "audience_mismatch") return "mandate_audience_mismatch";
+  if (reason === "missing_mandate") return "mandate_required";
+  return "mandate_invalid";
 }
 
 function ucpPaymentData(body: unknown): { vault_token: string; handler_id: string } {

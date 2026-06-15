@@ -16,12 +16,10 @@ import {
   type WalletDriverPort
 } from "@steelyard/core";
 import {
-  STEELYARD_DOMAIN,
-  STEELYARD_MANDATE_V01_ID,
+  STEELYARD_CHECKOUT_MANDATE_V01,
+  UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,
-  UCP_CATALOG_SEARCH_CAPABILITY_ID,
-  UCP_CHECKOUT_CAPABILITY_ID,
-  UCP_SHOPPING_DOMAIN,
+  UCP_CHECKOUT_CAPABILITY,
   UCP_SHOPPING_SERVICE,
   UCP_WELL_KNOWN_PATH
 } from "@steelyard/protocol/ucp";
@@ -77,6 +75,13 @@ export class MerchantNoCheckout extends Error {
 }
 
 type DetectionResult = Merchant | SteelyardError | undefined;
+
+export const UCP_LEGACY_CAPABILITY_ALIASES: Record<string, { bucket: string; id: string }> = {
+  [UCP_CHECKOUT_CAPABILITY]: { bucket: "dev.ucp.shopping", id: "checkout" },
+  [UCP_CATALOG_SEARCH_CAPABILITY]: { bucket: "dev.ucp.shopping", id: "catalog.search" },
+  [UCP_CATALOG_LOOKUP_CAPABILITY]: { bucket: "dev.ucp.shopping", id: "catalog.lookup" },
+  [STEELYARD_CHECKOUT_MANDATE_V01]: { bucket: "net.steelyard", id: "checkout_mandate.v0.1" }
+};
 
 export const Steelyard = {
   connect
@@ -259,7 +264,7 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOption
     protocol: "ucp",
     discoveryUrl: discoveryUrl.toString()
   });
-  const checkoutSupported = ucpHasCapability(doc, UCP_SHOPPING_DOMAIN, UCP_CHECKOUT_CAPABILITY_ID);
+  const checkoutSupported = ucpHasCapability(doc, UCP_CHECKOUT_CAPABILITY);
   const post = (path: string, body: unknown) => fetchJson(new URL(`${endpoint.replace(/\/$/, "")}${path}`), {
     method: "POST",
     body: JSON.stringify(body),
@@ -274,7 +279,7 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOption
       if (capability === "read") return true;
       if (capability === "checkout") return checkoutSupported;
       if (capability === "checkout:steelyard") {
-        return checkoutSupported && ucpHasCapability(doc, STEELYARD_DOMAIN, STEELYARD_MANDATE_V01_ID);
+        return checkoutSupported && ucpHasCapability(doc, STEELYARD_CHECKOUT_MANDATE_V01);
       }
       if (capability === "discounts") return false;
       return false;
@@ -510,13 +515,14 @@ function acpCheckoutBaseUrl(url: URL): URL {
   return checkoutUrl;
 }
 
-function ucpHasCapability(doc: UcpDiscovery, domain: string, id: string): boolean {
-  const bucket = doc.ucp.capabilities?.[domain];
-  return Array.isArray(bucket) && bucket.some((entry) => objectRecord(entry).id === id);
-}
+function ucpHasCapability(doc: UcpDiscovery, capabilityKey: string): boolean {
+  const canonical = doc.ucp.capabilities?.[capabilityKey];
+  if (Array.isArray(canonical) && canonical.length > 0) return true;
 
-function ucpHasLegacyCapability(doc: UcpDiscovery, key: string): boolean {
-  return Array.isArray(doc.ucp.capabilities?.[key]);
+  const legacy = UCP_LEGACY_CAPABILITY_ALIASES[capabilityKey];
+  if (!legacy) return false;
+  const bucket = doc.ucp.capabilities?.[legacy.bucket];
+  return Array.isArray(bucket) && bucket.some((entry) => objectRecord(entry).id === legacy.id);
 }
 
 function objectRecord(value: unknown): Record<string, unknown> {
@@ -551,8 +557,8 @@ function isAcpFeed(value: unknown): value is AcpFeed {
 function isUcpDiscovery(value: unknown): value is UcpDiscovery {
   const doc = value as UcpDiscovery;
   return !!doc?.ucp?.services?.[UCP_SHOPPING_SERVICE] && (
-    ucpHasCapability(doc, UCP_SHOPPING_DOMAIN, UCP_CATALOG_SEARCH_CAPABILITY_ID)
-    || ucpHasLegacyCapability(doc, UCP_CATALOG_SEARCH_CAPABILITY)
+    ucpHasCapability(doc, UCP_CATALOG_SEARCH_CAPABILITY)
+    || ucpHasCapability(doc, UCP_CHECKOUT_CAPABILITY)
   );
 }
 

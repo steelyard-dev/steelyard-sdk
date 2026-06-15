@@ -34,7 +34,7 @@ export interface Receipt {
   created_at: string;
   reference: {
     acp?: { checkout_session_id: string; vault_token_id: string; psp_payment_id?: string };
-    ucp?: { checkout_id: string; mandate_id: string; vault_token_id: string; psp_payment_id?: string };
+    ucp?: { checkout_id: string; mandate_id?: string; vault_token_id: string; psp_payment_id?: string };
   };
   fulfillment?: FulfillmentSummary;
 }

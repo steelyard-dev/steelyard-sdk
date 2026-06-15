@@ -32,10 +32,12 @@ import {
   // constants
   UCP_VERSION,
   UCP_WELL_KNOWN_PATH,
-  UCP_API_PATH,
-  UCP_SHOPPING_SERVICE,
-  UCP_CATALOG_SEARCH_CAPABILITY,
-  UCP_CATALOG_LOOKUP_CAPABILITY,
+	  UCP_API_PATH,
+	  UCP_SHOPPING_SERVICE,
+	  UCP_CHECKOUT_CAPABILITY,
+	  UCP_CATALOG_SEARCH_CAPABILITY,
+	  UCP_CATALOG_LOOKUP_CAPABILITY,
+	  STEELYARD_CHECKOUT_MANDATE_V01,
   // types
   type UcpDiscoveryDoc,
   type UcpEntity,
@@ -71,8 +73,8 @@ import {
 - `validateUcpDiscovery(doc)` / `assertValidUcpDiscovery(doc)` —
   spec-validates against the vendored business-profile schema.
 
-The discovery `links.commerce_manifest` field points at
-`${baseUrl}/.well-known/commerce.json`.
+The discovery `links.commerce_manifest` field is a Steelyard-defined UCP link
+relation that points at `${baseUrl}/.well-known/commerce.json`.
 
 ### Catalog
 

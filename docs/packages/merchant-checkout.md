@@ -15,6 +15,7 @@ const checkout = createMerchantCheckout(manifest, {
   idempotency: memoryIdempotencyStore(),
   psp: mockPsp({ allowInProduction: true }),
   mandateVerifier: mockMandateVerifier({ allowInProduction: true }),
+  steelyardMandate: true,
   baseUrl: "https://coffee.example",
   merchantAudience: "https://coffee.example/.well-known/ucp"
 });
@@ -65,10 +66,11 @@ intentional.
 
 ## Mandates
 
-UCP checkout requires a `MandateVerifier`. For development use
-`mockMandateVerifier()` with the same explicit guard pattern as `mockPsp()`.
-For real Steelyard mandates use `steelyardJwsVerifier({ trustedKeys, mode:
-"enabled" })`.
+Base UCP checkout does not require a mandate verifier. To enable Steelyard
+mandate mode, set `steelyardMandate: true` and pass a `MandateVerifier`. For
+development use `mockMandateVerifier()` with the same explicit guard pattern as
+`mockPsp()`. For real Steelyard mandates use
+`steelyardJwsVerifier({ trustedKeys, mode: "enabled" })`.
 
 ## Status mapping
 

@@ -5,14 +5,19 @@ capability version it advertises.
 
 ## The capability
 
-Every Steelyard merchant declares a capability under its MCP `serverInfo`
-(and equivalently in its ACP / UCP discovery surfaces):
+Every Steelyard merchant declares a capability under MCP
+`capabilities.extensions["steelyard/commerce"]` (and equivalently in its ACP /
+UCP discovery surfaces):
 
 ```json
 {
   "capabilities": {
-    "commerce": {
-      "read": { "version": "0.1" }
+    "extensions": {
+      "steelyard/commerce": {
+        "commerce": {
+          "read": { "version": "0.1" }
+        }
+      }
     }
   }
 }
@@ -55,6 +60,26 @@ It will bump to `0.2` if any of these change in a backward-incompatible way:
 
 A release that only adds a new capability can bump the package version without
 bumping the read-side capability. New capabilities are additive.
+
+## v0.4 to v0.4.1 UCP capability keys
+
+v0.4.1 fixes the UCP discovery capability map to use full capability names as
+keys, matching the UCP examples:
+
+```json
+{
+  "capabilities": {
+    "dev.ucp.shopping.checkout": [{ "version": "2026-04-17" }],
+    "dev.ucp.shopping.catalog.search": [{ "version": "2026-04-17" }],
+    "dev.ucp.shopping.catalog.lookup": [{ "version": "2026-04-17" }]
+  }
+}
+```
+
+v0.3/v0.4 emitted short ids under authority buckets, such as
+`"dev.ucp.shopping": [{ "id": "checkout" }]`. The v0.4.1 buyer accepts both
+forms for one release. The fallback is removed in v0.5, so pinned fixtures or
+cached UCP discovery docs should be refreshed to the full-key form.
 
 ## When does Steelyard go to `1.0`?
 

@@ -120,9 +120,8 @@ function callTool(manifest: Manifest, name: string, args: Record<string, unknown
 function serverInfo(manifest: Manifest): Implementation {
   return {
     name: `steelyard:${manifest.identity.name}`,
-    version: "0.1.0",
-    capabilities: { commerce: COMMERCE_CAPABILITY }
-  } as Implementation;
+    version: "0.1.0"
+  };
 }
 
 function serverCapabilities(): ServerCapabilities {
@@ -131,7 +130,6 @@ function serverCapabilities(): ServerCapabilities {
     resources: {},
     extensions: {
       [COMMERCE_EXTENSION_KEY]: { commerce: COMMERCE_CAPABILITY }
-    },
-    commerce: COMMERCE_CAPABILITY
-  } as ServerCapabilities;
+    }
+  };
 }
