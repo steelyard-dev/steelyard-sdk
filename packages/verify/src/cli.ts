@@ -192,6 +192,7 @@ function addBehavioralCases(cases: VerifyCase[]): void {
   addCases(cases, "VPSP", range("VPSP-", 1, 6), "PSP handler selection", behavioral);
   addV041ConformanceCases(cases);
   addV042SignatureConformanceCases(cases);
+  addV05Ap2ConformanceCases(cases);
   cases.push({
     id: "docs:migration",
     suite: "docs",
@@ -200,6 +201,87 @@ function addBehavioralCases(cases: VerifyCase[]): void {
     evidence: ["docs/guides/migrating-from-v0.2.md", "README.md"],
     run: assertMigrationDocs
   });
+}
+
+function addV05Ap2ConformanceCases(cases: VerifyCase[]): void {
+  const entries: Array<[string, string, string[], (ctx: VerifyContext) => Promise<void>]> = [
+    [
+      "VAP2-01",
+      "AP2 checkout mandate is SD-JWT+KB with KB-JWT sd_hash",
+      ["packages/buyer/src/vault/mandate-ap2.test.ts", "RFC 9901 Section 4.3"],
+      (ctx) => runFocusedVitest(ctx, "vap2-buyer-mandate-ap2", "@steelyard/buyer", "src/vault/mandate-ap2.test.ts")
+    ],
+    [
+      "VAP2-02",
+      "AP2 payment mandate uses mandate.payment.1 claims",
+      ["packages/buyer/src/vault/mandate-ap2.test.ts", "AP2 mandate.payment.1"],
+      (ctx) => runFocusedVitest(ctx, "vap2-buyer-mandate-ap2", "@steelyard/buyer", "src/vault/mandate-ap2.test.ts")
+    ],
+    [
+      "VAP2-03",
+      "PSP adapters verify AP2 payment mandates before capture",
+      ["packages/merchant/src/psp/psp.test.ts", "PM5-3"],
+      (ctx) => runFocusedVitest(ctx, "vap2-merchant-psp", "@steelyard/merchant", "src/psp/psp.test.ts")
+    ],
+    [
+      "VAP2-04",
+      "AP2 envelope validation accepts SD-JWT+KB shape and defers signature checks",
+      ["packages/protocol/src/ucp/ap2-envelope.test.ts", "SC5-2"],
+      (ctx) => runFocusedVitest(ctx, "vap2-protocol-ap2-envelope", "@steelyard/protocol", "src/ucp/ap2-envelope.test.ts")
+    ],
+    [
+      "VBV-01",
+      "Merchant authorization signer emits AP2 detached JWS",
+      ["packages/merchant/src/mandate/ap2.test.ts", "MA5-1"],
+      (ctx) => runFocusedVitest(ctx, "vbv-merchant-ap2", "@steelyard/merchant", "src/mandate/ap2.test.ts")
+    ],
+    [
+      "VBV-02",
+      "Buyer verifies AP2 merchant authorization before complete",
+      ["packages/buyer/src/client/checkout-drivers.test.ts", "BV5"],
+      (ctx) => runFocusedVitest(ctx, "vbv-buyer-ucp-driver", "@steelyard/buyer", "src/client/checkout-drivers.test.ts")
+    ],
+    [
+      "VBV-03",
+      "Merchant mounts AP2 merchant authorization on locked checkout responses",
+      ["packages/merchant/src/checkout/server.test.ts", "MA5-2", "DI5-3"],
+      (ctx) => runFocusedVitest(ctx, "vbv-merchant-checkout", "@steelyard/merchant", "src/checkout/server.test.ts")
+    ],
+    [
+      "VNO-01",
+      "AP2 nonce store is single-use and file-backed",
+      ["packages/merchant/src/mandate/nonce.test.ts", "NO5-1", "NO5-2"],
+      (ctx) => runFocusedVitest(ctx, "vno-merchant-nonce", "@steelyard/merchant", "src/mandate/nonce.test.ts")
+    ],
+    [
+      "VNO-02",
+      "AP2 verifier consumes checkout nonces and rejects replay",
+      ["packages/merchant/src/mandate/ap2-verifier.test.ts", "VE5-2", "NO5-2"],
+      (ctx) => runFocusedVitest(ctx, "vno-merchant-ap2-verifier", "@steelyard/merchant", "src/mandate/ap2-verifier.test.ts")
+    ],
+    [
+      "VNO-03",
+      "Coffee-shop AP2 smoke completes with merchant-issued nonces",
+      ["examples/coffee-shop/scripts/smoke-ap2.ts", "IN5-2"],
+      (ctx) =>
+        runCommandOnce(ctx, "vno-coffee-shop-ap2-smoke", "pnpm", [
+          "--filter",
+          "@steelyard/example-coffee-shop",
+          "tsx",
+          "scripts/smoke-ap2.ts"
+        ])
+    ]
+  ];
+  for (const [id, title, evidence, run] of entries) {
+    cases.push({
+      id,
+      suite: id.split("-")[0] ?? "AP2",
+      title,
+      verifies: [],
+      evidence,
+      run
+    });
+  }
 }
 
 function addV041ConformanceCases(cases: VerifyCase[]): void {
