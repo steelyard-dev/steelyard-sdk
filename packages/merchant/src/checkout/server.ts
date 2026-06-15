@@ -14,11 +14,14 @@ import {
   type Total
 } from "@steelyard/core";
 import {
+  ACP_API_VERSION_HEADER,
+  ACP_VERSION,
   applyCancelRequest,
   applyCompleteRequest,
   applyCreateRequest,
   applyDiscountsRequest,
   applyUpdateRequest,
+  buildAcpDiscovery,
   type CheckoutSession
 } from "@steelyard/protocol/acp/checkout";
 import {
@@ -74,6 +77,12 @@ export interface MerchantCheckoutOpts {
     profileCache?: UcpProfileCache;
     responseSigningPolicy?: UcpResponseSigningPolicy;
   };
+  acp?: {
+    auth?: {
+      bearer?: AcpBearerAuthConfig;
+    };
+    webhookSigningSecret?: string;
+  };
   idempotency: IdempotencyStore;
   clock?: () => Date;
   merchantAudience?: string;
@@ -109,12 +118,20 @@ export interface UcpBearerAuthConfig {
   verify: (token: string) => Promise<UcpBearerAuthResult> | UcpBearerAuthResult;
 }
 
+export type AcpBearerAuthResult = UcpBearerAuthResult;
+
+export interface AcpBearerAuthConfig {
+  enabled: boolean;
+  verify: (token: string) => Promise<AcpBearerAuthResult> | AcpBearerAuthResult;
+}
+
 export type UcpResponseSigningPolicy = "high-value-only" | "all" | "off";
 
 type UcpAuthConfig = NonNullable<NonNullable<MerchantCheckoutOpts["ucp"]>["auth"]>;
 type UcpResponseKind = "normal" | "high-value";
 
 export interface AcpRoutes {
+  discovery(req: IncomingMessage, res: ServerResponse): Promise<void>;
   createSession(req: IncomingMessage, res: ServerResponse): Promise<void>;
   getSession(req: IncomingMessage, res: ServerResponse): Promise<void>;
   updateSession(req: IncomingMessage, res: ServerResponse): Promise<void>;
@@ -162,6 +179,7 @@ export function createMerchantCheckout(manifest: Manifest, opts: MerchantCheckou
   if (protocols.has("ucp") && opts.steelyardMandate && !opts.mandateVerifier) {
     throw new MerchantCheckoutConfigError("mandateVerifier is required when steelyardMandate is enabled");
   }
+  validateAcpConfig(protocols.has("acp") ? opts.acp : undefined);
   validateUcpConfig(protocols.has("ucp") ? opts.ucp : undefined);
   assertPspCurrencySupport(manifest, opts.psp);
 
@@ -213,8 +231,14 @@ class MerchantCheckoutContext {
 
 function createAcpRoutes(ctx: MerchantCheckoutContext): AcpRoutes {
   return {
+    async discovery(req, res) {
+      sendJson(res, 200, buildAcpDiscovery({
+        apiBaseUrl: joinOriginPath(ctx.opts.baseUrl ?? requestUrl(req).origin, "/acp"),
+        supportedCurrencies: offerCurrencies(ctx.manifest)
+      }));
+    },
     async createSession(req, res) {
-      await withJsonIdempotency(ctx, req, res, "acp:create", async (body) => {
+      await withAcpJsonIdempotency(ctx, req, res, "acp:create", async (body) => {
         const policy = await ctx.evaluatePolicy("acp", body);
         if (policy) return policy;
         const now = ctx.clock();
@@ -224,17 +248,22 @@ function createAcpRoutes(ctx: MerchantCheckoutContext): AcpRoutes {
           sessionId: `cs_${randomUUID()}`
         });
         await ctx.opts.store.put(withAcpPaymentHandlers(result.next, ctx.opts.psp) as StoredCheckout);
-        return { status: 200, body: withAcpPaymentHandlers(result.response, ctx.opts.psp) };
+        return { status: 201, body: withAcpPaymentHandlers(result.response, ctx.opts.psp) };
       });
     },
     async getSession(req, res) {
+      const auth = await authenticateAcpRequest(ctx, req);
+      if (!auth.ok) {
+        sendAcpError(res, auth.status, auth.code, auth.message);
+        return;
+      }
       const id = pathId(req, "/acp/checkout_sessions/");
       const session = await requireSession(ctx.opts.store, id);
       sendJson(res, 200, session);
     },
     async updateSession(req, res) {
       const id = pathId(req, "/acp/checkout_sessions/");
-      await withJsonIdempotency(ctx, req, res, `acp:update:${id}`, async (body) => {
+      await withAcpJsonIdempotency(ctx, req, res, `acp:update:${id}`, async (body) => {
         const current = await requireSession(ctx.opts.store, id);
         const policy = await ctx.evaluatePolicy("acp", body);
         if (policy) return policy;
@@ -247,7 +276,7 @@ function createAcpRoutes(ctx: MerchantCheckoutContext): AcpRoutes {
     },
     async completeSession(req, res) {
       const id = pathId(req, "/acp/checkout_sessions/", "/complete");
-      await withJsonIdempotency(ctx, req, res, `acp:complete:${id}`, async (body, idempotencyKey) => {
+      await withAcpJsonIdempotency(ctx, req, res, `acp:complete:${id}`, async (body, idempotencyKey) => {
         const current = await requireSession(ctx.opts.store, id);
         const policy = await ctx.evaluatePolicy("acp", current);
         if (policy) return policy;
@@ -283,7 +312,7 @@ function createAcpRoutes(ctx: MerchantCheckoutContext): AcpRoutes {
     },
     async cancelSession(req, res) {
       const id = pathId(req, "/acp/checkout_sessions/", "/cancel");
-      await withJsonIdempotency(ctx, req, res, `acp:cancel:${id}`, async (body) => {
+      await withAcpJsonIdempotency(ctx, req, res, `acp:cancel:${id}`, async (body) => {
         const current = await requireSession(ctx.opts.store, id);
         const next = await ctx.opts.store.transition(id, current.status, "canceled", async (claimed) => {
           const canceled = applyCancelRequest(claimed as CheckoutSession, body as Record<string, unknown>, {
@@ -441,11 +470,12 @@ async function dispatch(
 ): Promise<void> {
   const path = requestPath(req);
   if (routes.acp) {
+    if (req.method === "GET" && path === "/.well-known/acp.json") return await routes.acp.discovery(req, res);
     if (req.method === "POST" && path === "/acp/checkout_sessions") return await routes.acp.createSession(req, res);
     if (req.method === "GET" && /^\/acp\/checkout_sessions\/[^/]+$/.test(path)) {
       return await routes.acp.getSession(req, res);
     }
-    if (req.method === "PATCH" && /^\/acp\/checkout_sessions\/[^/]+$/.test(path)) {
+    if ((req.method === "POST" || req.method === "PATCH") && /^\/acp\/checkout_sessions\/[^/]+$/.test(path)) {
       return await routes.acp.updateSession(req, res);
     }
     if (req.method === "POST" && /^\/acp\/checkout_sessions\/[^/]+\/complete$/.test(path)) {
@@ -455,6 +485,13 @@ async function dispatch(
       return await routes.acp.cancelSession(req, res);
     }
     if (req.method === "POST" && path === "/acp/discounts") return await routes.acp.discounts(req, res);
+    if (
+      req.method === "POST"
+      && (path === "/agentic_commerce/delegate_payment" || path === "/acp/agentic_commerce/delegate_payment")
+    ) {
+      sendAcpError(res, 404, "acp_not_implemented", "ACP delegate_payment is not implemented in v0.6");
+      return;
+    }
   }
 
   if (routes.ucp) {
@@ -474,17 +511,23 @@ async function dispatch(
   sendJson(res, 404, { error: "not_found" });
 }
 
-async function withJsonIdempotency(
+async function withAcpJsonIdempotency(
   ctx: MerchantCheckoutContext,
   req: IncomingMessage,
   res: ServerResponse,
   scope: string,
   fn: (body: unknown, idempotencyKey: string) => Promise<IdempotencyResponse>
 ): Promise<void> {
+  const auth = await authenticateAcpRequest(ctx, req);
+  if (!auth.ok) {
+    sendAcpError(res, auth.status, auth.code, auth.message);
+    return;
+  }
+
   const body = await readJsonBody(req);
   const key = idempotencyKey(req);
   if (!key) {
-    sendJson(res, 400, { error: "idempotency_key_required" });
+    sendAcpError(res, 400, "idempotency_key_required", "Idempotency-Key header is required");
     return;
   }
   const response = await ctx.opts.idempotency.remember(key, bodyHash(scope, body), () => fn(body, key));
@@ -824,6 +867,35 @@ function incomingHeaders(req: IncomingMessage): Record<string, string> {
   return headers;
 }
 
+type AcpAuthResult =
+  | { ok: true; subject?: string }
+  | { ok: false; status: number; code: string; message: string };
+
+async function authenticateAcpRequest(ctx: MerchantCheckoutContext, req: IncomingMessage): Promise<AcpAuthResult> {
+  const headers = incomingHeaders(req);
+  const apiVersion = headers[ACP_API_VERSION_HEADER.toLowerCase()];
+  if (apiVersion !== ACP_VERSION) {
+    return {
+      ok: false,
+      status: 400,
+      code: "acp_api_version_required",
+      message: `ACP requests require ${ACP_API_VERSION_HEADER}: ${ACP_VERSION}`
+    };
+  }
+
+  const bearer = ctx.opts.acp?.auth?.bearer;
+  if (bearer?.enabled !== true) return { ok: true };
+  const token = bearerToken(headers.authorization);
+  if (!token) {
+    return { ok: false, status: 401, code: "auth_missing", message: "ACP request requires bearer auth" };
+  }
+  const verified = await bearer.verify(token);
+  if (!verified.ok) {
+    return { ok: false, status: 401, code: "auth_invalid", message: verified.reason ?? "Bearer token verification failed" };
+  }
+  return { ok: true, subject: verified.subject };
+}
+
 function requestUrl(req: IncomingMessage): URL {
   const host = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
   return new URL(req.url ?? "/", `http://${host ?? "localhost"}`);
@@ -853,8 +925,11 @@ function acpPaymentData(body: unknown): { vault_token: string; handler_id: strin
   const credential = asRecord(instrument.credential);
   const token = stringValue(credential.token, "");
   const handlerId = stringValue(paymentData.handler_id, "");
-  if (!token) throw new HttpError(400, "vault_token_required");
   if (!handlerId) throw new HttpError(400, "payment_handler_required");
+  if (handlerId !== "stripe") throw new HttpError(400, "acp_unknown_handler");
+  if (stringValue(instrument.type, "") !== "card") throw new HttpError(400, "acp_unsupported_instrument_type");
+  if (stringValue(credential.type, "") !== "spt") throw new HttpError(400, "acp_unsupported_credential_type");
+  if (!/^spt_/.test(token)) throw new HttpError(400, "acp_invalid_credential_token");
   return { vault_token: token, handler_id: handlerId };
 }
 
@@ -897,16 +972,16 @@ function withAcpPaymentHandlers(session: Record<string, unknown>, psp: PspAdapte
         handlers: [
           {
             id: psp.name,
-            name: "dev.steelyard.vault_token",
-            display_name: "Vault token",
-            version: "2026-04-17",
-            spec: "https://steelyard.dev/specs/payment/vault-token",
-            requires_delegate_payment: true,
+            name: "net.steelyard.stripe_spt",
+            display_name: "Stripe Shared Payment Token",
+            version: ACP_VERSION,
+            spec: "https://steelyard.dev/specs/payment/stripe-spt",
+            requires_delegate_payment: false,
             requires_pci_compliance: false,
             psp: psp.name,
             config_schema: "https://steelyard.dev/schemas/payment-handler-config.json",
-            instrument_schemas: ["https://steelyard.dev/schemas/vault-token-instrument.json"],
-            config: {}
+            instrument_schemas: ["https://steelyard.dev/schemas/stripe-spt-instrument.json"],
+            config: { instrument_type: "card", credential_type: "spt" }
           }
         ]
       }
@@ -1110,6 +1185,12 @@ function validateUcpConfig(config: NonNullable<MerchantCheckoutOpts["ucp"]> | un
   validateUcpPaymentHandlers(config?.paymentHandlers);
 }
 
+function validateAcpConfig(config: NonNullable<MerchantCheckoutOpts["acp"]> | undefined): void {
+  if (config?.auth?.bearer?.enabled && typeof config.auth.bearer.verify !== "function") {
+    throw new MerchantCheckoutConfigError("acp.auth.bearer.verify is required when bearer auth is enabled");
+  }
+}
+
 function validateUcpPaymentHandlers(paymentHandlers: readonly string[] | undefined): void {
   for (const handler of paymentHandlers ?? []) {
     if (handler !== "stripe") throw new UnknownPaymentHandlerError(handler);
@@ -1211,6 +1292,10 @@ function requestPath(req: IncomingMessage): string {
   return new URL(req.url ?? "/", "http://localhost").pathname;
 }
 
+function joinOriginPath(origin: string, path: string): string {
+  return `${origin.replace(/\/+$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 function totals(session: StoredCheckout): Total[] {
   return Array.isArray(session.totals) ? (session.totals as Total[]) : [];
 }
@@ -1229,6 +1314,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function sendMappedError(res: ServerResponse, error: unknown): void {
   if (error instanceof HttpError) {
+    if (error.code.startsWith("acp_")) {
+      sendAcpError(res, error.status, error.code, error.code);
+      return;
+    }
     sendJson(res, error.status, { error: error.code });
     return;
   }
@@ -1255,6 +1344,14 @@ function sendMappedError(res: ServerResponse, error: unknown): void {
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
+}
+
+function sendAcpError(res: ServerResponse, status: number, code: string, message: string): void {
+  sendJson(res, status, {
+    type: status >= 500 ? "processing_error" : "invalid_request",
+    code,
+    message
+  });
 }
 
 class HttpError extends Error {

@@ -224,6 +224,40 @@ describe("createMerchantCheckout", () => {
             hms: {
               enabled: true,
               signingKeys: [
+                {
+                  kid: "merchant-p256",
+                  privateKeyJwk: { ...merchantP256PrivateKey, kid: "different-kid" },
+                  algorithm: "ES256"
+                }
+              ],
+              activeKid: "merchant-p256"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).toThrow(/must match privateKeyJwk.kid/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: { auth: { bearer: { enabled: true, verify: undefined as never } } },
+        clock: () => now
+      })
+    ).toThrow(/ucp.auth.bearer.verify/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [
                 { kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" },
                 { kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }
               ],
@@ -269,6 +303,16 @@ describe("createMerchantCheckout", () => {
       createMerchantCheckout(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        acp: { auth: { bearer: { enabled: true, verify: undefined as never } } },
+        clock: () => now
+      })
+    ).toThrow(/acp.auth.bearer.verify/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["acp"],
+        store: memoryCheckoutSessionStore(),
         psp: Object.assign(recordingPsp().adapter, { supportedCurrencies: ["EUR"] }),
         idempotency: memoryIdempotencyStore(),
         clock: () => now
@@ -285,11 +329,19 @@ describe("createMerchantCheckout", () => {
     const client = await listen(app.handler);
     await expect(client.post("/agentic_commerce/delegate_payment", {}, "delegate")).resolves.toMatchObject({
       status: 404,
-      body: { error: "not_found" }
+      body: {
+        type: "invalid_request",
+        code: "acp_not_implemented",
+        message: "ACP delegate_payment is not implemented in v0.6"
+      }
     });
     await expect(client.post("/acp/checkout_sessions", acpCreateBody, undefined)).resolves.toMatchObject({
       status: 400,
-      body: { error: "idempotency_key_required" }
+      body: {
+        type: "invalid_request",
+        code: "idempotency_key_required",
+        message: "Idempotency-Key header is required"
+      }
     });
     await expect(client.raw("/acp/checkout_sessions", "not json", "bad-json")).resolves.toMatchObject({
       status: 400,
@@ -299,6 +351,62 @@ describe("createMerchantCheckout", () => {
       status: 404,
       body: { error: "not_found", id: "missing" }
     });
+  });
+
+  it("serves ACP discovery and enforces API-Version plus bearer auth", async () => {
+    const bearerVerify = vi.fn(async (token: string) =>
+      token === "good" ? { ok: true, subject: "agent_1" } : { ok: false, reason: "bad token" }
+    );
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["acp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        acp: { auth: { bearer: { enabled: true, verify: bearerVerify } } }
+      }).handler
+    );
+
+    await expect(client.get("/.well-known/acp.json")).resolves.toMatchObject({
+      status: 200,
+      body: {
+        protocol: { name: "acp", version: "2026-04-17", supported_versions: ["2026-04-17"] },
+        api_base_url: `${client.baseUrl}/acp`,
+        transports: ["rest"],
+        capabilities: { services: ["checkout"], supported_currencies: ["usd"] }
+      }
+    });
+    await expect(client.post("/acp/checkout_sessions", acpCreateBody, "missing-version", { "api-version": "" })).resolves.toMatchObject({
+      status: 400,
+      body: { type: "invalid_request", code: "acp_api_version_required" }
+    });
+    await expect(client.get("/acp/checkout_sessions/missing", { "api-version": "" })).resolves.toMatchObject({
+      status: 400,
+      body: { type: "invalid_request", code: "acp_api_version_required" }
+    });
+    await expect(client.post("/acp/checkout_sessions", acpCreateBody, "missing-bearer")).resolves.toMatchObject({
+      status: 401,
+      body: { type: "invalid_request", code: "auth_missing" }
+    });
+    await expect(
+      client.post("/acp/checkout_sessions", acpCreateBody, "bad-bearer", { authorization: "Bearer bad" })
+    ).resolves.toMatchObject({
+      status: 401,
+      body: { type: "invalid_request", code: "auth_invalid", message: "bad token" }
+    });
+
+    const created = await client.post("/acp/checkout_sessions", acpCreateBody, "good-bearer", {
+      authorization: "Bearer good"
+    });
+    expect(created.status).toBe(201);
+    const id = stringField(created.body, "id");
+    await expect(client.get(`/acp/checkout_sessions/${id}`, { authorization: "Bearer good" })).resolves.toMatchObject({
+      status: 200,
+      body: expect.objectContaining({ id })
+    });
+    expect(bearerVerify).toHaveBeenCalledWith("bad");
+    expect(bearerVerify).toHaveBeenCalledWith("good");
   });
 
   it("requires AP2 merchant authorization config when AP2 is enabled", () => {
@@ -420,7 +528,7 @@ describe("createMerchantCheckout", () => {
     const client = await listen(app.handler);
 
     const created = await client.post("/acp/checkout_sessions", acpCreateBody, "acp-create");
-    expect(created.status).toBe(200);
+    expect(created.status).toBe(201);
     expect(created.body).toMatchObject({
       status: "ready_for_payment",
       capabilities: { payment: { handlers: [expect.objectContaining({ id: "stripe" })] } }
@@ -438,6 +546,12 @@ describe("createMerchantCheckout", () => {
       body: expect.objectContaining({ id: sessionId })
     });
     await expect(
+      client.post(`/acp/checkout_sessions/${sessionId}`, { selected_fulfillment_options: [] }, "acp-update-post")
+    ).resolves.toMatchObject({
+      status: 200,
+      body: expect.objectContaining({ selected_fulfillment_options: [] })
+    });
+    await expect(
       client.patch(`/acp/checkout_sessions/${sessionId}`, { selected_fulfillment_options: [] }, "acp-update")
     ).resolves.toMatchObject({
       status: 200,
@@ -447,8 +561,12 @@ describe("createMerchantCheckout", () => {
       status: 200,
       body: { codes: ["SAVE20"], applied: [], rejected: [expect.objectContaining({ code: "SAVE20" })] }
     });
+    await expect(client.get("/unknown-route")).resolves.toMatchObject({
+      status: 404,
+      body: { error: "not_found" }
+    });
 
-    const completeBody = acpCompleteBody("stripe", "vt_1");
+    const completeBody = acpCompleteBody("stripe", "spt_1");
     const completed = await client.post(`/acp/checkout_sessions/${sessionId}/complete`, completeBody, "acp-complete");
     expect(completed.status).toBe(200);
     expect(completed.body).toMatchObject({
@@ -482,8 +600,8 @@ describe("createMerchantCheckout", () => {
     const first = await client.post("/acp/checkout_sessions", acpCreateBody, "cas-create-1");
     const firstId = stringField(first.body, "id");
     const sameKey = await Promise.all([
-      client.post(`/acp/checkout_sessions/${firstId}/complete`, acpCompleteBody("stripe", "vt_1"), "same-complete"),
-      client.post(`/acp/checkout_sessions/${firstId}/complete`, acpCompleteBody("stripe", "vt_1"), "same-complete")
+      client.post(`/acp/checkout_sessions/${firstId}/complete`, acpCompleteBody("stripe", "spt_1"), "same-complete"),
+      client.post(`/acp/checkout_sessions/${firstId}/complete`, acpCompleteBody("stripe", "spt_1"), "same-complete")
     ]);
     expect(sameKey[0]).toEqual(sameKey[1]);
     expect(sameKey[0]!.status).toBe(200);
@@ -491,8 +609,8 @@ describe("createMerchantCheckout", () => {
     const second = await client.post("/acp/checkout_sessions", acpCreateBody, "cas-create-2");
     const secondId = stringField(second.body, "id");
     const raced = await Promise.all([
-      client.post(`/acp/checkout_sessions/${secondId}/complete`, acpCompleteBody("stripe", "vt_2"), "complete-a"),
-      client.post(`/acp/checkout_sessions/${secondId}/complete`, acpCompleteBody("stripe", "vt_2"), "complete-b")
+      client.post(`/acp/checkout_sessions/${secondId}/complete`, acpCompleteBody("stripe", "spt_2"), "complete-a"),
+      client.post(`/acp/checkout_sessions/${secondId}/complete`, acpCompleteBody("stripe", "spt_2"), "complete-b")
     ]);
     expect(raced.map((response) => response.status).sort()).toEqual([200, 409]);
     expect(raced.find((response) => response.status === 409)?.body).toMatchObject({ error: "store_cas_conflict" });
@@ -513,12 +631,36 @@ describe("createMerchantCheckout", () => {
     const mismatch = await mismatchClient.post("/acp/checkout_sessions", acpCreateBody, "mismatch-create");
     const mismatchId = stringField(mismatch.body, "id");
     await expect(
-      mismatchClient.post(`/acp/checkout_sessions/${mismatchId}/complete`, acpCompleteBody("other", "vt_1"), "mismatch")
+      mismatchClient.post(`/acp/checkout_sessions/${mismatchId}/complete`, acpCompleteBody("other", "spt_1"), "mismatch")
+    ).resolves.toMatchObject({
+      status: 400,
+      body: {
+        type: "invalid_request",
+        code: "acp_unknown_handler",
+        message: "acp_unknown_handler"
+      }
+    });
+    expect(handlerMismatch.captures).toHaveLength(0);
+
+    const unsupportedPsp = recordingPsp({ handlerIds: ["other"] });
+    const unsupportedClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["acp"],
+        store: memoryCheckoutSessionStore(),
+        psp: unsupportedPsp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now
+      }).handler
+    );
+    const unsupported = await unsupportedClient.post("/acp/checkout_sessions", acpCreateBody, "unsupported-create");
+    const unsupportedId = stringField(unsupported.body, "id");
+    await expect(
+      unsupportedClient.post(`/acp/checkout_sessions/${unsupportedId}/complete`, acpCompleteBody("stripe", "spt_1"), "unsupported")
     ).resolves.toMatchObject({
       status: 400,
       body: { status: "canceled", messages: { errors: [expect.objectContaining({ code: "payment_handler_mismatch" })] } }
     });
-    expect(handlerMismatch.captures).toHaveLength(0);
+    expect(unsupportedPsp.captures).toHaveLength(0);
 
     const declined = recordingPsp({ result: { ok: false, reason: "declined", message: "declined" } });
     const declinedClient = await listen(
@@ -533,7 +675,7 @@ describe("createMerchantCheckout", () => {
     const created = await declinedClient.post("/acp/checkout_sessions", acpCreateBody, "declined-create");
     const id = stringField(created.body, "id");
     await expect(
-      declinedClient.post(`/acp/checkout_sessions/${id}/complete`, acpCompleteBody("stripe", "vt_1"), "declined")
+      declinedClient.post(`/acp/checkout_sessions/${id}/complete`, acpCompleteBody("stripe", "spt_1"), "declined")
     ).resolves.toMatchObject({
       status: 402,
       body: { status: "canceled", messages: { errors: [expect.objectContaining({ code: "payment_declined" })] } }
@@ -554,6 +696,46 @@ describe("createMerchantCheckout", () => {
       status: 200,
       body: { status: "canceled" }
     });
+  });
+
+  it("rejects ACP completion payloads outside the direct Stripe SPT discriminator", async () => {
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["acp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now
+      }).handler
+    );
+    const cases = [
+      {
+        key: "bad-instrument",
+        body: acpCompleteBody("stripe", "spt_1", { instrumentType: "wallet_token" }),
+        code: "acp_unsupported_instrument_type"
+      },
+      {
+        key: "bad-credential-type",
+        body: acpCompleteBody("stripe", "spt_1", { credentialType: "vault_token" }),
+        code: "acp_unsupported_credential_type"
+      },
+      {
+        key: "bad-token",
+        body: acpCompleteBody("stripe", "vt_1"),
+        code: "acp_invalid_credential_token"
+      }
+    ];
+
+    for (const entry of cases) {
+      const created = await client.post("/acp/checkout_sessions", acpCreateBody, `${entry.key}-create`);
+      const id = stringField(created.body, "id");
+      await expect(
+        client.post(`/acp/checkout_sessions/${id}/complete`, entry.body, `${entry.key}-complete`)
+      ).resolves.toMatchObject({
+        status: 400,
+        body: { type: "invalid_request", code: entry.code, message: entry.code }
+      });
+    }
   });
 
   it("runs UCP checkout with mandate verification and maps mandate failures", async () => {
@@ -1210,6 +1392,28 @@ describe("createMerchantCheckout", () => {
     });
     expect(policy.calls[0]).toMatchObject({ amount: 500, currency: "USD" });
     expect(psp.captures).toHaveLength(0);
+
+    const approvalThreshold = { amount: 1000, currency: "USD" };
+    const approvalPolicy = recordingPolicy({
+      status: "approval_required",
+      threshold: approvalThreshold,
+      matched_rule: "manual_review"
+    });
+    const approvalClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["acp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        policy: approvalPolicy.instance,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now
+      }).handler
+    );
+    await expect(approvalClient.post("/acp/checkout_sessions", acpCreateBody, "policy-approval")).resolves.toMatchObject({
+      status: 409,
+      body: { error: "approval_required", threshold: approvalThreshold }
+    });
+    expect(approvalPolicy.calls[0]).toMatchObject({ amount: 500, currency: "USD" });
   });
 
   it("maps validation and internal server errors to stable HTTP responses", async () => {
@@ -1266,13 +1470,17 @@ describe("createMerchantCheckout", () => {
   });
 });
 
-function acpCompleteBody(handlerId: string, token: string): Record<string, unknown> {
+function acpCompleteBody(
+  handlerId: string,
+  token: string,
+  opts: { instrumentType?: string; credentialType?: string } = {}
+): Record<string, unknown> {
   return {
     payment_data: {
       handler_id: handlerId,
       instrument: {
-        type: "vault_token",
-        credential: { type: "vault_token", token }
+        type: opts.instrumentType ?? "card",
+        credential: { type: opts.credentialType ?? "spt", token }
       }
     }
   };
@@ -1355,6 +1563,9 @@ async function request(
   opts: { method: string; body?: unknown; raw?: string; key?: string; headers?: Record<string, string> }
 ): Promise<TestResponse> {
   const headers: Record<string, string> = { ...(opts.headers ?? {}) };
+  if (path.startsWith("/acp/") && headers["API-Version"] === undefined && headers["api-version"] === undefined) {
+    headers["API-Version"] = "2026-04-17";
+  }
   if (opts.key) headers["idempotency-key"] = opts.key;
   if (opts.body !== undefined || opts.raw !== undefined) headers["content-type"] = "application/json";
   const response = await fetch(`${baseUrl}${path}`, {

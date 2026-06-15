@@ -13,6 +13,42 @@ export type DiscountsRequest = { codes?: string[] };
 export type DiscountsResponse = { codes: string[]; applied: unknown[]; rejected: unknown[] };
 export type CheckoutSession = JsonObject;
 export type CheckoutSessionWithOrder = JsonObject;
+export interface AcpDiscoveryResponse {
+  protocol: {
+    name: "acp";
+    version: string;
+    supported_versions: string[];
+    documentation_url?: string;
+  };
+  api_base_url: string;
+  transports: ("rest" | "mcp")[];
+  capabilities: {
+    services: ("checkout" | "orders" | "delegate_payment" | "carts")[];
+    extensions?: { name: string; spec?: string; schema?: string }[];
+    intervention_types?: ("3ds" | "biometric" | "address_verification")[];
+    supported_currencies?: string[];
+    supported_locales?: string[];
+  };
+}
+
+export interface AcpDiscoveryOptions {
+  apiBaseUrl: string;
+  services?: AcpDiscoveryResponse["capabilities"]["services"];
+  supportedCurrencies?: string[];
+  supportedLocales?: string[];
+  transports?: AcpDiscoveryResponse["transports"];
+  documentationUrl?: string;
+}
+
+export type AcpWebhookSignatureErrorCode =
+  | "acp_webhook_signature_missing"
+  | "acp_webhook_signature_malformed"
+  | "acp_webhook_signature_stale"
+  | "acp_webhook_signature_invalid";
+
+export type AcpWebhookSignatureVerificationResult =
+  | { ok: true; timestamp: number; signature: string }
+  | { ok: false; code: AcpWebhookSignatureErrorCode; message: string };
 
 export type PspCaptureResult =
   | { ok: true; psp_payment_id: string; status: "captured" | "authorized" }
@@ -25,7 +61,10 @@ export interface AcpValidationResult {
 }
 
 const ACP_CHECKOUT_SCHEMA_ID = "https://example.com/schemas/agentic-checkout/bundle.schema.json";
-const ACP_VERSION = "2026-04-17";
+export const ACP_VERSION = "2026-04-17";
+export const ACP_API_VERSION_HEADER = "API-Version";
+export const ACP_WEBHOOK_SIGNATURE_HEADER = "Merchant-Signature";
+export const ACP_WEBHOOK_SIGNATURE_TOLERANCE_SECONDS = 300;
 
 const ajv = new Ajv2020({ allErrors: true, strict: false });
 addFormats(ajv);
@@ -39,6 +78,27 @@ const validateDiscountsRequestFn = validator<DiscountsRequest>("DiscountsRequest
 const validateDiscountsResponseFn = validator<DiscountsResponse>("DiscountsResponse");
 const validateCheckoutSessionFn = validator<CheckoutSession>("CheckoutSession");
 const validateCheckoutSessionWithOrderFn = validator<CheckoutSessionWithOrder>("CheckoutSessionWithOrder");
+const validateDiscoveryResponseFn = validator<AcpDiscoveryResponse>("DiscoveryResponse");
+
+export function buildAcpDiscovery(opts: AcpDiscoveryOptions): AcpDiscoveryResponse {
+  const doc: AcpDiscoveryResponse = {
+    protocol: {
+      name: "acp",
+      version: ACP_VERSION,
+      supported_versions: [ACP_VERSION],
+      ...(opts.documentationUrl ? { documentation_url: opts.documentationUrl } : {})
+    },
+    api_base_url: opts.apiBaseUrl.replace(/\/$/, ""),
+    transports: opts.transports ?? ["rest"],
+    capabilities: {
+      services: opts.services ?? ["checkout"],
+      ...(opts.supportedCurrencies?.length ? { supported_currencies: opts.supportedCurrencies.map((currency) => currency.toLowerCase()) } : {}),
+      ...(opts.supportedLocales?.length ? { supported_locales: opts.supportedLocales } : {})
+    }
+  };
+  assertValidAcpDiscovery(doc);
+  return doc;
+}
 
 export function applyCreateRequest(
   req: CheckoutSessionCreateRequest,
@@ -171,6 +231,10 @@ export function validateCheckoutSessionWithOrder(value: unknown): AcpValidationR
   return validationResult(validateCheckoutSessionWithOrderFn, value);
 }
 
+export function validateAcpDiscovery(value: unknown): AcpValidationResult {
+  return validationResult(validateDiscoveryResponseFn, value);
+}
+
 export function assertValidCheckoutSessionCreateRequest(value: unknown): asserts value is CheckoutSessionCreateRequest {
   assertValid(validateCreateRequestFn, value, "ACP CheckoutSessionCreateRequest");
 }
@@ -201,6 +265,54 @@ export function assertValidCheckoutSession(value: unknown): asserts value is Che
 
 export function assertValidCheckoutSessionWithOrder(value: unknown): asserts value is CheckoutSessionWithOrder {
   assertValid(validateCheckoutSessionWithOrderFn, value, "ACP CheckoutSessionWithOrder");
+}
+
+export function assertValidAcpDiscovery(value: unknown): asserts value is AcpDiscoveryResponse {
+  assertValid(validateDiscoveryResponseFn, value, "ACP DiscoveryResponse");
+}
+
+export async function signAcpWebhook(args: {
+  rawBody: string | Uint8Array;
+  secret: string;
+  timestamp?: number | Date;
+}): Promise<string> {
+  const timestamp = acpSignatureTimestamp(args.timestamp ?? new Date());
+  const digest = await acpHmacHex(args.secret, signedWebhookPayload(timestamp, rawBodyBytes(args.rawBody)));
+  return `t=${timestamp},v1=${digest}`;
+}
+
+export async function verifyAcpWebhookSignature(args: {
+  rawBody: string | Uint8Array;
+  secret: string;
+  header: string | undefined;
+  now?: Date;
+  toleranceSeconds?: number;
+}): Promise<AcpWebhookSignatureVerificationResult> {
+  if (!args.header) {
+    return { ok: false, code: "acp_webhook_signature_missing", message: "Missing Merchant-Signature header." };
+  }
+  const parsed = /^t=(\d+),v1=([a-fA-F0-9]{64})$/.exec(args.header.trim());
+  if (!parsed) {
+    return {
+      ok: false,
+      code: "acp_webhook_signature_malformed",
+      message: "Merchant-Signature must be t=<timestamp>,v1=<64_hex>."
+    };
+  }
+
+  const timestamp = Number(parsed[1]);
+  const signature = parsed[2]!.toLowerCase();
+  const now = Math.floor((args.now ?? new Date()).getTime() / 1000);
+  const tolerance = args.toleranceSeconds ?? ACP_WEBHOOK_SIGNATURE_TOLERANCE_SECONDS;
+  if (!Number.isSafeInteger(timestamp) || Math.abs(now - timestamp) > tolerance) {
+    return { ok: false, code: "acp_webhook_signature_stale", message: "Merchant-Signature timestamp is outside tolerance." };
+  }
+
+  const expected = await acpHmacHex(args.secret, signedWebhookPayload(timestamp, rawBodyBytes(args.rawBody)));
+  if (!constantTimeEqualHex(signature, expected)) {
+    return { ok: false, code: "acp_webhook_signature_invalid", message: "Merchant-Signature digest is invalid." };
+  }
+  return { ok: true, timestamp, signature };
 }
 
 function checkoutSession(opts: {
@@ -278,6 +390,43 @@ function integerValue(value: unknown, fallback: number): number {
 
 function stringValue(value: unknown, fallback: string): string {
   return typeof value === "string" && value ? value : fallback;
+}
+
+function acpSignatureTimestamp(value: number | Date): number {
+  return value instanceof Date ? Math.floor(value.getTime() / 1000) : value;
+}
+
+function rawBodyBytes(value: string | Uint8Array): Uint8Array {
+  return typeof value === "string" ? new TextEncoder().encode(value) : value;
+}
+
+function signedWebhookPayload(timestamp: number, rawBody: Uint8Array): Uint8Array {
+  const prefix = new TextEncoder().encode(`${timestamp}.`);
+  const payload = new Uint8Array(prefix.byteLength + rawBody.byteLength);
+  payload.set(prefix, 0);
+  payload.set(rawBody, prefix.byteLength);
+  return payload;
+}
+
+async function acpHmacHex(secret: string, payload: Uint8Array): Promise<string> {
+  const key = await globalThis.crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const digest = await globalThis.crypto.subtle.sign("HMAC", key, payload);
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function constantTimeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return mismatch === 0;
 }
 
 function validator<T>(defName: string): ValidateFunction<T> {

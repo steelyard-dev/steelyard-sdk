@@ -2,6 +2,8 @@
 export { MerchantCheckoutConfigError, UnknownPaymentHandlerError, createMerchantCheckout } from "./server.js";
 export type {
   AcpRoutes,
+  AcpBearerAuthConfig,
+  AcpBearerAuthResult,
   HmsSigningKey,
   MerchantCheckout,
   MerchantCheckoutOpts,
