@@ -22,6 +22,7 @@ export {
 export { mapAcpToOrderState, mapUcpCheckoutStatus } from "./order-state.js";
 export {
   buildSignatureBase,
+  assertValidEcJwk,
   contentDigestHeader,
   ecdsaSignRaw,
   ecdsaVerifyRaw,
@@ -84,6 +85,7 @@ export type {
   UcpCheckoutStatus,
   UnknownAcpOrderStatusWarning
 } from "./order-state.js";
+export type { UcpErrorEnvelope, V04ErrorEnvelope } from "./errors.js";
 export type {
   BuildSignatureBaseArgs,
   EcJwk,

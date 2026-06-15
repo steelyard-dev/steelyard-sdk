@@ -12,13 +12,13 @@ import canonicalize from "canonicalize";
 export type HmsAlgorithm = "ES256" | "ES384";
 
 export interface EcJwk {
-  kid?: string;
+  kid: string;
   kty: "EC";
   crv: "P-256" | "P-384";
   x: string;
   y: string;
   d?: string;
-  use?: "sig" | string;
+  use?: "sig";
   alg?: HmsAlgorithm;
   [key: string]: unknown;
 }
@@ -145,6 +145,50 @@ export function jcsCanonicalize(value: unknown): Uint8Array {
   const canonical = canonicalize(value);
   if (canonical === undefined) throw new Error("value cannot be JCS canonicalized");
   return Buffer.from(canonical, "utf8");
+}
+
+export function assertValidEcJwk(value: unknown, opts: { allowPrivate?: boolean } = {}): EcJwk {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("EC JWK must be an object");
+  }
+
+  const jwk = value as Record<string, unknown>;
+  const kid = requireString(jwk, "kid");
+  const kty = requireString(jwk, "kty");
+  const crv = requireString(jwk, "crv");
+  const x = requireString(jwk, "x");
+  const y = requireString(jwk, "y");
+
+  if (!kid) throw new Error("EC JWK kid is required");
+  if (kty !== "EC") throw new Error("EC JWK kty must be EC");
+  if (crv !== "P-256" && crv !== "P-384") throw new Error("EC JWK crv must be P-256 or P-384");
+
+  const algorithm = algorithmForCurve(crv);
+  const width = ALGORITHMS[algorithm].width / 2;
+  assertBase64urlBytes(x, "x", width);
+  assertBase64urlBytes(y, "y", width);
+
+  if (jwk.use !== undefined && jwk.use !== "sig") throw new Error("EC JWK use must be sig when present");
+  if (jwk.alg !== undefined && jwk.alg !== algorithm) throw new Error(`EC JWK alg must be ${algorithm}`);
+
+  if (jwk.d !== undefined) {
+    if (!opts.allowPrivate) throw new Error("EC JWK private d is not allowed");
+    if (typeof jwk.d !== "string") throw new Error("EC JWK d must be a string");
+    assertBase64urlBytes(jwk.d, "d", width);
+  }
+  assertNoNonEcPrivateFields(jwk);
+
+  return {
+    ...jwk,
+    kid,
+    kty: "EC",
+    crv,
+    x,
+    y,
+    use: jwk.use as "sig" | undefined,
+    alg: jwk.alg as HmsAlgorithm | undefined,
+    d: jwk.d as string | undefined
+  };
 }
 
 export async function signDetachedJws(args: {
@@ -346,12 +390,34 @@ function assertSafeInteger(value: number, name: string): number {
 }
 
 function assertAlgorithmKey(algorithm: HmsAlgorithm, jwk: EcJwk, requirePrivate: boolean): AlgorithmSpec {
+  const valid = assertValidEcJwk(jwk, { allowPrivate: requirePrivate });
   const spec = ALGORITHMS[algorithm];
-  if (jwk.kty !== "EC") throw new Error("ECDSA key must be an EC JWK");
-  if (jwk.crv !== spec.curve) throw new Error(`${algorithm} requires ${spec.curve}`);
-  if (jwk.alg !== undefined && jwk.alg !== algorithm) throw new Error(`JWK alg must be ${algorithm}`);
-  if (requirePrivate && typeof jwk.d !== "string") throw new Error("private EC JWK must include d");
+  if (valid.crv !== spec.curve) throw new Error(`${algorithm} requires ${spec.curve}`);
+  if (requirePrivate && typeof valid.d !== "string") throw new Error("private EC JWK must include d");
   return spec;
+}
+
+function algorithmForCurve(curve: "P-256" | "P-384"): HmsAlgorithm {
+  return curve === "P-256" ? "ES256" : "ES384";
+}
+
+function requireString(value: Record<string, unknown>, key: string): string {
+  const field = value[key];
+  if (typeof field !== "string") throw new Error(`EC JWK ${key} must be a string`);
+  return field;
+}
+
+function assertBase64urlBytes(value: string, name: string, width: number): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error(`EC JWK ${name} must be base64url`);
+  const bytes = Buffer.from(value, "base64url");
+  if (bytes.byteLength !== width) throw new Error(`EC JWK ${name} must decode to ${width} bytes`);
+  if (Buffer.from(bytes).toString("base64url") !== value) throw new Error(`EC JWK ${name} must be canonical base64url`);
+}
+
+function assertNoNonEcPrivateFields(jwk: Record<string, unknown>): void {
+  for (const name of ["p", "q", "dp", "dq", "qi", "oth", "k"]) {
+    if (jwk[name] !== undefined) throw new Error(`EC JWK private ${name} is not allowed`);
+  }
 }
 
 function isHmsAlgorithm(value: unknown): value is HmsAlgorithm {

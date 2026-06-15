@@ -1,6 +1,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it } from "vitest";
 import {
+  assertValidEcJwk,
   buildSignatureBase,
   contentDigestHeader,
   ecdsaSignRaw,
@@ -13,7 +14,9 @@ import {
   verifyDetachedJws,
   type EcJwk,
   type Sf941InnerList,
-  type Sf941Token
+  type Sf941Token,
+  type UcpErrorEnvelope,
+  type V04ErrorEnvelope
 } from "./index.js";
 
 describe("RFC 9421 signature bases", () => {
@@ -254,6 +257,51 @@ describe("ECDSA raw signatures", () => {
         signature: p384
       })
     ).resolves.toBe(true);
+  });
+});
+
+describe("EC JWK validation", () => {
+  it("accepts valid public P-256 and P-384 signing keys", () => {
+    expect(assertValidEcJwk(rfc6979P256.publicJwk)).toEqual(rfc6979P256.publicJwk);
+    expect(assertValidEcJwk(rfc6979P384.publicJwk)).toEqual(rfc6979P384.publicJwk);
+  });
+
+  it("accepts private d only when explicitly allowed", () => {
+    expect(assertValidEcJwk(rfc6979P256.privateJwk, { allowPrivate: true })).toEqual(rfc6979P256.privateJwk);
+    expect(() => assertValidEcJwk(rfc6979P256.privateJwk)).toThrow(/private d/);
+  });
+
+  it("rejects malformed or non-UCP EC keys", () => {
+    expect(() => assertValidEcJwk({ ...rfc6979P256.publicJwk, kid: "" })).toThrow(/kid/);
+    expect(() => assertValidEcJwk({ ...rfc6979P256.publicJwk, crv: "P-521" })).toThrow(/P-256 or P-384/);
+    expect(() => assertValidEcJwk({ ...rfc6979P256.publicJwk, alg: "ES384" })).toThrow(/ES256/);
+    expect(() => assertValidEcJwk({ ...rfc6979P256.publicJwk, x: "not+base64" })).toThrow(/base64url/);
+    expect(() => assertValidEcJwk({ ...rfc6979P256.publicJwk, x: b64urlHex("01") })).toThrow(/32 bytes/);
+    expect(() => assertValidEcJwk({ ...rfc6979P256.publicJwk, use: "enc" })).toThrow(/use/);
+    expect(() => assertValidEcJwk({ ...rfc6979P256.publicJwk, k: "secret" })).toThrow(/private k/);
+  });
+});
+
+describe("UCP error envelope types", () => {
+  it("keeps the UCP REST envelope distinct from the v0.4 HTTP API envelope", () => {
+    const ucp: UcpErrorEnvelope = {
+      code: "signature_invalid",
+      content: "Request signature verification failed for key kid=platform-2026"
+    };
+    const v04: V04ErrorEnvelope = {
+      error: {
+        code: "not_found",
+        message: "Not found",
+        details: { path: "/commerce/products" }
+      }
+    };
+
+    expect(ucp).toEqual({
+      code: "signature_invalid",
+      content: "Request signature verification failed for key kid=platform-2026"
+    });
+    expect(ucp).not.toHaveProperty("error");
+    expect(v04).toHaveProperty("error.message", "Not found");
   });
 });
 

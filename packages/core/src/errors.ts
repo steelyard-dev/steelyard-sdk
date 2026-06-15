@@ -8,3 +8,16 @@ export const ERROR_CODES = [
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];
+
+export type V04ErrorEnvelope = {
+  error: {
+    code: string;
+    message: string;
+    details?: unknown;
+  };
+};
+
+export type UcpErrorEnvelope = {
+  code: string;
+  content: string;
+};
