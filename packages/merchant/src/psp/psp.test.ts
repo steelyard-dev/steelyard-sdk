@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   MockInProductionError,
   PspConfigError,
+  StripeLiveDisabledError,
   mockPsp,
   mockVaultToken,
   stripePsp,
@@ -148,6 +149,8 @@ describe("mockPsp", () => {
 describe("stripePsp", () => {
   it("requires an explicit API key and handler match", () => {
     expect(() => stripePsp({ apiKey: "" })).toThrow(/apiKey/);
+    expect(() => stripePsp({ apiKey: "sk_live_unit" })).toThrow(StripeLiveDisabledError);
+    expect(() => stripePsp({ apiKey: "rk_test_unit", acceptSharedPaymentTokens: true })).toThrow(StripeLiveDisabledError);
     const psp = stripePsp({ apiKey: "sk_test_unit", fetch: async () => stripeResponse({ id: "pi_1", status: "succeeded" }) });
     expect(psp.name).toBe("stripe");
     expect(psp.supportsHandler("stripe")).toBe(true);
@@ -179,6 +182,76 @@ describe("stripePsp", () => {
     expect(body.get("currency")).toBe("usd");
     expect(body.get("payment_method")).toBe("vt_1");
     expect(body.get("metadata[purchase_key]")).toBe("purchase_1");
+  });
+
+  it("rejects SPT capture unless explicitly enabled (SC1)", async () => {
+    const psp = stripePsp({
+      apiKey: "sk_test_unit",
+      fetch: async () => stripeResponse({ id: "pi_1", status: "succeeded" })
+    });
+
+    await expect(psp.capture({ ...captureArgs, vault_token: "spt_123" })).rejects.toThrow(/STRIPE_SPT_NOT_ENABLED/);
+  });
+
+  it("charges SPTs through the shared preview helper when enabled (SC1, SC2, SC4)", async () => {
+    const calls: { url: string; init: RequestInit }[] = [];
+    const psp = stripePsp({
+      apiKey: "sk_test_unit",
+      apiBaseUrl: "https://stripe.test",
+      acceptSharedPaymentTokens: true,
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), init: init! });
+        return stripeResponse({
+          id: "pi_spt",
+          status: "succeeded",
+          charges: { data: [{ id: "ch_spt", status: "succeeded" }] }
+        });
+      }
+    });
+
+    await expect(psp.capture({ ...captureArgs, vault_token: "spt_123" })).resolves.toEqual({
+      ok: true,
+      psp_payment_id: "pi_spt",
+      psp_charge_id: "ch_spt",
+      psp_charge_status: "succeeded",
+      status: "captured"
+    });
+
+    expect(calls[0]!.url).toBe("https://stripe.test/v1/payment_intents");
+    const headers = calls[0]!.init.headers as Record<string, string>;
+    expect(headers.Authorization).toMatch(/^Basic /);
+    expect(headers["Stripe-Version"]).toBe("2026-04-22.preview");
+    const body = calls[0]!.init.body as URLSearchParams;
+    expect(body.get("payment_method_data[shared_payment_granted_token]")).toBe("spt_123");
+    expect(body.get("payment_method")).toBeNull();
+  });
+
+  it("uses an SPT embedded in a verified AP2 payment mandate (AP1, SC1)", async () => {
+    const paymentMandate = await issuePaymentMandate({
+      paymentInstrument: {
+        id: "spt_123",
+        type: "shared_payment_token",
+        description: "Stripe Shared Payment Token (test mode)"
+      }
+    });
+    const calls: { url: string; init: RequestInit }[] = [];
+    const psp = stripePsp({
+      apiKey: "sk_test_unit",
+      apiBaseUrl: "https://stripe.test",
+      acceptSharedPaymentTokens: true,
+      clock: () => now,
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), init: init! });
+        return stripeResponse({ id: "pi_spt", status: "succeeded" });
+      }
+    });
+
+    await expect(psp.capture({ ...captureArgs, payment_mandate: paymentMandate })).resolves.toMatchObject({
+      ok: true,
+      psp_payment_id: "pi_spt"
+    });
+    const body = calls[0]!.init.body as URLSearchParams;
+    expect(body.get("payment_method_data[shared_payment_granted_token]")).toBe("spt_123");
   });
 
   it("verifies AP2 payment mandates before Stripe capture (PM5-3)", async () => {
@@ -300,7 +373,9 @@ function stripeResponse(body: unknown, status = 200): Response {
   });
 }
 
-async function issuePaymentMandate(): Promise<NonNullable<PspCaptureArgs["payment_mandate"]>> {
+async function issuePaymentMandate(opts: {
+  paymentInstrument?: { id: string; type: string; description?: string };
+} = {}): Promise<NonNullable<PspCaptureArgs["payment_mandate"]>> {
   const transaction_id = createHash("sha256").update("merchant-authorization-jws").digest("base64url");
   const expires_at = new Date(now.getTime() + 15 * 60_000).toISOString();
   const claims = {
@@ -313,7 +388,7 @@ async function issuePaymentMandate(): Promise<NonNullable<PspCaptureArgs["paymen
     transaction_id,
     payee: { id: "merchant_1", name: "Demo Merchant", website: "https://coffee.example" },
     payment_amount: { amount: 500, currency: "USD" },
-    payment_instrument: { id: "card_1", type: "card", description: "Visa 4242" }
+    payment_instrument: opts.paymentInstrument ?? { id: "card_1", type: "card", description: "Visa 4242" }
   };
   const sdJwt = new SDJwtInstance<typeof claims>({
     signer: signerFor(holderP256PrivateKey, "ES256"),

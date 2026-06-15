@@ -8,6 +8,14 @@ import {
   type EcJwk,
   type HmsAlgorithm
 } from "@steelyard/core";
+import {
+  STRIPE_LIVE_KEY_PREFIX,
+  STRIPE_SPT_ID_PREFIX,
+  StripeLiveDisabledError,
+  assertStripeTestSecretKey,
+  chargeSharedPaymentToken,
+  redactSecret
+} from "@steelyard/core/stripe";
 import { parseSdJwtKbPresentation } from "../mandate/ap2-verifier.js";
 
 export interface PspPaymentIntent {
@@ -38,8 +46,27 @@ export interface PspCaptureArgs {
 }
 
 export type PspCaptureResult =
-  | { ok: true; psp_payment_id: string; status: "captured" | "authorized" }
-  | { ok: false; reason: "declined" | "fraud" | "insufficient_funds" | "expired_card" | "other"; message: string }
+  | {
+      ok: true;
+      psp_payment_id: string;
+      psp_charge_id?: string;
+      psp_charge_status?: string;
+      status: "captured" | "authorized";
+    }
+  | {
+      ok: false;
+      reason:
+        | "declined"
+        | "fraud"
+        | "insufficient_funds"
+        | "expired_card"
+        | "spt_expired"
+        | "amount_exceeded"
+        | "spt_revoked"
+        | "spt_seller_mismatch"
+        | "other";
+      message: string;
+    }
   | { ok: false; requires_authentication: true; continue_url: string };
 
 export interface PspAdapter {
@@ -68,8 +95,10 @@ export interface MockPspOptions {
 export interface StripePspOptions {
   apiKey: string;
   apiBaseUrl?: string;
+  apiVersion?: string;
   fetch?: typeof fetch;
   handlerIds?: readonly string[];
+  acceptSharedPaymentTokens?: boolean;
   clock?: () => Date;
 }
 
@@ -148,6 +177,8 @@ export function mockVaultToken(input: {
 
 export function stripePsp(opts: StripePspOptions): PspAdapter {
   if (!opts.apiKey) throw new PspConfigError("stripePsp requires an apiKey argument");
+  if (opts.apiKey.startsWith(STRIPE_LIVE_KEY_PREFIX)) throw new StripeLiveDisabledError("v0.6 is test-only");
+  if (opts.acceptSharedPaymentTokens === true) assertStripeTestSecretKey(opts.apiKey);
   const fetchImpl = opts.fetch ?? globalThis.fetch;
   if (!fetchImpl) throw new PspConfigError("stripePsp requires fetch support");
   const apiBaseUrl = (opts.apiBaseUrl ?? "https://api.stripe.com").replace(/\/+$/, "");
@@ -158,6 +189,22 @@ export function stripePsp(opts: StripePspOptions): PspAdapter {
     supportsHandler: (handlerId) => handlerIds.has(handlerId),
     async capture(args) {
       const validation = await validateCaptureArgs(args, clock);
+      const paymentMethod = pspPaymentMethod(args, validation);
+      if (paymentMethod.startsWith(STRIPE_SPT_ID_PREFIX)) {
+        if (opts.acceptSharedPaymentTokens !== true) {
+          throw new PspConfigError("STRIPE_SPT_NOT_ENABLED");
+        }
+        return await chargeSharedPaymentToken({
+          apiKey: opts.apiKey,
+          apiBaseUrl,
+          apiVersion: opts.apiVersion,
+          sptId: paymentMethod,
+          amount: args.amount,
+          currency: args.currency,
+          idempotencyKey: args.idempotencyKey,
+          fetch: fetchImpl
+        });
+      }
       try {
         const response = await fetchImpl(`${apiBaseUrl}/v1/payment_intents`, {
           method: "POST",
@@ -166,7 +213,7 @@ export function stripePsp(opts: StripePspOptions): PspAdapter {
             "content-type": "application/x-www-form-urlencoded",
             "idempotency-key": args.idempotencyKey
           },
-          body: stripeCaptureBody(args, validation)
+          body: stripeCaptureBody(args, paymentMethod)
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) return stripeFailure(payload);
@@ -391,11 +438,11 @@ function pspPaymentMethod(args: PspCaptureArgs, validation: CaptureValidation): 
   return typeof id === "string" && id ? id : args.vault_token;
 }
 
-function stripeCaptureBody(args: PspCaptureArgs, validation: CaptureValidation): URLSearchParams {
+function stripeCaptureBody(args: PspCaptureArgs, paymentMethod: string): URLSearchParams {
   const body = new URLSearchParams();
   body.set("amount", String(args.amount));
   body.set("currency", args.currency.toLowerCase());
-  body.set("payment_method", pspPaymentMethod(args, validation));
+  body.set("payment_method", paymentMethod);
   body.set("confirm", "true");
   body.set("capture_method", "automatic");
   body.set("metadata[source]", "steelyard");
@@ -452,8 +499,4 @@ function stringValue(value: unknown, fallback: string): string {
 
 function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
-}
-
-function redactSecret(message: string, secret: string): string {
-  return secret ? message.split(secret).join("[redacted]") : message;
 }

@@ -33,6 +33,16 @@
       "types": "./dist/purchase.d.ts",
       "import": "./dist/purchase.js",
       "require": "./dist/purchase.cjs"
+    },
+    "./stripe": {
+      "types": "./dist/stripe/index.d.ts",
+      "import": "./dist/stripe/index.js",
+      "require": "./dist/stripe/index.cjs"
+    },
+    "./stripe/constants": {
+      "types": "./dist/stripe/constants.d.ts",
+      "import": "./dist/stripe/constants.js",
+      "require": "./dist/stripe/constants.cjs"
     }
   },
   "files": [

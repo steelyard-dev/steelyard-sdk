@@ -7,6 +7,7 @@ export {
   mockVaultToken,
   stripePsp
 } from "./adapters.js";
+export { StripeLiveDisabledError } from "@steelyard/core/stripe";
 export type {
   MockPspFailMode,
   MockPspOptions,
