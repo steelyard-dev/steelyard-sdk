@@ -5,6 +5,8 @@ export type {
   HmsSigningKey,
   MerchantCheckout,
   MerchantCheckoutOpts,
+  UcpBearerAuthConfig,
+  UcpBearerAuthResult,
   UcpHmsAuthConfig,
   UcpRoutes
 } from "./server.js";

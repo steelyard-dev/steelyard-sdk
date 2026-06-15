@@ -18,6 +18,11 @@ export {
   type StoredMandateKey
 } from "./mandate.js";
 export {
+  UcpSigningKeyMissing,
+  type StoredUcpSigningKey,
+  type UcpSigningKeyMetadata
+} from "./ucp-signing.js";
+export {
   memoryKeystore,
   osKeystore,
   passwordKeystore,

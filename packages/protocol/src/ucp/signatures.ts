@@ -15,11 +15,19 @@ import {
   type SignatureParameters
 } from "@steelyard/core";
 
-export interface UcpSigningMaterial {
+export interface UcpPrivateSigningMaterial {
   kid: string;
   algorithm: HmsAlgorithm;
   privateKey: EcJwk;
 }
+
+export interface UcpOpaqueSigningMaterial {
+  kid: string;
+  algorithm: HmsAlgorithm;
+  sign: (data: Uint8Array) => Promise<Uint8Array>;
+}
+
+export type UcpSigningMaterial = UcpPrivateSigningMaterial | UcpOpaqueSigningMaterial;
 
 export interface SignUcpRequestArgs {
   method: string;
@@ -108,11 +116,7 @@ export async function signUcpRequest(args: SignUcpRequestArgs): Promise<{ header
     components,
     parameters
   });
-  const signature = await ecdsaSignRaw({
-    algorithm: args.signing.algorithm,
-    privateKeyJwk: args.signing.privateKey,
-    data: signatureBase
-  });
+  const signature = await signRaw(args.signing, signatureBase);
 
   headers["signature-input"] = serializeSf941Dict({
     sig1: {
@@ -140,11 +144,7 @@ export async function signUcpResponse(args: SignUcpResponseArgs): Promise<{ head
     components,
     parameters
   });
-  const signature = await ecdsaSignRaw({
-    algorithm: args.signing.algorithm,
-    privateKeyJwk: args.signing.privateKey,
-    data: signatureBase
-  });
+  const signature = await signRaw(args.signing, signatureBase);
 
   headers["signature-input"] = serializeSf941Dict({
     sig1: {
@@ -408,6 +408,21 @@ function isMutatingMethod(method: string): boolean {
 function algorithmForKey(key: EcJwk): HmsAlgorithm {
   const valid = assertValidEcJwk(key);
   return valid.crv === "P-256" ? "ES256" : "ES384";
+}
+
+async function signRaw(signing: UcpSigningMaterial, signatureBase: Uint8Array): Promise<Uint8Array> {
+  const signature = "privateKey" in signing
+    ? await ecdsaSignRaw({
+        algorithm: signing.algorithm,
+        privateKeyJwk: signing.privateKey,
+        data: signatureBase
+      })
+    : await signing.sign(signatureBase);
+  const expectedLength = signing.algorithm === "ES256" ? 64 : 96;
+  if (signature.byteLength !== expectedLength) {
+    throw new Error(`UCP ${signing.algorithm} signer returned ${signature.byteLength} bytes, expected ${expectedLength}`);
+  }
+  return signature;
 }
 
 function isInnerList(value: unknown): value is Sf941InnerList {

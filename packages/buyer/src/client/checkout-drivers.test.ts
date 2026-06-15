@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { defineCommerce, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
+import { defineCommerce, ecdsaSignRaw, type EcJwk, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
 import {
   applyCompleteRequest,
   applyCreateRequest,
@@ -12,6 +12,7 @@ import {
   applyUcpUpdate,
   type Checkout as UcpCheckout
 } from "@steelyard/protocol/ucp/checkout";
+import { verifyUcpRequest } from "@steelyard/protocol/ucp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AcpCanceled,
@@ -35,6 +36,7 @@ import {
 } from "./driver-common.js";
 import {
   UcpCanceled,
+  UcpAuthMissing,
   UcpNoCompatibleHandler,
   ucpDriver
 } from "./ucp.js";
@@ -51,6 +53,26 @@ const intent: PurchaseIntent = {
   currency: "USD",
   intent_id: "purchase_1"
 };
+const walletProfileUrl = "https://wallet.example/.well-known/ucp";
+
+function b64urlHex(value: string): string {
+  return Buffer.from(value, "hex").toString("base64url");
+}
+
+const walletP256PublicKey = {
+  kid: "wallet-p256",
+  kty: "EC",
+  crv: "P-256",
+  x: b64urlHex("60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6"),
+  y: b64urlHex("7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299"),
+  use: "sig",
+  alg: "ES256"
+} satisfies EcJwk;
+
+const walletP256PrivateKey = {
+  ...walletP256PublicKey,
+  d: b64urlHex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721")
+} satisfies EcJwk;
 
 const servers: Server[] = [];
 
@@ -249,6 +271,89 @@ describe("UCP checkout driver", () => {
     expect(merchant.requests[3]!.body).not.toHaveProperty("steelyard.checkout_mandate");
   });
 
+  it("signs outgoing UCP checkout requests when HMS auth is selected", async () => {
+    const merchant = await startUcpMerchant();
+    const port = withUcpSigningKey(testPort());
+    await ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "https://coffee.example/.well-known/ucp",
+      delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+      supportsSteelyardMode: false,
+      port,
+      idempotencyKey: "purchase_ucp_signed",
+      ucpAuth: {
+        preferred: "hms",
+        signing: { kid: "wallet-p256", algorithm: "ES256", profileUrl: walletProfileUrl }
+      },
+      clock: () => now
+    });
+
+    const signedRequests = merchant.requests.filter((request) => request.path !== "/delegate");
+    expect(signedRequests).toHaveLength(3);
+    expect(port.ucpSignatureBases).toHaveLength(3);
+    for (const request of signedRequests) {
+      expect(request.headers.authorization).toBeUndefined();
+      expect(request.headers["ucp-agent"]).toBe(`profile="${walletProfileUrl}"`);
+      expect(request.headers["signature-input"]).toContain("keyid=\"wallet-p256\"");
+      expect(request.headers.signature).toBeTruthy();
+      await expect(verifyUcpRequest({
+        method: request.method,
+        url: new URL(`${merchant.baseUrl}${request.path}`),
+        headers: request.headers,
+        body: Buffer.from(request.rawBody, "utf8"),
+        resolveKey: async (kid, signerProfileUrl) =>
+          kid === "wallet-p256" && signerProfileUrl === walletProfileUrl ? walletP256PublicKey : null,
+        now
+      })).resolves.toMatchObject({ ok: true, kid: "wallet-p256", algorithm: "ES256" });
+    }
+  });
+
+  it("falls back to bearer auth when HMS is preferred but the port has no UCP key", async () => {
+    const merchant = await startUcpMerchant();
+    await ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "https://coffee.example/.well-known/ucp",
+      delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+      supportsSteelyardMode: false,
+      port: testPort(),
+      idempotencyKey: "purchase_ucp_bearer",
+      ucpAuth: {
+        preferred: "hms",
+        signing: { kid: "wallet-p256", algorithm: "ES256", profileUrl: walletProfileUrl },
+        bearerToken: "bearer-token-1"
+      },
+      clock: () => now
+    });
+
+    const checkoutRequests = merchant.requests.filter((request) => request.path !== "/delegate");
+    expect(checkoutRequests.map((request) => request.headers.authorization)).toEqual([
+      "Bearer bearer-token-1",
+      "Bearer bearer-token-1",
+      "Bearer bearer-token-1"
+    ]);
+    expect(checkoutRequests.every((request) => request.headers.signature === undefined)).toBe(true);
+  });
+
+  it("throws before the first UCP request when selected HMS auth cannot sign", async () => {
+    const merchant = await startUcpMerchant();
+    await expect(
+      ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+        merchantUrl: merchant.baseUrl,
+        merchantId: "https://coffee.example/.well-known/ucp",
+        delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+        supportsSteelyardMode: false,
+        port: testPort(),
+        idempotencyKey: "purchase_ucp_missing_auth",
+        ucpAuth: {
+          preferred: "hms",
+          signing: { kid: "wallet-p256", algorithm: "ES256", profileUrl: walletProfileUrl }
+        },
+        clock: () => now
+      })
+    ).rejects.toBeInstanceOf(UcpAuthMissing);
+    expect(merchant.requests).toHaveLength(0);
+  });
+
   it("skips mandate signing when Steelyard mode is advertised but the port cannot sign", async () => {
     const merchant = await startUcpMerchant({ requireMandate: true });
     const port = withoutMandateKey(testPort());
@@ -373,8 +478,11 @@ describe("checkout driver helpers", () => {
 });
 
 interface CapturedRequest {
+  method: string;
   path: string;
   idempotencyKey?: string;
+  headers: Record<string, string>;
+  rawBody: string;
   body: Record<string, unknown>;
 }
 
@@ -389,8 +497,15 @@ async function startAcpMerchant(opts: {
   const requests: CapturedRequest[] = [];
   let session: CheckoutSession | undefined;
   const server = createServer(async (req, res) => {
-    const body = await readJson(req);
-    requests.push({ path: req.url ?? "/", idempotencyKey: idempotencyKey(req), body });
+    const { body, rawBody } = await readJson(req);
+    requests.push({
+      method: req.method ?? "GET",
+      path: req.url ?? "/",
+      idempotencyKey: idempotencyKey(req),
+      headers: capturedHeaders(req),
+      rawBody,
+      body
+    });
     if (req.method === "POST" && req.url === "/checkout_sessions") {
       session = withAcpHandler(applyCreateRequest(body, { manifest, now, sessionId: "cs_1" }).next) as CheckoutSession;
       if (opts.createStatus) session = { ...session, status: opts.createStatus as CheckoutSession["status"] };
@@ -448,8 +563,15 @@ async function startUcpMerchant(
   const requests: CapturedRequest[] = [];
   let checkout: UcpCheckout | undefined;
   const server = createServer(async (req, res) => {
-    const body = await readJson(req);
-    requests.push({ path: req.url ?? "/", idempotencyKey: idempotencyKey(req), body });
+    const { body, rawBody } = await readJson(req);
+    requests.push({
+      method: req.method ?? "GET",
+      path: req.url ?? "/",
+      idempotencyKey: idempotencyKey(req),
+      headers: capturedHeaders(req),
+      rawBody,
+      body
+    });
     if (req.method === "POST" && req.url === "/checkout") {
       checkout = withUcpHandler(applyUcpCreate(body, { now, checkoutId: "checkout_1", currency: "USD", links: [] }).next);
       if (opts.createStatus) checkout = { ...checkout, status: opts.createStatus as UcpCheckout["status"] };
@@ -523,6 +645,30 @@ function testPort(): WalletDriverPort & { signMandatePayloads: Record<string, un
   };
 }
 
+function withUcpSigningKey(
+  port: WalletDriverPort & { signMandatePayloads: Record<string, unknown>[] }
+): WalletDriverPort & { signMandatePayloads: Record<string, unknown>[]; ucpSignatureBases: Uint8Array[] } {
+  const ucpSignatureBases: Uint8Array[] = [];
+  return {
+    ...port,
+    ucpSignatureBases,
+    async hasUcpSigningKey() {
+      return true;
+    },
+    async exportUcpSigningPublicKey() {
+      return walletP256PublicKey;
+    },
+    async signWithUcpKey(args) {
+      ucpSignatureBases.push(args.data);
+      return await ecdsaSignRaw({
+        algorithm: args.algorithm,
+        privateKeyJwk: walletP256PrivateKey,
+        data: args.data
+      });
+    }
+  };
+}
+
 function withoutMandateKey(
   port: WalletDriverPort & { signMandatePayloads: Record<string, unknown>[] }
 ): WalletDriverPort & { signMandatePayloads: Record<string, unknown>[] } {
@@ -578,16 +724,25 @@ function withUcpHandler(checkout: UcpCheckout): UcpCheckout {
   };
 }
 
-async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
+async function readJson(req: IncomingMessage): Promise<{ body: Record<string, unknown>; rawBody: string }> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
   const raw = Buffer.concat(chunks).toString("utf8");
-  return raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+  return { body: raw ? (JSON.parse(raw) as Record<string, unknown>) : {}, rawBody: raw };
 }
 
 function idempotencyKey(req: IncomingMessage): string | undefined {
   const value = req.headers["idempotency-key"];
   return Array.isArray(value) ? value[0] : value;
+}
+
+function capturedHeaders(req: IncomingMessage): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const [name, value] of Object.entries(req.headers)) {
+    if (typeof value === "string") headers[name.toLowerCase()] = value;
+    else if (Array.isArray(value) && value.length) headers[name.toLowerCase()] = value.join(", ");
+  }
+  return headers;
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {

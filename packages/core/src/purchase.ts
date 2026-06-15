@@ -7,6 +7,7 @@ import type {
 } from "./schemas.js";
 import { newIdempotencyKey, type IdempotencyKey } from "./idempotency/index.js";
 import type { OrderState } from "./order-state.js";
+import type { EcJwk, HmsAlgorithm } from "./rfc9421.js";
 
 export type Protocol = "mcp" | "acp" | "ucp";
 export type JsonWebKey = Record<string, unknown>;
@@ -74,6 +75,10 @@ export interface WalletDriverPort {
   signMandate(payload: object): Promise<{ jwt: string; key_id: string }>;
   pairwiseSubject(audience: string): Promise<string>;
   mandatePublicKey(): Promise<{ jwk: JsonWebKey; key_id: string }>;
+  createUcpSigningKey?(opts: { algorithm: HmsAlgorithm }): Promise<{ kid: string }>;
+  hasUcpSigningKey?(): Promise<boolean>;
+  exportUcpSigningPublicKey?(): Promise<EcJwk>;
+  signWithUcpKey?(args: { data: Uint8Array; algorithm: HmsAlgorithm }): Promise<Uint8Array>;
 }
 
 export interface Total {

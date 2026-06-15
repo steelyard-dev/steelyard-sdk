@@ -11,6 +11,7 @@ import {
   memoryIdempotencyStore,
   MerchantCheckoutConfigError
 } from "./index.js";
+import { signUcpRequest } from "@steelyard/protocol/ucp";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const manifest = defineCommerce({
@@ -63,6 +64,16 @@ const merchantP256PublicKey = {
 const merchantP256PrivateKey = {
   ...merchantP256PublicKey,
   d: b64urlHex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721")
+} satisfies EcJwk;
+
+const walletP256PublicKey = {
+  ...merchantP256PublicKey,
+  kid: "wallet-p256"
+} satisfies EcJwk;
+
+const walletP256PrivateKey = {
+  ...walletP256PublicKey,
+  d: merchantP256PrivateKey.d
 } satisfies EcJwk;
 
 const merchantP384PrivateKey = {
@@ -589,6 +600,143 @@ describe("createMerchantCheckout", () => {
     expect(psp.captures).toHaveLength(2);
   });
 
+  it("verifies signed UCP requests before policy and prefers HMS over bearer", async () => {
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
+    const psp = recordingPsp();
+    const policy = recordingPolicy();
+    const bearerVerify = vi.fn(async () => ({ ok: true, subject: "bearer-subject" as const }));
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        policy: policy.instance,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          allowPrivateNetwork: true,
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }],
+              activeKid: "merchant-p256"
+            },
+            bearer: { enabled: true, verify: bearerVerify }
+          }
+        }
+      }).handler
+    );
+
+    const createBody = { line_items: ucpLineItems };
+    const hmsHeaders = await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-hms-create", buyerProfileUrl);
+    hmsHeaders.authorization = "Bearer ignored";
+    await expect(client.post("/ucp/api/checkout", createBody, "ucp-hms-create", hmsHeaders)).resolves.toMatchObject({
+      status: 200,
+      body: expect.objectContaining({ status: "ready_for_complete" })
+    });
+    expect(bearerVerify).not.toHaveBeenCalled();
+    expect(policy.calls).toHaveLength(1);
+
+    const tamperedHeaders = await signedUcpHeaders(
+      client,
+      "POST",
+      "/ucp/api/checkout",
+      createBody,
+      "ucp-hms-tampered",
+      buyerProfileUrl
+    );
+    await expect(
+      client.post("/ucp/api/checkout", { line_items: [{ item: { id: "latte" }, quantity: 2 }] }, "ucp-hms-tampered", tamperedHeaders)
+    ).resolves.toMatchObject({
+      status: 400,
+      body: { code: "digest_mismatch", content: expect.stringContaining("digest_mismatch") }
+    });
+    expect(policy.calls).toHaveLength(1);
+    expect(psp.captures).toHaveLength(0);
+  });
+
+  it("dispatches UCP bearer auth and rejects missing or unsupported auth methods", async () => {
+    const bearerVerify = vi.fn(async (token: string) =>
+      token === "good" ? { ok: true, subject: "buyer_1" } : { ok: false, reason: "bad token" }
+    );
+    const bearerClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: { auth: { bearer: { enabled: true, verify: bearerVerify } } }
+      }).handler
+    );
+
+    await expect(
+      bearerClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-bearer-create", {
+        authorization: "Bearer good"
+      })
+    ).resolves.toMatchObject({ status: 200 });
+    expect(bearerVerify).toHaveBeenCalledWith("good");
+
+    await expect(
+      bearerClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-missing-auth")
+    ).resolves.toMatchObject({
+      status: 401,
+      body: { code: "auth_missing", content: expect.stringContaining("requires") }
+    });
+
+    await expect(
+      bearerClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-bad-bearer", {
+        authorization: "Bearer bad"
+      })
+    ).resolves.toMatchObject({
+      status: 401,
+      body: { code: "auth_invalid", content: "bad token" }
+    });
+
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
+    const hmsHeaders = await signedUcpHeaders(
+      bearerClient,
+      "POST",
+      "/ucp/api/checkout",
+      { line_items: ucpLineItems },
+      "ucp-hms-disabled",
+      buyerProfileUrl
+    );
+    await expect(
+      bearerClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-hms-disabled", hmsHeaders)
+    ).resolves.toMatchObject({
+      status: 401,
+      body: { code: "auth_method_not_supported", content: expect.stringContaining("Signatures") }
+    });
+
+    const hmsOnlyClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }],
+              activeKid: "merchant-p256"
+            }
+          }
+        }
+      }).handler
+    );
+    await expect(
+      hmsOnlyClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-bearer-disabled", {
+        authorization: "Bearer good"
+      })
+    ).resolves.toMatchObject({
+      status: 401,
+      body: { code: "auth_method_not_supported", content: expect.stringContaining("bearer") }
+    });
+  });
+
   it("maps policy denials before route side effects", async () => {
     const psp = recordingPsp();
     const policy = recordingPolicy({ status: "denied", reason: "blocked" });
@@ -725,18 +873,20 @@ async function listen(handler: RequestListener): Promise<TestClient> {
   if (!address || typeof address === "string") throw new Error("server did not bind a TCP port");
   const baseUrl = `http://127.0.0.1:${address.port}`;
   return {
-    get: (path) => request(baseUrl, path, { method: "GET" }),
-    post: (path, body, key) => request(baseUrl, path, { method: "POST", body, key }),
-    patch: (path, body, key) => request(baseUrl, path, { method: "PATCH", body, key }),
-    raw: (path, raw, key) => request(baseUrl, path, { method: "POST", raw, key })
+    baseUrl,
+    get: (path, headers) => request(baseUrl, path, { method: "GET", headers }),
+    post: (path, body, key, headers) => request(baseUrl, path, { method: "POST", body, key, headers }),
+    patch: (path, body, key, headers) => request(baseUrl, path, { method: "PATCH", body, key, headers }),
+    raw: (path, raw, key, headers) => request(baseUrl, path, { method: "POST", raw, key, headers })
   };
 }
 
 interface TestClient {
-  get(path: string): Promise<TestResponse>;
-  post(path: string, body: unknown, key?: string): Promise<TestResponse>;
-  patch(path: string, body: unknown, key?: string): Promise<TestResponse>;
-  raw(path: string, raw: string, key?: string): Promise<TestResponse>;
+  baseUrl: string;
+  get(path: string, headers?: Record<string, string>): Promise<TestResponse>;
+  post(path: string, body: unknown, key?: string, headers?: Record<string, string>): Promise<TestResponse>;
+  patch(path: string, body: unknown, key?: string, headers?: Record<string, string>): Promise<TestResponse>;
+  raw(path: string, raw: string, key?: string, headers?: Record<string, string>): Promise<TestResponse>;
 }
 
 interface TestResponse {
@@ -747,9 +897,9 @@ interface TestResponse {
 async function request(
   baseUrl: string,
   path: string,
-  opts: { method: string; body?: unknown; raw?: string; key?: string }
+  opts: { method: string; body?: unknown; raw?: string; key?: string; headers?: Record<string, string> }
 ): Promise<TestResponse> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...(opts.headers ?? {}) };
   if (opts.key) headers["idempotency-key"] = opts.key;
   if (opts.body !== undefined || opts.raw !== undefined) headers["content-type"] = "application/json";
   const response = await fetch(`${baseUrl}${path}`, {
@@ -759,6 +909,46 @@ async function request(
   });
   const text = await response.text();
   return { status: response.status, body: text ? (JSON.parse(text) as Record<string, unknown>) : {} };
+}
+
+async function startBuyerProfile(signingKeys: EcJwk[]): Promise<string> {
+  const server = createServer((req, res) => {
+    if (req.method !== "GET") {
+      res.writeHead(405);
+      res.end();
+      return;
+    }
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ucp: { version: "2026-04-17" }, signing_keys: signingKeys }));
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("server did not bind a TCP port");
+  return `http://127.0.0.1:${address.port}/.well-known/ucp`;
+}
+
+async function signedUcpHeaders(
+  client: TestClient,
+  method: "POST" | "PATCH",
+  path: string,
+  body: unknown,
+  idempotencyKey: string,
+  profileUrl: string
+): Promise<Record<string, string>> {
+  const rawBody = Buffer.from(JSON.stringify(body), "utf8");
+  return (await signUcpRequest({
+    method,
+    url: new URL(`${client.baseUrl}${path}`),
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": idempotencyKey
+    },
+    body: rawBody,
+    signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+    ucpAgent: `profile="${profileUrl}"`,
+    now
+  })).headers;
 }
 
 function stringField(value: unknown, key: string): string {

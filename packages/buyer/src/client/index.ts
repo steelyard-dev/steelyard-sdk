@@ -26,7 +26,10 @@ import {
   UcpProfileFetchError
 } from "@steelyard/protocol/ucp";
 import { acpDriver } from "./acp.js";
-import { ucpDriver } from "./ucp.js";
+import { ucpDriver, type UcpAuthOptions } from "./ucp.js";
+
+export { UcpAuthMissing } from "./ucp.js";
+export type { UcpAuthOptions, UcpAuthPreference, UcpHmsSigningOptions } from "./ucp.js";
 
 export type Protocol = "mcp" | "acp" | "ucp";
 export type MerchantCapability = "read" | "checkout" | "checkout:steelyard" | "discounts";
@@ -40,6 +43,7 @@ export interface ConnectOptions {
   allowPrivateNetwork?: boolean;
   delegatePaymentUrl?: string;
   ucpProfileCache?: UcpProfileCache;
+  ucpAuth?: UcpAuthOptions;
 }
 
 export interface PurchaseOpts {
@@ -78,6 +82,13 @@ export class MerchantNoCheckout extends Error {
   }
 }
 
+export class BuyerHmsProfileMissing extends Error {
+  constructor() {
+    super("UCP HMS signing requires ucpAuth.signing.profileUrl");
+    this.name = "BuyerHmsProfileMissing";
+  }
+}
+
 type DetectionResult = Merchant | SteelyardError | undefined;
 
 export const UCP_LEGACY_CAPABILITY_ALIASES: Record<string, { bucket: string; id: string }> = {
@@ -94,6 +105,7 @@ export const Steelyard = {
 const defaultUcpProfileCache = new UcpProfileCache();
 
 export async function connect(url: string, opts: ConnectOptions = {}): Promise<Merchant | SteelyardError> {
+  assertConnectUcpAuth(opts);
   const parsed = parseUrl(url);
   if ("error" in parsed) return parsed;
 
@@ -342,6 +354,7 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOption
         merchantProfile: doc,
         supportsSteelyardMode: merchant.supports("checkout:steelyard"),
         delegatePaymentUrl: config.delegatePaymentUrl,
+        ucpAuth: config.ucpAuth,
         port: opts.port,
         idempotencyKey: opts.idempotencyKey,
         clock: opts.clock,
@@ -350,6 +363,16 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOption
     }
   };
   return merchant;
+}
+
+function assertConnectUcpAuth(opts: ConnectOptions): void {
+  const auth = opts.ucpAuth;
+  if (!auth) return;
+  const preferred = auth.preferred ?? "hms";
+  if (preferred !== "hms") return;
+  if (auth.signing && (typeof auth.signing.profileUrl !== "string" || !auth.signing.profileUrl)) {
+    throw new BuyerHmsProfileMissing();
+  }
 }
 
 function readMcpCommerceVersion(client: Client): string | undefined {

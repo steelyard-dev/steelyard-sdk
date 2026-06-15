@@ -1,6 +1,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import { mapUcpCheckoutStatus, type PurchaseIntent, type Receipt } from "@steelyard/core";
+import { mapUcpCheckoutStatus, type HmsAlgorithm, type PurchaseIntent, type Receipt } from "@steelyard/core";
 import { assertValidUcpCheckout, type Checkout } from "@steelyard/protocol/ucp/checkout";
+import { signUcpRequest } from "@steelyard/protocol/ucp";
 import {
   asRecord,
   billingBuyer,
@@ -18,6 +19,7 @@ import {
   stringValue,
   type DriverBaseOpts,
   type JsonRecord,
+  type JsonRequestHeaderPreparer,
   type PaymentHandlerLike
 } from "./driver-common.js";
 
@@ -25,6 +27,21 @@ export interface UcpDriverOpts extends DriverBaseOpts {
   merchantUrl: string | URL;
   merchantProfile?: { ucp?: { payment_handlers?: Record<string, unknown> } };
   supportsSteelyardMode?: boolean;
+  ucpAuth?: UcpAuthOptions;
+}
+
+export type UcpAuthPreference = "hms" | "bearer";
+
+export interface UcpHmsSigningOptions {
+  kid: string;
+  algorithm: HmsAlgorithm;
+  profileUrl: string;
+}
+
+export interface UcpAuthOptions {
+  preferred?: UcpAuthPreference;
+  signing?: UcpHmsSigningOptions;
+  bearerToken?: string;
 }
 
 export class UcpNoCompatibleHandler extends Error {
@@ -48,15 +65,25 @@ export class UcpCanceled extends Error {
   }
 }
 
+export class UcpAuthMissing extends Error {
+  constructor(message = "UCP auth could not be produced for the selected mechanism") {
+    super(message);
+    this.name = "UcpAuthMissing";
+  }
+}
+
 export const ucpDriver = { purchase };
 
 export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Promise<Receipt> {
   const key = purchaseKey(opts, intent);
   const clock = driverClock(opts);
+  const auth = resolveUcpRequestAuth(opts);
+  const prepareHeaders = ucpHeaderPreparer(auth, clock);
   let checkout = asRecord(
     await postJson(joinUrl(opts.merchantUrl, "/checkout"), { line_items: [{ item: { id: intent.offer.id }, quantity: 1 }] }, {
       idempotencyKey: `${key}:create`,
-      fetch: opts.fetch
+      fetch: opts.fetch,
+      prepareHeaders
     })
   );
   assertValidUcpCheckout(checkout);
@@ -84,7 +111,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
           ]
         }
       },
-      { idempotencyKey: `${key}:update`, fetch: opts.fetch }
+      { idempotencyKey: `${key}:update`, fetch: opts.fetch, prepareHeaders }
     )
   );
   assertValidUcpCheckout(checkout);
@@ -138,7 +165,8 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
   const completed = asRecord(
     await postJson(joinUrl(opts.merchantUrl, `/checkout/${encodeURIComponent(checkoutId)}/complete`), completeBody, {
       idempotencyKey: `${key}:complete`,
-      fetch: opts.fetch
+      fetch: opts.fetch,
+      prepareHeaders
     })
   );
   assertValidUcpCheckout(completed);
@@ -172,6 +200,83 @@ function canSignSteelyardMandate(port: UcpDriverOpts["port"]): boolean {
   return typeof port.mandatePublicKey === "function"
     && typeof port.pairwiseSubject === "function"
     && typeof port.signMandate === "function";
+}
+
+type ResolvedUcpRequestAuth =
+  | { kind: "none" }
+  | { kind: "bearer"; token: string }
+  | {
+      kind: "hms";
+      kid: string;
+      algorithm: HmsAlgorithm;
+      profileUrl: string;
+      sign: (data: Uint8Array) => Promise<Uint8Array>;
+    };
+
+function resolveUcpRequestAuth(opts: UcpDriverOpts): ResolvedUcpRequestAuth {
+  const auth = opts.ucpAuth;
+  if (!auth) return { kind: "none" };
+
+  const preferred = auth.preferred ?? "hms";
+  const hms = hmsRequestAuth(opts);
+  const bearer = typeof auth.bearerToken === "string" && auth.bearerToken
+    ? { kind: "bearer" as const, token: auth.bearerToken }
+    : undefined;
+
+  if (preferred === "bearer") {
+    if (bearer) return bearer;
+    if (hms) return hms;
+    throw new UcpAuthMissing("UCP bearer auth selected but no bearer token or HMS key is available");
+  }
+
+  if (hms) return hms;
+  if (bearer) return bearer;
+  throw new UcpAuthMissing("UCP HMS auth selected but signing config or vault key is missing");
+}
+
+function hmsRequestAuth(opts: UcpDriverOpts): Extract<ResolvedUcpRequestAuth, { kind: "hms" }> | undefined {
+  const signing = opts.ucpAuth?.signing;
+  if (!signing?.kid || !signing.profileUrl || !signing.algorithm) return undefined;
+  if (typeof opts.port.signWithUcpKey !== "function") return undefined;
+  return {
+    kind: "hms",
+    kid: signing.kid,
+    algorithm: signing.algorithm,
+    profileUrl: signing.profileUrl,
+    sign: (data) => opts.port.signWithUcpKey!({ data, algorithm: signing.algorithm })
+  };
+}
+
+function ucpHeaderPreparer(
+  auth: ResolvedUcpRequestAuth,
+  clock: () => Date
+): JsonRequestHeaderPreparer | undefined {
+  if (auth.kind === "none") return undefined;
+  return async (args) => {
+    if (auth.kind === "bearer") {
+      return { ...args.headers, authorization: `Bearer ${auth.token}` };
+    }
+    try {
+      const signed = await signUcpRequest({
+        method: args.method,
+        url: args.url,
+        headers: args.headers,
+        body: args.body,
+        signing: {
+          kid: auth.kid,
+          algorithm: auth.algorithm,
+          sign: auth.sign
+        },
+        ucpAgent: `profile="${auth.profileUrl}"`,
+        now: clock()
+      });
+      return signed.headers;
+    } catch (error) {
+      throw error instanceof UcpAuthMissing
+        ? error
+        : new UcpAuthMissing(error instanceof Error ? error.message : String(error));
+    }
+  };
 }
 
 function ucpHandlers(checkout: Checkout, opts: UcpDriverOpts): PaymentHandlerLike[] {

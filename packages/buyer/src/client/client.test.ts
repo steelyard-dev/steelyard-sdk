@@ -26,6 +26,7 @@ import {
   type Checkout as UcpCheckout
 } from "@steelyard/protocol/ucp/checkout";
 import {
+  BuyerHmsProfileMissing,
   MerchantNoCheckout,
   Steelyard,
   UCP_LEGACY_CAPABILITY_ALIASES,
@@ -288,6 +289,17 @@ describe("Steelyard.connect", () => {
     if (!isMerchant(ap2Merchant)) throw new Error("Expected merchant");
     expect(ap2Merchant.supports("checkout")).toBe(true);
     expect(ap2Merchant.supports("checkout:steelyard")).toBe(false);
+  });
+
+  it("fails fast when HMS buyer auth is configured without a signer profile URL", async () => {
+    await expect(
+      connect("https://coffee.example/.well-known/ucp", {
+        ucpAuth: {
+          preferred: "hms",
+          signing: { kid: "wallet-p256", algorithm: "ES256" } as never
+        }
+      })
+    ).rejects.toBeInstanceOf(BuyerHmsProfileMissing);
   });
 
   it("sniffs canonical, legacy, mixed, and absent UCP checkout capabilities", async () => {

@@ -3,6 +3,8 @@ import {
   type BillingAddress,
   type BillingPayload,
   type CardMetadata,
+  type EcJwk,
+  type HmsAlgorithm,
   type JsonWebKey,
   type Receipt,
   type SpendReceipt
@@ -55,6 +57,16 @@ import {
   type StoredMandateKey
 } from "./mandate.js";
 import {
+  UcpSigningKeyMissing,
+  createStoredUcpSigningKey,
+  normalizeStoredUcpSigningKey,
+  signWithUcpKey as signWithStoredUcpKey,
+  ucpSigningKeyMetadata,
+  ucpSigningPublicKey,
+  type StoredUcpSigningKey,
+  type UcpSigningKeyMetadata
+} from "./ucp-signing.js";
+import {
   exportKeyToRecoveryFile,
   exportKeyUnsafe,
   importKeyFromRecoveryFile
@@ -78,6 +90,7 @@ interface VaultRecord {
   cards: StoredCard[];
   addresses: StoredAddress[];
   mandateKey?: StoredMandateKey;
+  ucpSigningKey?: StoredUcpSigningKey;
 }
 
 export class BuyerVault {
@@ -354,6 +367,35 @@ export class BuyerVault {
     return derivePairwiseSubject(await this.requireMandateKey(), audience);
   }
 
+  async createUcpSigningKey(opts: { algorithm: HmsAlgorithm }): Promise<UcpSigningKeyMetadata> {
+    this.assertOpen();
+    const record = await this.readCurrentRecord();
+    if (record.ucpSigningKey) {
+      if (record.ucpSigningKey.algorithm !== opts.algorithm) {
+        throw new Error(`UCP signing key already exists with algorithm ${record.ucpSigningKey.algorithm}`);
+      }
+      return ucpSigningKeyMetadata(record.ucpSigningKey);
+    }
+    record.ucpSigningKey = createStoredUcpSigningKey(opts);
+    await this.writeCurrentRecord(record);
+    return ucpSigningKeyMetadata(record.ucpSigningKey);
+  }
+
+  async hasUcpSigningKey(): Promise<boolean> {
+    this.assertOpen();
+    return !!(await this.readCurrentRecord()).ucpSigningKey;
+  }
+
+  async exportUcpSigningPublicKey(): Promise<EcJwk> {
+    this.assertOpen();
+    return ucpSigningPublicKey(await this.requireUcpSigningKey());
+  }
+
+  async signWithUcpKey(args: { data: Uint8Array; algorithm: HmsAlgorithm }): Promise<Uint8Array> {
+    this.assertOpen();
+    return await signWithStoredUcpKey(await this.requireUcpSigningKey(), args);
+  }
+
   async recordSpend(receipt: SpendReceipt): Promise<void> {
     this.assertOpen();
     await this.ledger.recordSpend(receipt);
@@ -463,6 +505,12 @@ export class BuyerVault {
     return key;
   }
 
+  private async requireUcpSigningKey(): Promise<StoredUcpSigningKey> {
+    const key = (await this.readCurrentRecord()).ucpSigningKey;
+    if (!key) throw new UcpSigningKeyMissing();
+    return key;
+  }
+
   private assertOpen(): void {
     if (!this.#isOpen) throw new Error("vault is closed");
   }
@@ -543,6 +591,7 @@ function normalizeVaultRecord(value: unknown): VaultRecord {
     throw new Error("vault profile is malformed");
   }
   const mandateKey = normalizeStoredMandateKey(record.mandateKey);
+  const ucpSigningKey = normalizeStoredUcpSigningKey(record.ucpSigningKey);
   return {
     profile: {
       name: record.profile.name,
@@ -550,7 +599,8 @@ function normalizeVaultRecord(value: unknown): VaultRecord {
     },
     cards: Array.isArray(record.cards) ? (record.cards as StoredCard[]) : [],
     addresses: Array.isArray(record.addresses) ? (record.addresses as StoredAddress[]) : [],
-    ...(mandateKey ? { mandateKey } : {})
+    ...(mandateKey ? { mandateKey } : {}),
+    ...(ucpSigningKey ? { ucpSigningKey } : {})
   };
 }
 

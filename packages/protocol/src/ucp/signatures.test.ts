@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it } from "vitest";
-import { contentDigestHeader, parseSf941Dict, type EcJwk } from "@steelyard/core";
+import { contentDigestHeader, ecdsaSignRaw, parseSf941Dict, type EcJwk } from "@steelyard/core";
 import {
   UcpSignerMissingHeader,
   signUcpRequest,
@@ -70,6 +70,55 @@ describe("signUcpRequest", () => {
         now
       })
     ).rejects.toMatchObject(new UcpSignerMissingHeader("content-type"));
+  });
+
+  it("supports opaque signer callbacks and rejects wrong-length raw signatures", async () => {
+    const body = jsonBytes({ checkout: {} });
+    let capturedBase: Uint8Array | undefined;
+    const signed = await signUcpRequest({
+      method: "POST",
+      url: new URL("https://merchant.example/ucp/api/checkout"),
+      headers: { "content-type": "application/json", "idempotency-key": "create-opaque" },
+      body,
+      signing: {
+        kid: "wallet-p256",
+        algorithm: "ES256",
+        async sign(data) {
+          capturedBase = data;
+          return await ecdsaSignRaw({ algorithm: "ES256", privateKeyJwk: walletP256PrivateKey, data });
+        }
+      },
+      ucpAgent,
+      now
+    });
+
+    expect(capturedBase).toBeTruthy();
+    await expect(
+      verifyUcpRequest({
+        method: "POST",
+        url: new URL("https://merchant.example/ucp/api/checkout"),
+        headers: signed.headers,
+        body,
+        resolveKey: async () => walletP256PublicKey,
+        now
+      })
+    ).resolves.toMatchObject({ ok: true, kid: "wallet-p256" });
+
+    await expect(
+      signUcpRequest({
+        method: "POST",
+        url: new URL("https://merchant.example/ucp/api/checkout"),
+        headers: { "content-type": "application/json", "idempotency-key": "create-short" },
+        body,
+        signing: {
+          kid: "wallet-p256",
+          algorithm: "ES256",
+          sign: async () => new Uint8Array([1])
+        },
+        ucpAgent,
+        now
+      })
+    ).rejects.toThrow(/expected 64/);
   });
 
   it("signs read requests without idempotency or body digest components", async () => {
