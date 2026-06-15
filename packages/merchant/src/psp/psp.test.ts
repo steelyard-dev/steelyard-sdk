@@ -198,6 +198,8 @@ describe("stripePsp", () => {
       ok: true,
       psp_payment_id: "pi_1"
     });
+    const body = calls[0]!.init.body as URLSearchParams;
+    expect(body.get("payment_method")).toBe("card_1");
     await expect(
       psp.capture({
         ...captureArgs,

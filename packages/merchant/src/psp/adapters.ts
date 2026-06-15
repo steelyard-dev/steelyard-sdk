@@ -107,7 +107,7 @@ export function mockPsp(opts: MockPspOptions = {}): PspAdapter {
     name: "mock",
     supportsHandler: (handlerId) => handlerIds.size === 0 || handlerIds.has(handlerId),
     async capture(args) {
-      await validateCaptureArgs(args, clock);
+      const validation = await validateCaptureArgs(args, clock);
       const cached = captures.get(args.idempotencyKey);
       if (cached) return cloneResult(cached);
       const failure = mockFailure(opts.failOn, args);
@@ -117,7 +117,13 @@ export function mockPsp(opts: MockPspOptions = {}): PspAdapter {
       }
       const result: PspCaptureResult = {
         ok: true,
-        psp_payment_id: `psp_payment_${shortHash(seed, args.vault_token, String(args.amount), args.currency, args.idempotencyKey)}`,
+        psp_payment_id: `psp_payment_${shortHash(
+          seed,
+          pspPaymentMethod(args, validation),
+          String(args.amount),
+          args.currency,
+          args.idempotencyKey
+        )}`,
         status: "captured"
       };
       captures.set(args.idempotencyKey, result);
@@ -151,7 +157,7 @@ export function stripePsp(opts: StripePspOptions): PspAdapter {
     name: "stripe",
     supportsHandler: (handlerId) => handlerIds.has(handlerId),
     async capture(args) {
-      await validateCaptureArgs(args, clock);
+      const validation = await validateCaptureArgs(args, clock);
       try {
         const response = await fetchImpl(`${apiBaseUrl}/v1/payment_intents`, {
           method: "POST",
@@ -160,7 +166,7 @@ export function stripePsp(opts: StripePspOptions): PspAdapter {
             "content-type": "application/x-www-form-urlencoded",
             "idempotency-key": args.idempotencyKey
           },
-          body: stripeCaptureBody(args)
+          body: stripeCaptureBody(args, validation)
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) return stripeFailure(payload);
@@ -211,7 +217,11 @@ function mockFailure(failOn: MockPspFailMode | undefined, args: PspCaptureArgs):
   return { ok: false, reason: failOn, message: `mock PSP ${failOn}` };
 }
 
-async function validateCaptureArgs(args: PspCaptureArgs, clock: () => Date): Promise<void> {
+interface CaptureValidation {
+  paymentMandateClaims?: Record<string, unknown>;
+}
+
+async function validateCaptureArgs(args: PspCaptureArgs, clock: () => Date): Promise<CaptureValidation> {
   if (!args.vault_token) throw new PspConfigError("vault_token is required");
   if (!Number.isInteger(args.amount) || args.amount < 0) throw new PspConfigError("amount must be a non-negative integer");
   if (!/^[A-Z]{3}$/.test(args.currency)) throw new PspConfigError("currency must be ISO 4217 uppercase");
@@ -221,7 +231,9 @@ async function validateCaptureArgs(args: PspCaptureArgs, clock: () => Date): Pro
   if (args.payment_mandate) {
     const verified = await verifyAp2PaymentMandate(args.payment_mandate, clock);
     if (!verified.ok) throw new PspConfigError(`payment_mandate invalid: ${verified.reason}`);
+    return { paymentMandateClaims: verified.claims };
   }
+  return {};
 }
 
 type PaymentMandateVerificationResult =
@@ -373,11 +385,17 @@ function validNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value);
 }
 
-function stripeCaptureBody(args: PspCaptureArgs): URLSearchParams {
+function pspPaymentMethod(args: PspCaptureArgs, validation: CaptureValidation): string {
+  const paymentInstrument = asRecord(validation.paymentMandateClaims?.payment_instrument);
+  const id = paymentInstrument.id;
+  return typeof id === "string" && id ? id : args.vault_token;
+}
+
+function stripeCaptureBody(args: PspCaptureArgs, validation: CaptureValidation): URLSearchParams {
   const body = new URLSearchParams();
   body.set("amount", String(args.amount));
   body.set("currency", args.currency.toLowerCase());
-  body.set("payment_method", args.vault_token);
+  body.set("payment_method", pspPaymentMethod(args, validation));
   body.set("confirm", "true");
   body.set("capture_method", "automatic");
   body.set("metadata[source]", "steelyard");

@@ -1,4 +1,5 @@
 // Copyright (c) Steelyard contributors. MIT License.
+import { createHash } from "node:crypto";
 import { createServer, type RequestListener, type Server } from "node:http";
 import {
   defineCommerce,
@@ -340,6 +341,29 @@ describe("createMerchantCheckout", () => {
           },
           ap2: {
             enabled: true,
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
+          }
+        }
+      })
+    ).toThrow(/mandateVerifier/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys,
+              activeKid: "merchant-p256"
+            }
+          },
+          ap2: {
+            enabled: true,
+            mandateVerifier: mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "wallet-p256" } }),
             merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
           }
         }
@@ -795,12 +819,14 @@ describe("createMerchantCheckout", () => {
   it("mounts AP2 merchant authorization on AP2-locked UCP checkout responses", async () => {
     const signingKeys = [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" as const }];
     const store = memoryCheckoutSessionStore();
+    const psp = recordingPsp();
     const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey], { ap2: true });
+    let verifiedAp2Checkout: Record<string, unknown> | undefined;
     const client = await listen(
       createMerchantCheckout(manifest, {
         protocols: ["ucp"],
         store,
-        psp: recordingPsp().adapter,
+        psp: psp.adapter,
         idempotency: memoryIdempotencyStore(),
         clock: () => now,
         ucp: {
@@ -814,6 +840,20 @@ describe("createMerchantCheckout", () => {
           },
           ap2: {
             enabled: true,
+            mandateVerifier: {
+              async verify() {
+                return {
+                  ok: true,
+                  subject_id: "buyer_1",
+                  key_id: "wallet-p256",
+                  claims: {
+                    exp: Math.floor(now.getTime() / 1000) + 300,
+                    cnf: { jwk: walletP256PublicKey }
+                  },
+                  checkout: verifiedAp2Checkout
+                };
+              }
+            },
             merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
           }
         }
@@ -842,6 +882,7 @@ describe("createMerchantCheckout", () => {
     expect(fetched.body).not.toHaveProperty("ap2_locked");
     const ap2 = recordField(fetched.body, "ap2");
     const merchantAuthorization = stringField(ap2, "merchant_authorization");
+    verifiedAp2Checkout = fetched.body;
     expect(merchantAuthorization).toMatch(/^[A-Za-z0-9_-]+\.\.[A-Za-z0-9_-]+$/);
     await expect(
       verifyDetachedJws({
@@ -899,6 +940,46 @@ describe("createMerchantCheckout", () => {
       status: 400,
       body: { code: "mandate_required", content: expect.stringContaining("checkout_mandate") }
     });
+
+    const paymentMandateBody = {
+      payment: {
+        instruments: [
+          {
+            id: "instrument_1",
+            handler_id: "stripe",
+            type: "vault_token",
+            credential: { type: "ap2_payment_mandate", token: "payment-mandate-token" },
+            selected: true
+          }
+        ]
+      },
+      ap2: { checkout_mandate: "checkout-mandate-token" }
+    };
+    const completed = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      paymentMandateBody,
+      "ucp-ap2-complete-valid",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        paymentMandateBody,
+        "ucp-ap2-complete-valid",
+        buyerProfileUrl
+      )
+    );
+    expect(completed).toMatchObject({ status: 200, body: { status: "completed" } });
+    expect(psp.captures[0]?.payment_mandate).toMatchObject({
+      format: "ap2-sd-jwt-kb",
+      payload: "payment-mandate-token",
+      holder_jwk: walletP256PublicKey,
+      payment_intent: {
+        amount: 500,
+        currency: "USD",
+        checkout_id: checkoutId,
+        transaction_id: createHash("sha256").update(merchantAuthorization).digest("base64url")
+      }
+    });
   });
 
   it("does not AP2-lock a UCP checkout when the buyer profile lacks AP2 capability", async () => {
@@ -923,6 +1004,7 @@ describe("createMerchantCheckout", () => {
           },
           ap2: {
             enabled: true,
+            mandateVerifier: mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "wallet-p256" } }),
             merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
           }
         }

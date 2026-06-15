@@ -42,7 +42,7 @@ import {
 } from "@steelyard/protocol/ucp";
 import type { MandateVerificationResult, MandateVerifier, MerchantAuthorizationSigner } from "../mandate/index.js";
 import type { MerchantPolicy } from "../policy/index.js";
-import type { PspAdapter, PspCaptureResult } from "../psp/index.js";
+import type { PspAdapter, PspCaptureResult, PspPaymentMandate } from "../psp/index.js";
 import { IdempotencyConflict, type IdempotencyResponse, type IdempotencyStore } from "./idempotency.js";
 import {
   StoreCasConflict,
@@ -88,6 +88,7 @@ export interface UcpHmsAuthConfig {
 
 export interface UcpAp2Config {
   enabled: boolean;
+  mandateVerifier?: MandateVerifier;
   merchantAuthorizationSigner?: MerchantAuthorizationSigner;
 }
 
@@ -355,9 +356,10 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
               )
             };
           }
+          const verifier = current.ap2_locked === true ? ctx.opts.ucp?.ap2?.mandateVerifier : mandateVerifier;
           let mandateOk: Extract<MandateVerificationResult, { ok: true }> | undefined;
-          if (ctx.opts.steelyardMandate) {
-            const mandate = await mandateVerifier!.verify(
+          if (current.ap2_locked === true || ctx.opts.steelyardMandate) {
+            const mandate = await verifier!.verify(
               body as Record<string, unknown>,
               { ...claimed, payment: (body as Record<string, unknown>).payment },
               ctx.ucpAudience
@@ -367,7 +369,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
               return {
                 next: checkoutCanceled(
                   claimed,
-                  mandateErrorCode(mandate.reason),
+                  mandateFailureCode(mandate),
                   mandate.reason,
                   ctx.clock()
                 )
@@ -375,7 +377,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
             }
             mandateOk = mandate;
           }
-          const pspResult = await capture(ctx, "ucp", claimed, payment, idempotencyKey);
+          const pspResult = await capture(ctx, "ucp", claimed, payment, idempotencyKey, mandateOk);
           if (!pspResult.ok) {
             status = 402;
             return {
@@ -589,8 +591,9 @@ async function capture(
   ctx: MerchantCheckoutContext,
   protocol: "acp" | "ucp",
   session: StoredCheckout,
-  payment: { vault_token: string; handler_id: string },
-  _httpIdempotencyKey: string
+  payment: { vault_token: string; handler_id: string; payment_mandate_token?: string },
+  _httpIdempotencyKey: string,
+  mandateOk?: Extract<MandateVerificationResult, { ok: true }>
 ): Promise<PspCaptureResult> {
   const id = session.id;
   return await ctx.opts.psp.capture({
@@ -601,8 +604,41 @@ async function capture(
     idempotencyKey: `psp:${protocol}:${id}:capture`,
     session_id: id,
     merchant_id: ctx.manifest.identity.domain ?? ctx.manifest.identity.name,
-    handler_id: payment.handler_id
+    handler_id: payment.handler_id,
+    ...(payment.payment_mandate_token
+      ? { payment_mandate: ap2PaymentMandateForCapture(ctx, session, payment.payment_mandate_token, mandateOk) }
+      : {})
   });
+}
+
+function ap2PaymentMandateForCapture(
+  ctx: MerchantCheckoutContext,
+  session: StoredCheckout,
+  token: string,
+  mandateOk: Extract<MandateVerificationResult, { ok: true }> | undefined
+): PspPaymentMandate {
+  if (!mandateOk) throw new HttpError(400, "mandate_required");
+  const claims = asRecord(asRecord(mandateOk).claims);
+  const holderJwk = asRecord(asRecord(claims.cnf).jwk);
+  const checkout = asRecord(asRecord(mandateOk).checkout);
+  const merchantAuthorization = stringValue(asRecord(asRecord(checkout).ap2).merchant_authorization, "");
+  if (!merchantAuthorization) throw new HttpError(400, "merchant_authorization_missing");
+  const exp = typeof claims.exp === "number" && Number.isSafeInteger(claims.exp)
+    ? claims.exp
+    : Math.floor(ctx.clock().getTime() / 1000) + 300;
+
+  return {
+    format: "ap2-sd-jwt-kb",
+    payload: token,
+    holder_jwk: assertValidEcJwk(holderJwk),
+    payment_intent: {
+      amount: totalAmount(totals(session)),
+      currency: stringValue(session.currency, checkoutCurrency(ctx.manifest)),
+      checkout_id: session.id,
+      expires_at: new Date(exp * 1000).toISOString(),
+      transaction_id: createHash("sha256").update(Buffer.from(merchantAuthorization, "utf8")).digest("base64url")
+    }
+  };
 }
 
 async function requireSession(store: CheckoutSessionStore, id: string): Promise<StoredCheckout> {
@@ -776,7 +812,13 @@ function mandateErrorCode(reason: string): string {
   return "mandate_invalid";
 }
 
-function ucpPaymentData(body: unknown): { vault_token: string; handler_id: string } {
+function mandateFailureCode(result: Extract<MandateVerificationResult, { ok: false }>): string {
+  const code = asRecord(result).code;
+  if (typeof code === "string" && code) return code;
+  return mandateErrorCode(result.reason);
+}
+
+function ucpPaymentData(body: unknown): { vault_token: string; handler_id: string; payment_mandate_token?: string } {
   const payment = asRecord(asRecord(body).payment);
   const instruments = payment.instruments;
   if (!Array.isArray(instruments)) throw new HttpError(400, "payment_instrument_required");
@@ -786,7 +828,12 @@ function ucpPaymentData(body: unknown): { vault_token: string; handler_id: strin
   const handlerId = stringValue(selected.handler_id, "");
   if (!token) throw new HttpError(400, "vault_token_required");
   if (!handlerId) throw new HttpError(400, "payment_handler_required");
-  return { vault_token: token, handler_id: handlerId };
+  const credentialType = stringValue(credential.type, "");
+  return {
+    vault_token: token,
+    handler_id: handlerId,
+    ...(credentialType === "ap2_payment_mandate" ? { payment_mandate_token: token } : {})
+  };
 }
 
 function withAcpPaymentHandlers(session: Record<string, unknown>, psp: PspAdapter): Record<string, unknown> {
@@ -1020,6 +1067,9 @@ function validateUcpAp2Config(config: NonNullable<MerchantCheckoutOpts["ucp"]> |
   }
   if (!config.ap2.merchantAuthorizationSigner) {
     throw new MerchantCheckoutConfigError("ucp.ap2.merchantAuthorizationSigner is required when AP2 is enabled");
+  }
+  if (!config.ap2.mandateVerifier) {
+    throw new MerchantCheckoutConfigError("ucp.ap2.mandateVerifier is required when AP2 is enabled");
   }
 }
 
