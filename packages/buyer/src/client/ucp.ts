@@ -1,7 +1,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import { mapUcpCheckoutStatus, type HmsAlgorithm, type PurchaseIntent, type Receipt } from "@steelyard/core";
+import { mapUcpCheckoutStatus, type EcJwk, type HmsAlgorithm, type PurchaseIntent, type Receipt } from "@steelyard/core";
 import { assertValidUcpCheckout, type Checkout } from "@steelyard/protocol/ucp/checkout";
-import { signUcpRequest } from "@steelyard/protocol/ucp";
+import { resolveSigningKey, signUcpRequest, verifyUcpResponse, type UcpProfileDoc } from "@steelyard/protocol/ucp";
 import {
   asRecord,
   billingBuyer,
@@ -13,11 +13,13 @@ import {
   notifyTotals,
   patchJson,
   postJson,
+  postJsonResponse,
   purchaseKey,
   receiptBase,
   selectedHandler,
   stringValue,
   type DriverBaseOpts,
+  type JsonHttpResponse,
   type JsonRecord,
   type JsonRequestHeaderPreparer,
   type PaymentHandlerLike
@@ -25,7 +27,7 @@ import {
 
 export interface UcpDriverOpts extends DriverBaseOpts {
   merchantUrl: string | URL;
-  merchantProfile?: { ucp?: { payment_handlers?: Record<string, unknown> } };
+  merchantProfile?: { ucp?: { payment_handlers?: Record<string, unknown> }; signing_keys?: EcJwk[] };
   supportsSteelyardMode?: boolean;
   ucpAuth?: UcpAuthOptions;
 }
@@ -69,6 +71,13 @@ export class UcpAuthMissing extends Error {
   constructor(message = "UCP auth could not be produced for the selected mechanism") {
     super(message);
     this.name = "UcpAuthMissing";
+  }
+}
+
+export class UcpResponseSignatureInvalid extends Error {
+  constructor(readonly reason: string, readonly detail?: string) {
+    super(`UCP response signature verification failed: ${detail ? `${reason}: ${detail}` : reason}`);
+    this.name = "UcpResponseSignatureInvalid";
   }
 }
 
@@ -162,13 +171,17 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     signed = await opts.port.signMandate(mandatePayload);
     completeBody["steelyard.checkout_mandate"] = signed.jwt;
   }
-  const completed = asRecord(
-    await postJson(joinUrl(opts.merchantUrl, `/checkout/${encodeURIComponent(checkoutId)}/complete`), completeBody, {
+  const completedResponse = await postJsonResponse(
+    joinUrl(opts.merchantUrl, `/checkout/${encodeURIComponent(checkoutId)}/complete`),
+    completeBody,
+    {
       idempotencyKey: `${key}:complete`,
       fetch: opts.fetch,
       prepareHeaders
-    })
+    }
   );
+  await verifySignedUcpCompleteResponse(opts, completedResponse, clock);
+  const completed = asRecord(completedResponse.body);
   assertValidUcpCheckout(completed);
   return ucpReceipt(intent, completed, vaultTokenId, signed?.jwt, clock);
 }
@@ -245,6 +258,33 @@ function hmsRequestAuth(opts: UcpDriverOpts): Extract<ResolvedUcpRequestAuth, { 
     profileUrl: signing.profileUrl,
     sign: (data) => opts.port.signWithUcpKey!({ data, algorithm: signing.algorithm })
   };
+}
+
+async function verifySignedUcpCompleteResponse(
+  opts: UcpDriverOpts,
+  response: JsonHttpResponse,
+  clock: () => Date
+): Promise<void> {
+  const signatureInput = response.headers["signature-input"];
+  const signature = response.headers.signature;
+  if (!signatureInput && !signature) return;
+
+  const result = await verifyUcpResponse({
+    status: response.status,
+    headers: response.headers,
+    body: response.rawBody.byteLength ? response.rawBody : undefined,
+    resolveKey: async (kid) => resolveMerchantSigningKey(opts.merchantProfile, kid),
+    now: clock()
+  });
+  if (!result.ok) throw new UcpResponseSignatureInvalid(result.reason, result.detail);
+}
+
+function resolveMerchantSigningKey(
+  profile: UcpDriverOpts["merchantProfile"] | undefined,
+  kid: string
+): EcJwk | null {
+  if (!profile) return null;
+  return resolveSigningKey(profile as UcpProfileDoc, kid);
 }
 
 function ucpHeaderPreparer(

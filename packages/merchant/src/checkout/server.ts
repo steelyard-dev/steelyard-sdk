@@ -32,6 +32,7 @@ import {
 } from "@steelyard/protocol/ucp/checkout";
 import {
   UcpProfileCache,
+  signUcpResponse,
   verifyUcpRequest,
   type UcpRequestVerificationFailureReason
 } from "@steelyard/protocol/ucp";
@@ -60,6 +61,7 @@ export interface MerchantCheckoutOpts {
     };
     allowPrivateNetwork?: boolean;
     profileCache?: UcpProfileCache;
+    responseSigningPolicy?: UcpResponseSigningPolicy;
   };
   idempotency: IdempotencyStore;
   clock?: () => Date;
@@ -88,7 +90,10 @@ export interface UcpBearerAuthConfig {
   verify: (token: string) => Promise<UcpBearerAuthResult> | UcpBearerAuthResult;
 }
 
+export type UcpResponseSigningPolicy = "high-value-only" | "all" | "off";
+
 type UcpAuthConfig = NonNullable<NonNullable<MerchantCheckoutOpts["ucp"]>["auth"]>;
+type UcpResponseKind = "normal" | "high-value";
 
 export interface AcpRoutes {
   createSession(req: IncomingMessage, res: ServerResponse): Promise<void>;
@@ -278,7 +283,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
 
   return {
     async createCheckout(req, res) {
-      await withUcpJsonIdempotency(ctx, req, res, "ucp:create", async (body) => {
+      await withUcpJsonIdempotency(ctx, req, res, "ucp:create", "normal", async (body) => {
         const policy = await ctx.evaluatePolicy("ucp", body);
         if (policy) return policy;
         const result = applyUcpCreate(body as Partial<UcpCheckout>, {
@@ -293,12 +298,12 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
       });
     },
     async getCheckout(req, res) {
-      const id = pathId(req, "/ucp/api/checkout/");
+      const id = ucpCheckoutId(req);
       sendJson(res, 200, await requireSession(ctx.opts.store, id));
     },
     async updateCheckout(req, res) {
-      const id = pathId(req, "/ucp/api/checkout/");
-      await withUcpJsonIdempotency(ctx, req, res, `ucp:update:${id}`, async (body) => {
+      const id = ucpCheckoutId(req);
+      await withUcpJsonIdempotency(ctx, req, res, `ucp:update:${id}`, "normal", async (body) => {
         const current = await requireSession(ctx.opts.store, id);
         const policy = await ctx.evaluatePolicy("ucp", body);
         if (policy) return policy;
@@ -309,8 +314,8 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
       });
     },
     async completeCheckout(req, res) {
-      const id = pathId(req, "/ucp/api/checkout/", "/complete");
-      await withUcpJsonIdempotency(ctx, req, res, `ucp:complete:${id}`, async (body, idempotencyKey) => {
+      const id = ucpCheckoutId(req, "/complete");
+      await withUcpJsonIdempotency(ctx, req, res, `ucp:complete:${id}`, "high-value", async (body, idempotencyKey) => {
         const current = await requireSession(ctx.opts.store, id);
         const policy = await ctx.evaluatePolicy("ucp", current);
         if (policy) return policy;
@@ -368,8 +373,8 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
       });
     },
     async cancelCheckout(req, res) {
-      const id = pathId(req, "/ucp/api/checkout/", "/cancel");
-      await withUcpJsonIdempotency(ctx, req, res, `ucp:cancel:${id}`, async () => {
+      const id = ucpCheckoutId(req, "/cancel");
+      await withUcpJsonIdempotency(ctx, req, res, `ucp:cancel:${id}`, "normal", async () => {
         const current = await requireSession(ctx.opts.store, id);
         const next = await ctx.opts.store.transition(id, current.status, "canceled", async (claimed) => {
           const canceled = applyUcpCancel(claimed as UcpCheckout, { now: ctx.clock() });
@@ -407,15 +412,15 @@ async function dispatch(
   }
 
   if (routes.ucp) {
-    if (req.method === "POST" && path === "/ucp/api/checkout") return await routes.ucp.createCheckout(req, res);
-    if (req.method === "GET" && /^\/ucp\/api\/checkout\/[^/]+$/.test(path)) return await routes.ucp.getCheckout(req, res);
-    if (req.method === "PATCH" && /^\/ucp\/api\/checkout\/[^/]+$/.test(path)) {
+    if (req.method === "POST" && isUcpCheckoutCreatePath(path)) return await routes.ucp.createCheckout(req, res);
+    if (req.method === "GET" && isUcpCheckoutResourcePath(path)) return await routes.ucp.getCheckout(req, res);
+    if (req.method === "PATCH" && isUcpCheckoutResourcePath(path)) {
       return await routes.ucp.updateCheckout(req, res);
     }
-    if (req.method === "POST" && /^\/ucp\/api\/checkout\/[^/]+\/complete$/.test(path)) {
+    if (req.method === "POST" && isUcpCheckoutActionPath(path, "complete")) {
       return await routes.ucp.completeCheckout(req, res);
     }
-    if (req.method === "POST" && /^\/ucp\/api\/checkout\/[^/]+\/cancel$/.test(path)) {
+    if (req.method === "POST" && isUcpCheckoutActionPath(path, "cancel")) {
       return await routes.ucp.cancelCheckout(req, res);
     }
   }
@@ -445,6 +450,7 @@ async function withUcpJsonIdempotency(
   req: IncomingMessage,
   res: ServerResponse,
   scope: string,
+  responseKind: UcpResponseKind,
   fn: (body: unknown, idempotencyKey: string) => Promise<IdempotencyResponse>
 ): Promise<void> {
   const rawBody = await readRawBody(req);
@@ -461,7 +467,53 @@ async function withUcpJsonIdempotency(
     return;
   }
   const response = await ctx.opts.idempotency.remember(key, bodyHash(scope, body), () => fn(body, key));
-  sendJson(res, response.status, response.body);
+  await sendUcpJsonResponse(ctx, res, response.status, response.body, responseKind);
+}
+
+async function sendUcpJsonResponse(
+  ctx: MerchantCheckoutContext,
+  res: ServerResponse,
+  status: number,
+  body: unknown,
+  kind: UcpResponseKind
+): Promise<void> {
+  const rawBody = Buffer.from(JSON.stringify(body), "utf8");
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  const signing = shouldSignUcpResponse(ctx, kind) ? activeUcpSigningKey(ctx) : undefined;
+  if (!signing) {
+    res.writeHead(status, headers);
+    res.end(rawBody);
+    return;
+  }
+
+  const signed = await signUcpResponse({
+    status,
+    headers,
+    body: rawBody,
+    signing,
+    now: ctx.clock()
+  });
+  res.writeHead(status, signed.headers);
+  res.end(rawBody);
+}
+
+function shouldSignUcpResponse(ctx: MerchantCheckoutContext, kind: UcpResponseKind): boolean {
+  const policy = ctx.opts.ucp?.responseSigningPolicy ?? "high-value-only";
+  if (policy === "off") return false;
+  if (policy === "all") return true;
+  return kind === "high-value";
+}
+
+function activeUcpSigningKey(ctx: MerchantCheckoutContext): { kid: string; algorithm: HmsAlgorithm; privateKey: EcJwk } | undefined {
+  const hms = ctx.opts.ucp?.auth?.hms;
+  if (hms?.enabled !== true) return undefined;
+  const active = hms.signingKeys.find((key) => key.kid === hms.activeKid);
+  if (!active) return undefined;
+  return {
+    kid: active.kid,
+    algorithm: active.algorithm,
+    privateKey: active.privateKeyJwk
+  };
 }
 
 async function capture(
@@ -618,6 +670,24 @@ function incomingHeaders(req: IncomingMessage): Record<string, string> {
 function requestUrl(req: IncomingMessage): URL {
   const host = Array.isArray(req.headers.host) ? req.headers.host[0] : req.headers.host;
   return new URL(req.url ?? "/", `http://${host ?? "localhost"}`);
+}
+
+function isUcpCheckoutCreatePath(path: string): boolean {
+  return path === "/ucp/api/checkout" || path === "/api/checkout";
+}
+
+function isUcpCheckoutResourcePath(path: string): boolean {
+  return /^\/(?:ucp\/)?api\/checkout\/[^/]+$/.test(path);
+}
+
+function isUcpCheckoutActionPath(path: string, action: "complete" | "cancel"): boolean {
+  return new RegExp(`^/(?:ucp/)?api/checkout/[^/]+/${action}$`).test(path);
+}
+
+function ucpCheckoutId(req: IncomingMessage, suffix = ""): string {
+  const path = requestPath(req);
+  const prefix = path.startsWith("/ucp/api/checkout/") ? "/ucp/api/checkout/" : "/api/checkout/";
+  return pathId(req, prefix, suffix);
 }
 
 function acpPaymentData(body: unknown): { vault_token: string; handler_id: string } {

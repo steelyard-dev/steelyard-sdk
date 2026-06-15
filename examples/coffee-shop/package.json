@@ -12,6 +12,7 @@
     "buy:primitives:v03": "tsx src/buy-with-primitives-v03.ts",
     "dev": "tsx src/index.ts",
     "scan:routes": "tsx scripts/scan-routes.ts",
+    "smoke:bearer": "tsx scripts/smoke-bearer.ts",
     "smoke:vanilla-ucp": "tsx scripts/smoke-vanilla-ucp.ts",
     "smoke:well-known": "tsx scripts/smoke-well-known.ts",
     "smoke:stripe": "tsx scripts/smoke-stripe.ts",

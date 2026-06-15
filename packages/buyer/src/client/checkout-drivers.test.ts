@@ -12,7 +12,7 @@ import {
   applyUcpUpdate,
   type Checkout as UcpCheckout
 } from "@steelyard/protocol/ucp/checkout";
-import { verifyUcpRequest } from "@steelyard/protocol/ucp";
+import { signUcpResponse, verifyUcpRequest } from "@steelyard/protocol/ucp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AcpCanceled,
@@ -38,6 +38,7 @@ import {
   UcpCanceled,
   UcpAuthMissing,
   UcpNoCompatibleHandler,
+  UcpResponseSignatureInvalid,
   ucpDriver
 } from "./ucp.js";
 
@@ -72,6 +73,16 @@ const walletP256PublicKey = {
 const walletP256PrivateKey = {
   ...walletP256PublicKey,
   d: b64urlHex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721")
+} satisfies EcJwk;
+
+const merchantP256PublicKey = {
+  ...walletP256PublicKey,
+  kid: "merchant-p256"
+} satisfies EcJwk;
+
+const merchantP256PrivateKey = {
+  ...merchantP256PublicKey,
+  d: walletP256PrivateKey.d
 } satisfies EcJwk;
 
 const servers: Server[] = [];
@@ -306,6 +317,38 @@ describe("UCP checkout driver", () => {
         now
       })).resolves.toMatchObject({ ok: true, kid: "wallet-p256", algorithm: "ES256" });
     }
+  });
+
+  it("verifies signed UCP complete responses against merchant profile keys", async () => {
+    const merchant = await startUcpMerchant({ signCompleteResponse: true });
+    const receipt = await ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "https://coffee.example/.well-known/ucp",
+      merchantProfile: { ucp: {}, signing_keys: [merchantP256PublicKey] },
+      delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+      supportsSteelyardMode: false,
+      port: testPort(),
+      idempotencyKey: "purchase_ucp_signed_response",
+      clock: () => now
+    });
+
+    expect(receipt.reference.ucp).toMatchObject({ checkout_id: "checkout_1", vault_token_id: "vt_1" });
+  });
+
+  it("rejects tampered signed UCP complete responses", async () => {
+    const merchant = await startUcpMerchant({ signCompleteResponse: true, tamperSignedCompleteResponse: true });
+    await expect(
+      ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+        merchantUrl: merchant.baseUrl,
+        merchantId: "https://coffee.example/.well-known/ucp",
+        merchantProfile: { ucp: {}, signing_keys: [merchantP256PublicKey] },
+        delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+        supportsSteelyardMode: false,
+        port: testPort(),
+        idempotencyKey: "purchase_ucp_tampered_signed_response",
+        clock: () => now
+      })
+    ).rejects.toBeInstanceOf(UcpResponseSignatureInvalid);
   });
 
   it("falls back to bearer auth when HMS is preferred but the port has no UCP key", async () => {
@@ -558,7 +601,13 @@ async function startAcpMerchant(opts: {
 }
 
 async function startUcpMerchant(
-  opts: { createStatus?: string; handlerCatalog?: boolean; requireMandate?: boolean } = {}
+  opts: {
+    createStatus?: string;
+    handlerCatalog?: boolean;
+    requireMandate?: boolean;
+    signCompleteResponse?: boolean;
+    tamperSignedCompleteResponse?: boolean;
+  } = {}
 ): Promise<{ baseUrl: string; requests: CapturedRequest[] }> {
   const requests: CapturedRequest[] = [];
   let checkout: UcpCheckout | undefined;
@@ -603,7 +652,7 @@ async function startUcpMerchant(
         orderId: "order_checkout_1",
         permalinkUrl: "https://coffee.example/orders/order_checkout_1"
       }).next;
-      sendJson(res, 200, completed);
+      await sendMaybeSignedUcpComplete(res, completed, opts);
       return;
     }
     sendJson(res, 404, { error: "not_found" });
@@ -748,6 +797,33 @@ function capturedHeaders(req: IncomingMessage): Record<string, string> {
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json" });
   res.end(JSON.stringify(body));
+}
+
+async function sendMaybeSignedUcpComplete(
+  res: ServerResponse,
+  body: UcpCheckout,
+  opts: { signCompleteResponse?: boolean; tamperSignedCompleteResponse?: boolean }
+): Promise<void> {
+  if (!opts.signCompleteResponse) {
+    sendJson(res, 200, body);
+    return;
+  }
+
+  const rawBody = Buffer.from(JSON.stringify(body), "utf8");
+  const signed = await signUcpResponse({
+    status: 200,
+    headers: { "content-type": "application/json" },
+    body: rawBody,
+    signing: {
+      kid: "merchant-p256",
+      algorithm: "ES256",
+      privateKey: merchantP256PrivateKey
+    },
+    now
+  });
+  const responseBody = opts.tamperSignedCompleteResponse ? { ...body, status: "canceled" } : body;
+  res.writeHead(200, signed.headers);
+  res.end(JSON.stringify(responseBody));
 }
 
 function response(text: string, status: number): Response {

@@ -11,7 +11,7 @@ import {
   memoryIdempotencyStore,
   MerchantCheckoutConfigError
 } from "./index.js";
-import { signUcpRequest } from "@steelyard/protocol/ucp";
+import { signUcpRequest, verifyUcpResponse } from "@steelyard/protocol/ucp";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const manifest = defineCommerce({
@@ -667,6 +667,66 @@ describe("createMerchantCheckout", () => {
     expect(psp.captures).toHaveLength(0);
   });
 
+  it("signs high-value UCP complete responses when HMS is enabled", async () => {
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          allowPrivateNetwork: true,
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }],
+              activeKid: "merchant-p256"
+            }
+          }
+        }
+      }).handler
+    );
+
+    const createBody = { line_items: ucpLineItems };
+    const created = await client.post(
+      "/ucp/api/checkout",
+      createBody,
+      "ucp-hms-response-create",
+      await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-hms-response-create", buyerProfileUrl)
+    );
+    const checkoutId = stringField(created.body, "id");
+    const completeBody = { payment: ucpPaymentComplete };
+    const completed = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      completeBody,
+      "ucp-hms-response-complete",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        completeBody,
+        "ucp-hms-response-complete",
+        buyerProfileUrl
+      )
+    );
+
+    expect(completed).toMatchObject({ status: 200, body: { status: "completed" } });
+    expect(completed.headers["signature-input"]).toContain("\"@status\"");
+    expect(completed.headers.signature).toContain("sig1=:");
+    expect(completed.headers["content-digest"]).toBeTruthy();
+    await expect(
+      verifyUcpResponse({
+        status: completed.status,
+        headers: completed.headers,
+        body: Buffer.from(completed.rawBody, "utf8"),
+        resolveKey: async (kid) => (kid === "merchant-p256" ? merchantP256PublicKey : null),
+        now
+      })
+    ).resolves.toMatchObject({ ok: true, kid: "merchant-p256", algorithm: "ES256" });
+  });
+
   it("dispatches UCP bearer auth and rejects missing or unsupported auth methods", async () => {
     const bearerVerify = vi.fn(async (token: string) =>
       token === "good" ? { ok: true, subject: "buyer_1" } : { ok: false, reason: "bad token" }
@@ -903,6 +963,8 @@ interface TestClient {
 
 interface TestResponse {
   status: number;
+  headers: Record<string, string>;
+  rawBody: string;
   body: Record<string, unknown>;
 }
 
@@ -920,7 +982,12 @@ async function request(
     body: opts.raw ?? (opts.body === undefined ? undefined : JSON.stringify(opts.body))
   });
   const text = await response.text();
-  return { status: response.status, body: text ? (JSON.parse(text) as Record<string, unknown>) : {} };
+  return {
+    status: response.status,
+    headers: Object.fromEntries(response.headers.entries()),
+    rawBody: text,
+    body: text ? (JSON.parse(text) as Record<string, unknown>) : {}
+  };
 }
 
 async function startBuyerProfile(signingKeys: EcJwk[]): Promise<string> {

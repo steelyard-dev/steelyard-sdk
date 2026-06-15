@@ -1,15 +1,23 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createUcpBuyerProfileHandler } from "@steelyard/buyer/client";
+import type { EcJwk } from "@steelyard/core";
 import { buildAcpFeed } from "@steelyard/protocol/acp";
 import { buildUcpDiscovery } from "@steelyard/protocol/ucp";
 import {
   createMerchantCheckout,
   memoryCheckoutSessionStore,
-  memoryIdempotencyStore
+  memoryIdempotencyStore,
+  type MerchantCheckoutOpts
 } from "@steelyard/merchant/checkout";
 import type { MandateVerifier } from "@steelyard/merchant/mandate";
 import { mockMandateVerifier } from "@steelyard/merchant/mandate";
 import { mockPsp, mockVaultToken } from "@steelyard/merchant/psp";
 import { coffeeShopManifest } from "./catalog.js";
+import {
+  buyerDemoUcpPublicKey,
+  coffeeShopBearerToken,
+  merchantDemoUcpPrivateKey
+} from "./demo-ucp-keys.js";
 import { createCoffeeShopHandler } from "./server.js";
 
 export interface RunningCoffeeShopCheckout {
@@ -25,14 +33,23 @@ export interface RunningDelegatePayment {
   close(): Promise<void>;
 }
 
+export type CoffeeShopUcpAuthMode = "hms-and-bearer" | "hms" | "bearer" | "none";
+
 export async function startCoffeeShopCheckoutServer(opts: {
   clock?: () => Date;
   mandateVerifier?: MandateVerifier;
   steelyardMandate?: boolean;
+  buyerSigningKeys?: readonly EcJwk[];
+  bearerToken?: string;
+  ucpAuthMode?: CoffeeShopUcpAuthMode;
 } = {}): Promise<RunningCoffeeShopCheckout> {
   let baseUrl = "";
   let checkout: ReturnType<typeof createMerchantCheckout> | undefined;
   const steelyardMandate = opts.steelyardMandate ?? true;
+  const ucpAuthMode = opts.ucpAuthMode ?? "hms-and-bearer";
+  const buyerProfile = createUcpBuyerProfileHandler({
+    signingKeys: opts.buyerSigningKeys ?? [buyerDemoUcpPublicKey]
+  });
   const read = createCoffeeShopHandler();
   const server = createServer((req, res) => {
     const path = requestPath(req);
@@ -40,11 +57,16 @@ export async function startCoffeeShopCheckoutServer(opts: {
       sendJson(res, 200, checkoutAcpFeed());
       return;
     }
+    if (path === "/buyer/.well-known/ucp") {
+      buyerProfile(req, res);
+      return;
+    }
     if (path === "/.well-known/ucp") {
       sendJson(res, 200, buildUcpDiscovery(coffeeShopManifest, {
         baseUrl,
         checkout: true,
-        steelyardMandate
+        steelyardMandate,
+        ucp: discoveryUcpConfig(ucpAuthMode)
       }));
       return;
     }
@@ -53,7 +75,6 @@ export async function startCoffeeShopCheckoutServer(opts: {
       return;
     }
     if (path === "/api/checkout" || path.startsWith("/api/checkout/")) {
-      req.url = `/ucp${req.url ?? ""}`;
       checkout.handler(req, res);
       return;
     }
@@ -80,7 +101,8 @@ export async function startCoffeeShopCheckoutServer(opts: {
     steelyardMandate,
     clock: opts.clock,
     baseUrl,
-    merchantAudience: `${baseUrl}/.well-known/ucp`
+    merchantAudience: `${baseUrl}/.well-known/ucp`,
+    ucp: checkoutUcpConfig(ucpAuthMode, opts.bearerToken ?? coffeeShopBearerToken)
   });
 
   return {
@@ -123,6 +145,59 @@ function checkoutAcpFeed(): Record<string, unknown> {
     ...buildAcpFeed(coffeeShopManifest),
     merchant: { id: "coffee.example", domain: "coffee.example" },
     capabilities: { services: ["read", "checkout"] }
+  };
+}
+
+function discoveryUcpConfig(mode: CoffeeShopUcpAuthMode) {
+  if (mode !== "hms" && mode !== "hms-and-bearer") return undefined;
+  return {
+    auth: {
+      hms: {
+        enabled: true,
+        signingKeys: [merchantDemoUcpPrivateKey]
+      }
+    }
+  };
+}
+
+function checkoutUcpConfig(
+  mode: CoffeeShopUcpAuthMode,
+  bearerToken: string
+): MerchantCheckoutOpts["ucp"] | undefined {
+  if (mode === "none") return undefined;
+  const hmsEnabled = mode === "hms" || mode === "hms-and-bearer";
+  const bearerEnabled = mode === "bearer" || mode === "hms-and-bearer";
+  return {
+    allowPrivateNetwork: true,
+    responseSigningPolicy: "high-value-only",
+    auth: {
+      ...(hmsEnabled
+        ? {
+            hms: {
+              enabled: true,
+              signingKeys: [
+                {
+                  kid: merchantDemoUcpPrivateKey.kid,
+                  privateKeyJwk: merchantDemoUcpPrivateKey,
+                  algorithm: "ES256" as const
+                }
+              ],
+              activeKid: merchantDemoUcpPrivateKey.kid
+            }
+          }
+        : {}),
+      ...(bearerEnabled
+        ? {
+            bearer: {
+              enabled: true,
+              verify: (token: string) =>
+                token === bearerToken
+                  ? { ok: true as const, subject: "buyer_example" }
+                  : { ok: false as const, reason: "invalid bearer token" }
+            }
+          }
+        : {})
+    }
   };
 }
 

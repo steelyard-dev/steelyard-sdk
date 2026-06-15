@@ -8,6 +8,7 @@ export type {
   UcpBearerAuthConfig,
   UcpBearerAuthResult,
   UcpHmsAuthConfig,
+  UcpResponseSigningPolicy,
   UcpRoutes
 } from "./server.js";
 export {

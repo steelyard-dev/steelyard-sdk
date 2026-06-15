@@ -55,6 +55,7 @@ jobs:
           STEELYARD_EXAMPLE_DRY_RUN=1 pnpm --filter @steelyard/example-coffee-shop buy:primitives
           STEELYARD_ALLOW_MOCK_PSP=1 STEELYARD_ALLOW_MOCK_MANDATE=1 pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol acp
           STEELYARD_ALLOW_MOCK_PSP=1 STEELYARD_ALLOW_MOCK_MANDATE=1 pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol ucp
+          STEELYARD_ALLOW_MOCK_PSP=1 pnpm --filter @steelyard/example-coffee-shop smoke:bearer
           STEELYARD_ALLOW_MOCK_PSP=1 STEELYARD_ALLOW_MOCK_MANDATE=1 pnpm --filter @steelyard/example-coffee-shop buy:primitives:v03
           STEELYARD_ALLOW_MOCK_PSP=1 STEELYARD_ALLOW_MOCK_MANDATE=1 pnpm --filter @steelyard/example-coffee-shop scan:routes
       - name: Verify (Linux keychain)

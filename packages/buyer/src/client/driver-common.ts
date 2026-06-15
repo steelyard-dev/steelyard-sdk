@@ -37,6 +37,12 @@ export type JsonRequestHeaderPreparer = (args: {
   headers: Record<string, string>;
   body: Uint8Array;
 }) => Promise<Record<string, string>>;
+export interface JsonHttpResponse {
+  status: number;
+  headers: Record<string, string>;
+  rawBody: Uint8Array;
+  body: unknown;
+}
 
 export function driverClock(opts: { clock?: () => Date }): () => Date {
   return opts.clock ?? systemClock;
@@ -55,6 +61,18 @@ export async function postJson(
     prepareHeaders?: JsonRequestHeaderPreparer;
   }
 ): Promise<unknown> {
+  return (await postJsonResponse(url, body, opts)).body;
+}
+
+export async function postJsonResponse(
+  url: string,
+  body: unknown,
+  opts: {
+    idempotencyKey: string;
+    fetch?: typeof fetch;
+    prepareHeaders?: JsonRequestHeaderPreparer;
+  }
+): Promise<JsonHttpResponse> {
   const fetchImpl = opts.fetch ?? globalThis.fetch;
   const rawBody = JSON.stringify(body);
   const headers = await prepareJsonHeaders({
@@ -72,12 +90,18 @@ export async function postJson(
     headers,
     body: rawBody
   });
-  const text = await response.text();
+  const responseBody = await readResponseBody(response);
+  const text = new TextDecoder().decode(responseBody);
   const parsed = text ? parseJson(text) : {};
   if (!response.ok) {
     throw new Error(redactCardData(`HTTP ${response.status} from ${url}: ${text}`));
   }
-  return parsed;
+  return {
+    status: response.status,
+    headers: responseHeaders(response),
+    rawBody: responseBody,
+    body: parsed
+  };
 }
 
 export async function patchJson(
@@ -259,6 +283,21 @@ function parseJson(text: string): unknown {
   } catch (error) {
     throw new Error(`invalid JSON response: ${(error as Error).message}`);
   }
+}
+
+async function readResponseBody(response: Response): Promise<Uint8Array> {
+  if (typeof response.arrayBuffer === "function") {
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  const text = await response.text();
+  return new TextEncoder().encode(text);
+}
+
+function responseHeaders(response: Response): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (!response.headers) return headers;
+  for (const [name, value] of response.headers.entries()) headers[name.toLowerCase()] = value;
+  return headers;
 }
 
 async function prepareJsonHeaders(args: {
