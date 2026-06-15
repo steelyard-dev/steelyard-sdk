@@ -142,26 +142,27 @@ describe("ACP checkout driver", () => {
   it("redacts PAN and CVC from delegate_payment failures", async () => {
     const merchant = await startAcpMerchant({ delegateStatus: 500 });
 
-    await expect(
-      acpDriver.purchase(intent, {
+    const error = await acpDriver.purchase(
+      intent,
+      {
         merchantUrl: merchant.baseUrl,
         merchantId: "coffee.example",
         delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
         port: testPort(),
         idempotencyKey: "purchase_2",
         clock: () => now
-      })
-    ).rejects.toThrow(/\[REDACTED_PAN\]/);
-    await expect(
-      acpDriver.purchase(intent, {
-        merchantUrl: merchant.baseUrl,
-        merchantId: "coffee.example",
-        delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
-        port: testPort(),
-        idempotencyKey: "purchase_3",
-        clock: () => now
-      })
-    ).rejects.not.toThrow(/4242424242424242|123/);
+      }
+    ).then(
+      () => {
+        throw new Error("expected delegate_payment failure");
+      },
+      (cause: unknown) => cause
+    );
+    const message = error instanceof Error ? error.message : String(error);
+    expect(message).toContain("[REDACTED_PAN]");
+    expect(message).toContain("cvc=[REDACTED_CVC]");
+    expect(message).not.toContain("4242424242424242");
+    expect(message).not.toContain("cvc=123");
   });
 
   it("maps non-payable ACP statuses to terminal driver errors", async () => {

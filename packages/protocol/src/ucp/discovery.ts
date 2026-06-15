@@ -12,6 +12,7 @@ import serviceSchema from "../../spec/ucp/2026-04-17/schemas/service.json";
 import ucpSchema from "../../spec/ucp/2026-04-17/schemas/ucp.json";
 import { COMMERCE_MANIFEST_PATH, assertValidEcJwk, type EcJwk, type Manifest } from "@steelyard/core";
 
+export { UCP_AP2_CAPABILITY } from "@steelyard/core";
 export const UCP_WELL_KNOWN_PATH = "/.well-known/ucp";
 export const UCP_API_PATH = "/api";
 export const UCP_VERSION = "2026-04-17";

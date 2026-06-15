@@ -10,6 +10,7 @@ export {
   validateCommerceManifest
 } from "./commerce-manifest.js";
 export { ERROR_CODES } from "./errors.js";
+export { AP2_ERROR_CODES, UCP_AP2_CAPABILITY } from "./ap2.js";
 export { defaultClock, systemClock } from "./clock.js";
 export {
   canonicalMerchantAudience,
@@ -86,6 +87,7 @@ export type {
   UnknownAcpOrderStatusWarning
 } from "./order-state.js";
 export type { UcpErrorEnvelope, V04ErrorEnvelope } from "./errors.js";
+export type { Ap2ErrorCode, DisclosureClaim, DisclosureTree } from "./ap2.js";
 export type {
   BuildSignatureBaseArgs,
   EcJwk,
