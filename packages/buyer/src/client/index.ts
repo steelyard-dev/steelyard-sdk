@@ -31,7 +31,7 @@ import { ucpDriver, type UcpAuthOptions } from "./ucp.js";
 export { createUcpBuyerProfile, createUcpBuyerProfileHandler } from "./profile.js";
 export type { UcpBuyerProfileOptions } from "./profile.js";
 export { Ap2MerchantAuthorizationInvalid, UcpAuthMissing, UcpResponseSignatureInvalid } from "./ucp.js";
-export type { UcpAuthOptions, UcpAuthPreference, UcpHmsSigningOptions } from "./ucp.js";
+export type { UcpAp2MandateOptions, UcpAuthOptions, UcpAuthPreference, UcpHmsSigningOptions } from "./ucp.js";
 
 export type Protocol = "mcp" | "acp" | "ucp";
 export type MerchantCapability = "read" | "checkout" | "checkout:steelyard" | "discounts";

@@ -50,6 +50,11 @@ import {
   UcpResponseSignatureInvalid,
   ucpDriver
 } from "./ucp.js";
+import {
+  parseAp2CheckoutMandate,
+  parseAp2PaymentMandate,
+  ucpAp2PaymentTransactionId
+} from "../vault/mandate-ap2/index.js";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const manifest = defineCommerce({
@@ -365,6 +370,60 @@ describe("UCP checkout driver", () => {
       "/delegate",
       "/checkout/checkout_1/complete"
     ]);
+  });
+
+  it("issues AP2 checkout and payment mandates in the UCP complete request (PM5-2)", async () => {
+    const merchant = await startUcpMerchant({ merchantAuthorization: "valid" });
+    const port = withUcpSigningKey(testPort());
+    const receipt = await ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "https://coffee.example/.well-known/ucp",
+      merchantProfile: { ucp: {}, signing_keys: [merchantP256PublicKey] },
+      delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+      supportsSteelyardMode: true,
+      port,
+      idempotencyKey: "purchase_ucp_ap2_pm5",
+      clock: () => now,
+      ap2: {
+        enabled: true,
+        issuer: "did:example:bank-dpc-issuer",
+        checkoutNonce: "checkout_nonce_1",
+        paymentNonce: "payment_nonce_1",
+        payee: {
+          id: "merchant_1",
+          name: "Acme Coffee",
+          website: "https://coffee.example"
+        },
+        paymentInstrument: {
+          id: "card_1",
+          type: "card",
+          description: "Visa 4242"
+        }
+      }
+    });
+
+    const complete = asRecord(merchant.requests[3]!.body);
+    const selected = asRecord((asRecord(complete.payment).instruments as unknown[])[0]);
+    const credential = asRecord(selected.credential);
+    const checkoutMandate = stringValue(asRecord(complete.ap2).checkout_mandate);
+    const paymentMandate = stringValue(credential.token);
+    const parsedCheckout = parseAp2CheckoutMandate(checkoutMandate);
+    const parsedPayment = parseAp2PaymentMandate(paymentMandate);
+    const embeddedCheckout = parsedCheckout.issuerPayload["ap2:checkout"] as UcpCheckout;
+
+    expect(receipt.reference.ucp?.mandate_id).toHaveLength(16);
+    expect(complete).not.toHaveProperty("steelyard.checkout_mandate");
+    expect(credential).toMatchObject({ type: "ap2_payment_mandate" });
+    expect(parsedCheckout.kbPayload).toMatchObject({ nonce: "checkout_nonce_1" });
+    expect(parsedPayment.kbPayload).toMatchObject({ nonce: "payment_nonce_1" });
+    expect(parsedPayment.issuerPayload).toMatchObject({
+      vct: "mandate.payment.1",
+      payment_amount: { amount: 0, currency: "USD" },
+      payee: { id: "merchant_1", name: "Acme Coffee" },
+      payment_instrument: { id: "card_1", type: "card", description: "Visa 4242" }
+    });
+    expect(parsedPayment.issuerPayload.transaction_id).toBe(ucpAp2PaymentTransactionId(embeddedCheckout));
+    expect(port.signMandatePayloads).toHaveLength(0);
   });
 
   for (const [merchantAuthorization, reason] of [

@@ -12,6 +12,12 @@ import {
 import { assertValidUcpCheckout, type Checkout } from "@steelyard/protocol/ucp/checkout";
 import { resolveSigningKey, signUcpRequest, verifyUcpResponse, type UcpProfileDoc } from "@steelyard/protocol/ucp";
 import {
+  issueAp2CheckoutMandate,
+  issueAp2PaymentMandate,
+  type Ap2PaymentInstrument,
+  type Ap2PaymentMerchant
+} from "../vault/mandate-ap2/index.js";
+import {
   asRecord,
   billingBuyer,
   canonicalMandateCheckout,
@@ -39,6 +45,7 @@ export interface UcpDriverOpts extends DriverBaseOpts {
   merchantProfile?: { ucp?: { payment_handlers?: Record<string, unknown> }; signing_keys?: EcJwk[] };
   supportsSteelyardMode?: boolean;
   ucpAuth?: UcpAuthOptions;
+  ap2?: UcpAp2MandateOptions;
 }
 
 export type UcpAuthPreference = "hms" | "bearer";
@@ -53,6 +60,18 @@ export interface UcpAuthOptions {
   preferred?: UcpAuthPreference;
   signing?: UcpHmsSigningOptions;
   bearerToken?: string;
+}
+
+export interface UcpAp2MandateOptions {
+  enabled: boolean;
+  issuer: string;
+  checkoutNonce: string;
+  paymentNonce: string;
+  paymentAudience?: string;
+  payee?: Ap2PaymentMerchant;
+  paymentInstrument?: Ap2PaymentInstrument;
+  checkoutMandateExpiresInSeconds?: number;
+  paymentMandateExpiresInSeconds?: number;
 }
 
 export class UcpNoCompatibleHandler extends Error {
@@ -157,7 +176,17 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     clock
   });
   const audience = opts.merchantId;
-  let signed: { jwt: string; key_id: string } | undefined;
+  const ap2Mandates = opts.ap2?.enabled
+    ? await issueUcpAp2Mandates({
+        opts,
+        checkout: checkout as Checkout,
+        totals,
+        vaultTokenId,
+        audience,
+        clock
+      })
+    : undefined;
+  let mandateJwt = ap2Mandates?.checkout_mandate;
   const completeBody: Record<string, unknown> = {
     payment: {
       instruments: [
@@ -165,13 +194,18 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
           id: instrumentId,
           handler_id: selected.handler.id,
           type: "vault_token",
-          credential: { type: tokenType, token: vaultTokenId },
+          credential: {
+            type: ap2Mandates ? "ap2_payment_mandate" : tokenType,
+            token: ap2Mandates?.payment_mandate ?? vaultTokenId
+          },
           selected: true
         }
       ]
     }
   };
-  if (opts.supportsSteelyardMode === true && canSignSteelyardMandate(opts.port)) {
+  if (ap2Mandates) {
+    completeBody.ap2 = { checkout_mandate: ap2Mandates.checkout_mandate };
+  } else if (opts.supportsSteelyardMode === true && canSignSteelyardMandate(opts.port)) {
     const publicKey = await opts.port.mandatePublicKey();
     const mandatePayload = {
       iss: publicKey.key_id,
@@ -188,7 +222,8 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
         expires_at: new Date(clock().getTime() + 15 * 60_000).toISOString()
       }
     };
-    signed = await opts.port.signMandate(mandatePayload);
+    const signed = await opts.port.signMandate(mandatePayload);
+    mandateJwt = signed.jwt;
     completeBody["steelyard.checkout_mandate"] = signed.jwt;
   }
   const completedResponse = await postJsonResponse(
@@ -203,7 +238,62 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
   await verifySignedUcpCompleteResponse(opts, completedResponse, clock);
   const completed = asRecord(completedResponse.body);
   assertValidUcpCheckout(completed);
-  return ucpReceipt(intent, completed, vaultTokenId, signed?.jwt, clock);
+  return ucpReceipt(intent, completed, vaultTokenId, mandateJwt, clock);
+}
+
+async function issueUcpAp2Mandates(args: {
+  opts: UcpDriverOpts;
+  checkout: Checkout;
+  totals: { amount: number; currency: string };
+  vaultTokenId: string;
+  audience: string;
+  clock: () => Date;
+}): Promise<{ checkout_mandate: string; payment_mandate: string }> {
+  const ap2 = args.opts.ap2;
+  if (!ap2?.enabled) throw new Error("AP2 mandate options are required");
+  if (!canIssueAp2Mandates(args.opts.port)) {
+    throw new UcpAuthMissing("UCP AP2 mandates require a UCP signing key");
+  }
+  const checkoutMandate = await issueAp2CheckoutMandate({
+    signer: args.opts.port,
+    checkout: args.checkout,
+    issuer: ap2.issuer,
+    audience: args.audience,
+    nonce: ap2.checkoutNonce,
+    buyer: {
+      name: args.opts.port.billing.name,
+      email: args.opts.port.billing.email,
+      address: asRecord(args.opts.port.billing.address)
+    },
+    clock: args.clock,
+    expiresInSeconds: ap2.checkoutMandateExpiresInSeconds
+  });
+  const expiresAt = new Date(args.clock().getTime() + 15 * 60_000).toISOString();
+  const paymentMandate = await issueAp2PaymentMandate({
+    signer: args.opts.port,
+    checkout: args.checkout,
+    issuer: ap2.issuer,
+    audience: ap2.paymentAudience ?? args.audience,
+    nonce: ap2.paymentNonce,
+    payment: {
+      amount: args.totals.amount,
+      currency: args.totals.currency,
+      checkout_id: stringValue(asRecord(args.checkout).id),
+      expires_at: expiresAt
+    },
+    payee: ap2.payee ?? payeeFromMerchantId(args.opts.merchantId),
+    paymentInstrument: ap2.paymentInstrument ?? {
+      id: args.vaultTokenId,
+      type: "card",
+      description: "Payment credential"
+    },
+    clock: args.clock,
+    expiresInSeconds: ap2.paymentMandateExpiresInSeconds
+  });
+  return {
+    checkout_mandate: checkoutMandate.checkout_mandate,
+    payment_mandate: paymentMandate.payment_mandate
+  };
 }
 
 function ucpReceipt(
@@ -233,6 +323,31 @@ function canSignSteelyardMandate(port: UcpDriverOpts["port"]): boolean {
   return typeof port.mandatePublicKey === "function"
     && typeof port.pairwiseSubject === "function"
     && typeof port.signMandate === "function";
+}
+
+function canIssueAp2Mandates(
+  port: UcpDriverOpts["port"]
+): port is UcpDriverOpts["port"] & {
+  exportUcpSigningPublicKey: NonNullable<UcpDriverOpts["port"]["exportUcpSigningPublicKey"]>;
+  signWithUcpKey: NonNullable<UcpDriverOpts["port"]["signWithUcpKey"]>;
+} {
+  return typeof port.exportUcpSigningPublicKey === "function" && typeof port.signWithUcpKey === "function";
+}
+
+function payeeFromMerchantId(merchantId: string): Ap2PaymentMerchant {
+  try {
+    const url = new URL(merchantId);
+    return {
+      id: merchantId,
+      name: url.hostname,
+      website: url.origin
+    };
+  } catch {
+    return {
+      id: merchantId,
+      name: merchantId
+    };
+  }
 }
 
 type ResolvedUcpRequestAuth =

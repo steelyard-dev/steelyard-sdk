@@ -1,5 +1,29 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createHash } from "node:crypto";
+import { SDJwtInstance } from "@sd-jwt/core";
+import {
+  assertValidEcJwk,
+  defaultClock,
+  ecdsaVerifyRaw,
+  type EcJwk,
+  type HmsAlgorithm
+} from "@steelyard/core";
+import { parseSdJwtKbPresentation } from "../mandate/ap2-verifier.js";
+
+export interface PspPaymentIntent {
+  amount: number;
+  currency: string;
+  checkout_id: string;
+  expires_at: string;
+  transaction_id?: string;
+}
+
+export interface PspPaymentMandate {
+  format: "ap2-sd-jwt-kb";
+  payload: string;
+  holder_jwk: EcJwk;
+  payment_intent: PspPaymentIntent;
+}
 
 export interface PspCaptureArgs {
   vault_token: string;
@@ -10,6 +34,7 @@ export interface PspCaptureArgs {
   session_id: string;
   merchant_id: string;
   handler_id?: string;
+  payment_mandate?: PspPaymentMandate;
 }
 
 export type PspCaptureResult =
@@ -37,6 +62,7 @@ export interface MockPspOptions {
   failOn?: MockPspFailMode;
   handlerIds?: readonly string[];
   seed?: string;
+  clock?: () => Date;
 }
 
 export interface StripePspOptions {
@@ -44,6 +70,7 @@ export interface StripePspOptions {
   apiBaseUrl?: string;
   fetch?: typeof fetch;
   handlerIds?: readonly string[];
+  clock?: () => Date;
 }
 
 export class MockInProductionError extends Error {
@@ -75,11 +102,12 @@ export function mockPsp(opts: MockPspOptions = {}): PspAdapter {
   const handlerIds = new Set(opts.handlerIds ?? []);
   const captures = new Map<string, PspCaptureResult>();
   const seed = opts.seed ?? "steelyard-mock-psp";
+  const clock = defaultClock(opts.clock);
   return {
     name: "mock",
     supportsHandler: (handlerId) => handlerIds.size === 0 || handlerIds.has(handlerId),
     async capture(args) {
-      validateCaptureArgs(args);
+      await validateCaptureArgs(args, clock);
       const cached = captures.get(args.idempotencyKey);
       if (cached) return cloneResult(cached);
       const failure = mockFailure(opts.failOn, args);
@@ -118,11 +146,12 @@ export function stripePsp(opts: StripePspOptions): PspAdapter {
   if (!fetchImpl) throw new PspConfigError("stripePsp requires fetch support");
   const apiBaseUrl = (opts.apiBaseUrl ?? "https://api.stripe.com").replace(/\/+$/, "");
   const handlerIds = new Set(opts.handlerIds ?? ["stripe"]);
+  const clock = defaultClock(opts.clock);
   return {
     name: "stripe",
     supportsHandler: (handlerId) => handlerIds.has(handlerId),
     async capture(args) {
-      validateCaptureArgs(args);
+      await validateCaptureArgs(args, clock);
       try {
         const response = await fetchImpl(`${apiBaseUrl}/v1/payment_intents`, {
           method: "POST",
@@ -182,13 +211,166 @@ function mockFailure(failOn: MockPspFailMode | undefined, args: PspCaptureArgs):
   return { ok: false, reason: failOn, message: `mock PSP ${failOn}` };
 }
 
-function validateCaptureArgs(args: PspCaptureArgs): void {
+async function validateCaptureArgs(args: PspCaptureArgs, clock: () => Date): Promise<void> {
   if (!args.vault_token) throw new PspConfigError("vault_token is required");
   if (!Number.isInteger(args.amount) || args.amount < 0) throw new PspConfigError("amount must be a non-negative integer");
   if (!/^[A-Z]{3}$/.test(args.currency)) throw new PspConfigError("currency must be ISO 4217 uppercase");
   if (!args.idempotencyKey) throw new PspConfigError("idempotencyKey is required");
   if (!args.session_id) throw new PspConfigError("session_id is required");
   if (!args.merchant_id) throw new PspConfigError("merchant_id is required");
+  if (args.payment_mandate) {
+    const verified = await verifyAp2PaymentMandate(args.payment_mandate, clock);
+    if (!verified.ok) throw new PspConfigError(`payment_mandate invalid: ${verified.reason}`);
+  }
+}
+
+type PaymentMandateVerificationResult =
+  | { ok: true; claims: Record<string, unknown> }
+  | {
+      ok: false;
+      reason:
+        | "shape_invalid"
+        | "issuer_header_invalid"
+        | "issuer_signature_invalid"
+        | "holder_key_invalid"
+        | "claims_invalid"
+        | "kb_header_invalid"
+        | "kb_signature_invalid"
+        | "sd_hash_mismatch"
+        | "iat_in_future"
+        | "expired"
+        | "transaction_mismatch"
+        | "amount_mismatch"
+        | "currency_mismatch";
+    };
+
+async function verifyAp2PaymentMandate(
+  mandate: PspPaymentMandate,
+  clock: () => Date
+): Promise<PaymentMandateVerificationResult> {
+  if ((mandate as { format?: string }).format !== "ap2-sd-jwt-kb" || !mandate.payload) {
+    return { ok: false, reason: "shape_invalid" };
+  }
+  const parsed = parseSdJwtKbPresentation(mandate.payload);
+  if (!parsed.ok) return { ok: false, reason: "shape_invalid" };
+  const issuerJwt = decodeCompactJws(parsed.sdJwt);
+  const kbJwt = decodeCompactJws(parsed.kbJwt);
+  if (!issuerJwt || !kbJwt) return { ok: false, reason: "shape_invalid" };
+  const holderKey = validHolderKey(mandate.holder_jwk);
+  if (!holderKey) return { ok: false, reason: "holder_key_invalid" };
+  const issuerAlg = hmsAlgorithm(issuerJwt.header.alg);
+  const issuerKid = typeof issuerJwt.header.kid === "string" ? issuerJwt.header.kid : "";
+  if (issuerJwt.header.typ !== "dc+sd-jwt" || !issuerAlg || issuerKid !== holderKey.kid) {
+    return { ok: false, reason: "issuer_header_invalid" };
+  }
+  if (!(await verifyJwsSignature(issuerJwt, issuerAlg, holderKey))) {
+    return { ok: false, reason: "issuer_signature_invalid" };
+  }
+  const claims = await unpackClaims(mandate.payload);
+  if (!claims) return { ok: false, reason: "claims_invalid" };
+
+  const kbAlg = hmsAlgorithm(kbJwt.header.alg);
+  if (kbJwt.header.typ !== "kb+jwt" || !kbAlg) return { ok: false, reason: "kb_header_invalid" };
+  if (!(await verifyJwsSignature(kbJwt, kbAlg, holderKey))) {
+    return { ok: false, reason: "kb_signature_invalid" };
+  }
+  if (kbJwt.payload.sd_hash !== sdHash(parsed)) return { ok: false, reason: "sd_hash_mismatch" };
+
+  const now = Math.floor(clock().getTime() / 1000);
+  if (!validNumber(kbJwt.payload.iat) || kbJwt.payload.iat > now) return { ok: false, reason: "iat_in_future" };
+  if (!validNumber(claims.exp) || claims.exp <= now) return { ok: false, reason: "expired" };
+  if (claims.vct !== "mandate.payment.1") return { ok: false, reason: "claims_invalid" };
+
+  const intent = mandate.payment_intent;
+  if (!intent?.transaction_id || claims.transaction_id !== intent.transaction_id) {
+    return { ok: false, reason: "transaction_mismatch" };
+  }
+  const amount = asRecord(claims.payment_amount);
+  if (amount.amount !== intent.amount) return { ok: false, reason: "amount_mismatch" };
+  if (amount.currency !== intent.currency) return { ok: false, reason: "currency_mismatch" };
+  if (Date.parse(intent.expires_at) <= clock().getTime()) return { ok: false, reason: "expired" };
+  return { ok: true, claims };
+}
+
+interface DecodedJws {
+  header: Record<string, unknown>;
+  payload: Record<string, unknown>;
+  signature: Uint8Array;
+  signingInput: string;
+}
+
+function decodeCompactJws(value: string): DecodedJws | null {
+  const parts = value.split(".");
+  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return null;
+  try {
+    const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8")) as unknown;
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8")) as unknown;
+    if (!isRecord(header) || !isRecord(payload)) return null;
+    return {
+      header,
+      payload,
+      signature: Buffer.from(parts[2], "base64url"),
+      signingInput: `${parts[0]}.${parts[1]}`
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function verifyJwsSignature(jws: DecodedJws, alg: HmsAlgorithm, key: EcJwk): Promise<boolean> {
+  try {
+    return await ecdsaVerifyRaw({
+      algorithm: alg,
+      publicKeyJwk: key,
+      data: Buffer.from(jws.signingInput, "utf8"),
+      signature: jws.signature
+    });
+  } catch {
+    return false;
+  }
+}
+
+async function unpackClaims(value: string): Promise<Record<string, unknown> | null> {
+  try {
+    const sdJwt = new SDJwtInstance<Record<string, unknown>>({
+      hasher: sha256Hasher,
+      hashAlg: "sha-256"
+    });
+    const claims = await sdJwt.getClaims(value);
+    return isRecord(claims) ? claims : null;
+  } catch {
+    return null;
+  }
+}
+
+function sdHash(parsed: { sdJwt: string; disclosures: string[] }): string {
+  const input = `${parsed.sdJwt}~${parsed.disclosures.map((disclosure) => `${disclosure}~`).join("")}`;
+  return createHash("sha256").update(Buffer.from(input, "utf8")).digest("base64url");
+}
+
+async function sha256Hasher(data: string | ArrayBuffer, alg: string): Promise<Uint8Array> {
+  const normalized = alg.toLowerCase();
+  if (normalized !== "sha-256" && normalized !== "sha256") {
+    throw new Error(`unsupported SD-JWT hash algorithm: ${alg}`);
+  }
+  const bytes = typeof data === "string" ? Buffer.from(data, "utf8") : Buffer.from(data);
+  return createHash("sha256").update(bytes).digest();
+}
+
+function validHolderKey(value: EcJwk): EcJwk | null {
+  try {
+    return assertValidEcJwk(value);
+  } catch {
+    return null;
+  }
+}
+
+function hmsAlgorithm(value: unknown): HmsAlgorithm | null {
+  return value === "ES256" || value === "ES384" ? value : null;
+}
+
+function validNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value);
 }
 
 function stripeCaptureBody(args: PspCaptureArgs): URLSearchParams {
@@ -240,6 +422,10 @@ function cloneResult<T extends PspCaptureResult>(value: T): T {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function stringValue(value: unknown, fallback: string): string {

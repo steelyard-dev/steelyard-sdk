@@ -1,4 +1,5 @@
 // Copyright (c) Steelyard contributors. MIT License.
+import { createHash } from "node:crypto";
 import { ecdsaVerifyRaw, type EcJwk } from "@steelyard/core";
 import type { Checkout } from "@steelyard/protocol/ucp/checkout";
 import { describe, expect, it } from "vitest";
@@ -10,7 +11,10 @@ import {
   ap2CheckoutMandateSdHash,
   ap2CheckoutMandateSdHashInput,
   issueAp2CheckoutMandate,
-  parseAp2CheckoutMandate
+  issueAp2PaymentMandate,
+  parseAp2CheckoutMandate,
+  parseAp2PaymentMandate,
+  ucpAp2PaymentTransactionId
 } from "./index.js";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
@@ -164,6 +168,69 @@ describe("AP2 checkout mandate issuer", () => {
     await expect(verifyCompactJws(parsed.kbJwt, publicKey)).resolves.toBe(true);
   });
 
+  it("issues an AP2-defined closed payment mandate bound to the UCP merchant authorization (PM5-1)", async () => {
+    const vault = await vaultWithUcpSigningKey();
+    const publicKey = await vault.exportUcpSigningPublicKey();
+    const checkout = sampleCheckout();
+    const payment = {
+      amount: 500,
+      currency: "USD",
+      checkout_id: "checkout_123",
+      expires_at: new Date(now.getTime() + 15 * 60_000).toISOString()
+    };
+
+    const issued = await issueAp2PaymentMandate({
+      signer: vault,
+      checkout,
+      issuer,
+      audience,
+      nonce: "payment_nonce_1",
+      payment,
+      payee: {
+        id: "merchant_1",
+        name: "Demo Merchant",
+        website: "https://coffee.example"
+      },
+      paymentInstrument: {
+        id: "card_1",
+        type: "card",
+        description: "Visa 4242"
+      },
+      clock: () => now,
+      saltGenerator: saltSequence()
+    });
+    const parsed = parseAp2PaymentMandate(issued.payment_mandate);
+
+    expect(issued.transaction_id).toBe(ucpAp2PaymentTransactionId(checkout));
+    expect(issued.transaction_id).toBe(
+      Buffer.from(createHash("sha256").update("eyJhbGciOiJFUzI1NiIsImtpZCI6Im0ifQ..c2ln").digest()).toString("base64url")
+    );
+    expect(parsed.issuerHeader).toMatchObject({ alg: "ES256", typ: "dc+sd-jwt", kid: publicKey.kid });
+    expect(parsed.issuerPayload).toMatchObject({
+      iss: issuer,
+      iat: nowSeconds,
+      exp: nowSeconds + 300,
+      aud: audience,
+      cnf: { jwk: publicKey },
+      vct: "mandate.payment.1",
+      transaction_id: issued.transaction_id,
+      payee: { id: "merchant_1", name: "Demo Merchant", website: "https://coffee.example" },
+      payment_amount: { amount: 500, currency: "USD" },
+      payment_instrument: { id: "card_1", type: "card", description: "Visa 4242" }
+    });
+    expect(parsed.issuerPayload).not.toHaveProperty("execution_date");
+    expect(parsed.disclosures).toEqual([]);
+    expect(parsed.kbHeader).toEqual({ alg: "ES256", typ: "kb+jwt" });
+    expect(parsed.kbPayload).toMatchObject({
+      iat: nowSeconds,
+      aud: audience,
+      nonce: "payment_nonce_1",
+      sd_hash: ap2CheckoutMandateSdHash(parsed)
+    });
+    await expect(verifyCompactJws(parsed.sdJwt, publicKey)).resolves.toBe(true);
+    await expect(verifyCompactJws(parsed.kbJwt, publicKey)).resolves.toBe(true);
+  });
+
   it("rejects disclosure trees that try to selectively disclose checkout terms", async () => {
     const vault = await vaultWithUcpSigningKey();
 
@@ -232,6 +299,44 @@ describe("AP2 checkout mandate issuer", () => {
         clock: () => now
       })
     ).rejects.toThrow(/merchant_authorization/);
+  });
+
+  it("requires AP2 payment mandate transaction binding and valid payment details", async () => {
+    const vault = await vaultWithUcpSigningKey();
+    const payment = {
+      amount: 500,
+      currency: "USD",
+      checkout_id: "checkout_123",
+      expires_at: new Date(now.getTime() + 15 * 60_000).toISOString()
+    };
+
+    expect(() => ucpAp2PaymentTransactionId({ ...sampleCheckout(), ap2: {} })).toThrow(/merchant_authorization/);
+    await expect(
+      issueAp2PaymentMandate({
+        signer: vault,
+        checkout: sampleCheckout(),
+        issuer,
+        audience,
+        nonce: "payment_nonce_bad_amount",
+        payment: { ...payment, amount: 1.5 },
+        payee: { id: "merchant_1", name: "Demo Merchant" },
+        paymentInstrument: { id: "card_1", type: "card" },
+        clock: () => now
+      })
+    ).rejects.toThrow(/amount/);
+    await expect(
+      issueAp2PaymentMandate({
+        signer: vault,
+        checkout: sampleCheckout(),
+        issuer,
+        audience,
+        nonce: "payment_nonce_bad_currency",
+        payment: { ...payment, currency: "usd" },
+        payee: { id: "merchant_1", name: "Demo Merchant" },
+        paymentInstrument: { id: "card_1", type: "card" },
+        clock: () => now
+      })
+    ).rejects.toThrow(/currency/);
   });
 
   it("rejects invalid expiry, unsupported holder keys, and malformed presentations", async () => {

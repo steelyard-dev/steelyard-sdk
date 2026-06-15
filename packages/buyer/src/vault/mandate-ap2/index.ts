@@ -70,6 +70,69 @@ export interface ParsedAp2CheckoutMandate {
   kbPayload: Record<string, unknown>;
 }
 
+export interface Ap2PaymentAmount {
+  amount: number;
+  currency: string;
+}
+
+export interface Ap2PaymentMerchant {
+  id: string;
+  name: string;
+  website?: string;
+}
+
+export interface Ap2PaymentInstrument {
+  id: string;
+  type: string;
+  description?: string;
+}
+
+export interface Ap2PaymentIntent {
+  amount: number;
+  currency: string;
+  checkout_id: string;
+  expires_at: string;
+}
+
+export interface IssueAp2PaymentMandateArgs {
+  signer: Ap2CheckoutMandateSigner;
+  checkout: Checkout;
+  issuer: string;
+  audience: string;
+  nonce: string;
+  payment: Ap2PaymentIntent;
+  payee: Ap2PaymentMerchant;
+  paymentInstrument: Ap2PaymentInstrument;
+  clock?: () => Date;
+  expiresInSeconds?: number;
+  saltGenerator?: () => string;
+}
+
+export interface Ap2PaymentMandateClaims extends Record<string, unknown> {
+  iss: string;
+  iat: number;
+  exp: number;
+  aud: string;
+  cnf: { jwk: EcJwk };
+  vct: "mandate.payment.1";
+  transaction_id: string;
+  payee: Ap2PaymentMerchant;
+  payment_amount: Ap2PaymentAmount;
+  payment_instrument: Ap2PaymentInstrument;
+  execution_date?: string;
+}
+
+export interface IssuedAp2PaymentMandate {
+  payment_mandate: string;
+  issuer_jwt: string;
+  disclosures: string[];
+  kb_jwt: string;
+  transaction_id: string;
+  claims: Ap2PaymentMandateClaims;
+}
+
+export type ParsedAp2PaymentMandate = ParsedAp2CheckoutMandate;
+
 export const AP2_CHECKOUT_MANDATE_DISCLOSURE_TREE: DisclosureTree = {
   alwaysDisclosed: [
     "$.iss",
@@ -158,9 +221,75 @@ export async function issueAp2CheckoutMandate(
   };
 }
 
+export async function issueAp2PaymentMandate(
+  args: IssueAp2PaymentMandateArgs
+): Promise<IssuedAp2PaymentMandate> {
+  const publicKey = publicHolderKey(await args.signer.exportUcpSigningPublicKey());
+  const algorithm = algorithmForKey(publicKey);
+  const now = defaultClock(args.clock)();
+  const iat = Math.floor(now.getTime() / 1000);
+  const exp = iat + validExpiresInSeconds(args.expiresInSeconds ?? 300);
+  const transaction_id = ucpAp2PaymentTransactionId(args.checkout);
+  const payment = validPaymentIntent(args.payment);
+
+  const claims: Ap2PaymentMandateClaims = {
+    iss: requiredString(args.issuer, "issuer"),
+    iat,
+    exp,
+    aud: requiredString(args.audience, "audience"),
+    cnf: { jwk: publicKey },
+    vct: "mandate.payment.1",
+    transaction_id,
+    payee: validPayee(args.payee),
+    payment_amount: {
+      amount: payment.amount,
+      currency: payment.currency
+    },
+    payment_instrument: validPaymentInstrument(args.paymentInstrument)
+  };
+
+  const signer = signerForVault(args.signer, algorithm);
+  const sdJwt = new SDJwtInstance<Ap2PaymentMandateClaims>({
+    signer,
+    signAlg: algorithm,
+    kbSigner: signer,
+    kbSignAlg: algorithm,
+    hasher: sha256Hasher,
+    hashAlg: "sha-256",
+    saltGenerator: args.saltGenerator ?? randomSalt
+  });
+  const issued = await sdJwt.issue(claims, {}, { header: { typ: "dc+sd-jwt", kid: publicKey.kid } });
+  const paymentMandate = await sdJwt.present(issued, {}, {
+    kb: {
+      payload: {
+        iat,
+        aud: requiredString(args.audience, "audience"),
+        nonce: requiredString(args.nonce, "nonce")
+      }
+    }
+  });
+  const parsed = parseAp2PaymentMandate(paymentMandate);
+  return {
+    payment_mandate: paymentMandate,
+    issuer_jwt: parsed.sdJwt,
+    disclosures: parsed.disclosures,
+    kb_jwt: parsed.kbJwt,
+    transaction_id,
+    claims
+  };
+}
+
 export function parseAp2CheckoutMandate(value: string): ParsedAp2CheckoutMandate {
+  return parseAp2SdJwtKbPresentation(value, "checkout mandate");
+}
+
+export function parseAp2PaymentMandate(value: string): ParsedAp2PaymentMandate {
+  return parseAp2SdJwtKbPresentation(value, "payment mandate");
+}
+
+function parseAp2SdJwtKbPresentation(value: string, label: string): ParsedAp2CheckoutMandate {
   const segments = value.split("~");
-  if (segments.length < 2) throw new Error("AP2 checkout mandate must contain SD-JWT and KB-JWT segments");
+  if (segments.length < 2) throw new Error(`AP2 ${label} must contain SD-JWT and KB-JWT segments`);
   const sdJwt = requiredSegment(segments[0], "SD-JWT");
   const kbJwt = requiredSegment(segments[segments.length - 1], "KB-JWT");
   const disclosures = segments.slice(1, -1);
@@ -175,6 +304,14 @@ export function parseAp2CheckoutMandate(value: string): ParsedAp2CheckoutMandate
     kbHeader: kb.header,
     kbPayload: kb.payload
   };
+}
+
+export function ucpAp2PaymentTransactionId(checkout: Checkout): string {
+  const merchantAuthorization = asRecord(asRecord(checkout).ap2).merchant_authorization;
+  if (typeof merchantAuthorization !== "string" || !merchantAuthorization) {
+    throw new Error("AP2 payment mandate requires checkout.ap2.merchant_authorization");
+  }
+  return createHash("sha256").update(Buffer.from(merchantAuthorization, "utf8")).digest("base64url");
 }
 
 export function ap2CheckoutMandateSdHashInput(value: string | ParsedAp2CheckoutMandate): string {
@@ -278,6 +415,37 @@ function validExpiresInSeconds(value: number): number {
     throw new Error("AP2 checkout mandate expiresInSeconds must be a positive integer");
   }
   return value;
+}
+
+function validPaymentIntent(value: Ap2PaymentIntent): Ap2PaymentIntent {
+  if (!Number.isSafeInteger(value.amount) || value.amount < 0) {
+    throw new Error("AP2 payment mandate amount must be a non-negative integer");
+  }
+  if (!/^[A-Z]{3}$/.test(value.currency)) {
+    throw new Error("AP2 payment mandate currency must be ISO 4217 uppercase");
+  }
+  requiredString(value.checkout_id, "checkout_id");
+  requiredString(value.expires_at, "expires_at");
+  if (Number.isNaN(Date.parse(value.expires_at))) {
+    throw new Error("AP2 payment mandate expires_at must be an ISO date string");
+  }
+  return cloneJson(value);
+}
+
+function validPayee(value: Ap2PaymentMerchant): Ap2PaymentMerchant {
+  const payee = cloneJson(value);
+  requiredString(payee.id, "payee.id");
+  requiredString(payee.name, "payee.name");
+  if (payee.website !== undefined) requiredString(payee.website, "payee.website");
+  return payee;
+}
+
+function validPaymentInstrument(value: Ap2PaymentInstrument): Ap2PaymentInstrument {
+  const instrument = cloneJson(value);
+  requiredString(instrument.id, "payment_instrument.id");
+  requiredString(instrument.type, "payment_instrument.type");
+  if (instrument.description !== undefined) requiredString(instrument.description, "payment_instrument.description");
+  return instrument;
 }
 
 function decodeCompactJws(value: string, label: string): {
