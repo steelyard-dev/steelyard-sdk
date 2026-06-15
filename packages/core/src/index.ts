@@ -20,6 +20,18 @@ export {
   totalAmount
 } from "./purchase.js";
 export { mapAcpToOrderState, mapUcpCheckoutStatus } from "./order-state.js";
+export {
+  buildSignatureBase,
+  contentDigestHeader,
+  ecdsaSignRaw,
+  ecdsaVerifyRaw,
+  jcsCanonicalize,
+  normalizeAuthority,
+  parseSf941Dict,
+  serializeSf941Dict,
+  signDetachedJws,
+  verifyDetachedJws
+} from "./rfc9421.js";
 export type {
   CommerceManifestOpts,
   CommerceManifestValidationResult
@@ -72,6 +84,18 @@ export type {
   UcpCheckoutStatus,
   UnknownAcpOrderStatusWarning
 } from "./order-state.js";
+export type {
+  BuildSignatureBaseArgs,
+  EcJwk,
+  HmsAlgorithm,
+  Sf941BareItem,
+  Sf941Dict,
+  Sf941DictMember,
+  Sf941InnerList,
+  Sf941Item,
+  Sf941Token,
+  SignatureParameters
+} from "./rfc9421.js";
 export type { ErrorCode } from "./errors.js";
 export type { ValidationResult } from "./validate.js";
 export type { Clock } from "./clock.js";
