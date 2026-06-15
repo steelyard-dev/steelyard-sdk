@@ -1,10 +1,12 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it } from "vitest";
-import { parseSf941Dict, type EcJwk } from "@steelyard/core";
+import { contentDigestHeader, parseSf941Dict, type EcJwk } from "@steelyard/core";
 import {
   UcpSignerMissingHeader,
   signUcpRequest,
+  signUcpResponse,
   verifyUcpRequest,
+  verifyUcpResponse,
   parseUcpAgentProfileUrl
 } from "./index.js";
 
@@ -205,6 +207,117 @@ describe("verifyUcpRequest", () => {
   });
 });
 
+describe("signUcpResponse and verifyUcpResponse", () => {
+  it("signs response bodies over @status, Content-Digest, and Content-Type", async () => {
+    const body = jsonBytes({ checkout: { id: "checkout_1", status: "completed" } });
+    const signed = await signUcpResponse({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body,
+      signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+      now
+    });
+
+    expect(signed.headers["content-digest"]).toBe(contentDigestHeader({ body }));
+    expect(signed.headers["signature-input"]).toBe(
+      "sig1=(\"@status\" \"content-digest\" \"content-type\");keyid=\"wallet-p256\""
+    );
+
+    await expect(
+      verifyUcpResponse({
+        status: 200,
+        headers: signed.headers,
+        body,
+        resolveKey: async (kid) => (kid === "wallet-p256" ? walletP256PublicKey : null),
+        now
+      })
+    ).resolves.toEqual({ ok: true, kid: "wallet-p256", algorithm: "ES256" });
+  });
+
+  it("signs no-body responses with @status only", async () => {
+    const signed = await signUcpResponse({
+      status: 204,
+      headers: {},
+      signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+      now
+    });
+
+    expect(signed.headers["signature-input"]).toBe("sig1=(\"@status\");keyid=\"wallet-p256\"");
+    await expect(
+      verifyUcpResponse({
+        status: 204,
+        headers: signed.headers,
+        resolveKey: async () => walletP256PublicKey,
+        now
+      })
+    ).resolves.toMatchObject({ ok: true, kid: "wallet-p256" });
+  });
+
+  it("rejects response signing without Content-Type when a body is present", async () => {
+    await expect(
+      signUcpResponse({
+        status: 200,
+        headers: {},
+        body: jsonBytes({ checkout: {} }),
+        signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+        now
+      })
+    ).rejects.toMatchObject(new UcpSignerMissingHeader("content-type"));
+  });
+
+  it("rejects response mandatory header, coverage, digest, key, algorithm, and signature failures", async () => {
+    const body = jsonBytes({ checkout: { id: "checkout_1" } });
+    const signed = await signUcpResponse({
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body,
+      signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+      now
+    });
+    const signatureInput = signed.headers["signature-input"]!;
+
+    await expect(verifyResponse({ ...signed.headers, "content-digest": "" }, body)).resolves.toEqual({
+      ok: false,
+      reason: "signature_invalid",
+      detail: "mandatory_header_missing: content-digest"
+    });
+    await expect(verifyResponse({ ...signed.headers, "content-type": "" }, body)).resolves.toEqual({
+      ok: false,
+      reason: "signature_invalid",
+      detail: "mandatory_header_missing: content-type"
+    });
+    await expect(
+      verifyResponse({
+        ...signed.headers,
+        "signature-input": signatureInput.replace(" \"content-type\"", "")
+      }, body)
+    ).resolves.toEqual({
+      ok: false,
+      reason: "signature_invalid",
+      detail: "required_component_not_covered: content-type"
+    });
+    await expect(verifyResponse(signed.headers, jsonBytes({ checkout: { id: "checkout_2" } }))).resolves.toEqual({
+      ok: false,
+      reason: "digest_mismatch"
+    });
+    await expect(verifyResponse(signed.headers, body, async () => null)).resolves.toEqual({
+      ok: false,
+      reason: "key_not_found"
+    });
+    await expect(verifyResponse(signed.headers, body, async () => ({ ...walletP256PublicKey, crv: "P-521" }) as unknown as EcJwk))
+      .resolves.toMatchObject({ ok: false, reason: "algorithm_unsupported" });
+    await expect(
+      verifyUcpResponse({
+        status: 201,
+        headers: signed.headers,
+        body,
+        resolveKey: async () => walletP256PublicKey,
+        now
+      })
+    ).resolves.toMatchObject({ ok: false, reason: "signature_invalid" });
+  });
+});
+
 async function signPost(body: Uint8Array): Promise<{ headers: Record<string, string> }> {
   return await signUcpRequest({
     method: "POST",
@@ -229,6 +342,21 @@ async function verifySigned(
   return await verifyUcpRequest({
     method: "POST",
     url: new URL("https://merchant.example/ucp/api/checkout?mode=test"),
+    headers,
+    body,
+    resolveKey,
+    now
+  });
+}
+
+async function verifyResponse(
+  headers: Record<string, string>,
+  body: Uint8Array,
+  resolveKey: (kid: string) => Promise<EcJwk | null> = async (kid) =>
+    kid === "wallet-p256" ? walletP256PublicKey : null
+) {
+  return await verifyUcpResponse({
+    status: 200,
     headers,
     body,
     resolveKey,

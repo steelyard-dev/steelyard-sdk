@@ -31,6 +31,15 @@ export interface SignUcpRequestArgs {
   now: Date;
 }
 
+export interface SignUcpResponseArgs {
+  status: number;
+  headers: Record<string, string>;
+  body?: Uint8Array;
+  signing: UcpSigningMaterial;
+  ucpAgent?: string;
+  now: Date;
+}
+
 export type UcpRequestVerificationFailureReason =
   | "signature_missing"
   | "signature_invalid"
@@ -48,6 +57,18 @@ export interface VerifyUcpRequestArgs {
   headers: Record<string, string>;
   body?: Uint8Array;
   resolveKey: (kid: string, signerProfileUrl: string) => Promise<EcJwk | null>;
+  now: Date;
+}
+
+export type UcpResponseVerificationResult =
+  | { ok: true; kid: string; algorithm: HmsAlgorithm }
+  | { ok: false; reason: UcpRequestVerificationFailureReason; detail?: string };
+
+export interface VerifyUcpResponseArgs {
+  status: number;
+  headers: Record<string, string>;
+  body?: Uint8Array;
+  resolveKey: (kid: string) => Promise<EcJwk | null>;
   now: Date;
 }
 
@@ -83,6 +104,38 @@ export async function signUcpRequest(args: SignUcpRequestArgs): Promise<{ header
     authority: normalizeAuthority(args.url),
     path: args.url.pathname || "/",
     query: args.url.search || undefined,
+    headers,
+    components,
+    parameters
+  });
+  const signature = await ecdsaSignRaw({
+    algorithm: args.signing.algorithm,
+    privateKeyJwk: args.signing.privateKey,
+    data: signatureBase
+  });
+
+  headers["signature-input"] = serializeSf941Dict({
+    sig1: {
+      kind: "inner-list",
+      value: components.map((component) => ({ value: component })),
+      params: parameters
+    }
+  });
+  headers.signature = serializeSf941Dict({ sig1: { value: signature } });
+  return { headers };
+}
+
+export async function signUcpResponse(args: SignUcpResponseArgs): Promise<{ headers: Record<string, string> }> {
+  const headers = lowerCaseHeaders(args.headers);
+  if (args.body !== undefined) {
+    if (!headers["content-type"]) throw new UcpSignerMissingHeader("content-type");
+    headers["content-digest"] = contentDigestHeader({ body: args.body });
+  }
+
+  const components = ucpResponseComponents(args.body);
+  const parameters = { keyid: args.signing.kid };
+  const signatureBase = buildSignatureBase({
+    status: args.status,
     headers,
     components,
     parameters
@@ -174,6 +227,67 @@ export async function verifyUcpRequest(args: VerifyUcpRequestArgs): Promise<UcpR
     : { ok: false, reason: "signature_invalid" };
 }
 
+export async function verifyUcpResponse(args: VerifyUcpResponseArgs): Promise<UcpResponseVerificationResult> {
+  const headers = lowerCaseHeaders(args.headers);
+  const signatureInputHeader = headers["signature-input"];
+  const signatureHeader = headers.signature;
+  if (!signatureInputHeader || !signatureHeader) return { ok: false, reason: "signature_missing" };
+
+  const signatureInput = parseSignatureInput(signatureInputHeader);
+  if (!signatureInput) return { ok: false, reason: "signature_invalid", detail: "signature_input_invalid" };
+  const signature = parseSignature(signatureHeader);
+  if (!signature) return { ok: false, reason: "signature_invalid", detail: "signature_invalid_format" };
+
+  const missing = missingResponseMandatoryHeader(headers, args.body);
+  if (missing) {
+    return { ok: false, reason: "signature_invalid", detail: `mandatory_header_missing: ${missing}` };
+  }
+
+  const missingComponent = missingRequiredComponent(ucpResponseComponents(args.body), signatureInput.components);
+  if (missingComponent) {
+    return { ok: false, reason: "signature_invalid", detail: `required_component_not_covered: ${missingComponent}` };
+  }
+
+  const digestOk = verifyContentDigest(headers["content-digest"], args.body);
+  if (!digestOk) return { ok: false, reason: "digest_mismatch" };
+
+  const key = await args.resolveKey(signatureInput.parameters.keyid);
+  if (!key) return { ok: false, reason: "key_not_found" };
+  let algorithm: HmsAlgorithm;
+  try {
+    algorithm = algorithmForKey(key);
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "algorithm_unsupported",
+      detail: error instanceof Error ? error.message : String(error)
+    };
+  }
+
+  let signatureBase: Uint8Array;
+  try {
+    signatureBase = buildSignatureBase({
+      status: args.status,
+      headers,
+      components: signatureInput.components,
+      parameters: signatureInput.parameters
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      reason: "signature_invalid",
+      detail: error instanceof Error ? error.message : String(error)
+    };
+  }
+  const ok = await ecdsaVerifyRaw({
+    algorithm,
+    publicKeyJwk: key,
+    data: signatureBase,
+    signature
+  });
+  return ok ? { ok: true, kid: signatureInput.parameters.keyid, algorithm } : { ok: false, reason: "signature_invalid" };
+}
+
 export function parseUcpAgentProfileUrl(value: string): string | null {
   try {
     const profile = parseSf941Dict(value).profile;
@@ -240,6 +354,12 @@ function ucpRequestComponents(method: string, url: URL, body: Uint8Array | undef
   return components;
 }
 
+function ucpResponseComponents(body: Uint8Array | undefined): string[] {
+  const components = ["@status"];
+  if (body !== undefined) components.push("content-digest", "content-type");
+  return components;
+}
+
 function missingMandatoryHeader(
   method: string,
   headers: Record<string, string>,
@@ -247,6 +367,12 @@ function missingMandatoryHeader(
 ): string | undefined {
   if (!headers["ucp-agent"]) return "ucp-agent";
   if (isMutatingMethod(method) && !headers["idempotency-key"]) return "idempotency-key";
+  if (body !== undefined && !headers["content-type"]) return "content-type";
+  if (body !== undefined && !headers["content-digest"]) return "content-digest";
+  return undefined;
+}
+
+function missingResponseMandatoryHeader(headers: Record<string, string>, body: Uint8Array | undefined): string | undefined {
   if (body !== undefined && !headers["content-type"]) return "content-type";
   if (body !== undefined && !headers["content-digest"]) return "content-digest";
   return undefined;

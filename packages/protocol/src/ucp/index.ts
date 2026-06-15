@@ -63,12 +63,17 @@ export {
   UcpSignerMissingHeader,
   parseUcpAgentProfileUrl,
   signUcpRequest,
-  verifyUcpRequest
+  signUcpResponse,
+  verifyUcpRequest,
+  verifyUcpResponse
 } from "./signatures.js";
 export type {
   SignUcpRequestArgs,
+  SignUcpResponseArgs,
   UcpRequestVerificationFailureReason,
   UcpRequestVerificationResult,
+  UcpResponseVerificationResult,
   UcpSigningMaterial,
-  VerifyUcpRequestArgs
+  VerifyUcpRequestArgs,
+  VerifyUcpResponseArgs
 } from "./signatures.js";
