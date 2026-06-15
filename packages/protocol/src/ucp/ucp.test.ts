@@ -12,10 +12,13 @@ import {
   UCP_VERSION,
   UCP_WELL_KNOWN_PATH,
   STEELYARD_CHECKOUT_MANDATE_V01,
+  STEELYARD_PAYMENT_HANDLER_NAMESPACE,
+  STRIPE_PAYMENT_HANDLER_ID,
   assertValidGetProductResponse,
   assertValidLookupResponse,
   assertValidSearchResponse,
   assertValidUcpDiscovery,
+  buildUcpPaymentHandlers,
   buildUcpDiscovery,
   createUcpHandler,
   getProduct,
@@ -162,6 +165,33 @@ describe("buildUcpDiscovery", () => {
     ]);
     expect(Object.values(doc.ucp.capabilities).flat().some((capability) => "id" in capability)).toBe(false);
     expect(validateUcpDiscovery(doc).valid).toBe(true);
+  });
+
+  it("advertises the AP2-compatible Stripe payment handler only when configured", () => {
+    const doc = buildUcpDiscovery(manifest, {
+      baseUrl: "https://shop.example/",
+      checkout: true,
+      ucp: { paymentHandlers: [STRIPE_PAYMENT_HANDLER_ID] }
+    });
+
+    expect(doc.ucp.payment_handlers).toEqual({
+      [STEELYARD_PAYMENT_HANDLER_NAMESPACE]: [
+        {
+          id: STRIPE_PAYMENT_HANDLER_ID,
+          version: UCP_VERSION,
+          available_instruments: [
+            { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
+            { type: "shared_payment_token" }
+          ]
+        }
+      ]
+    });
+    expect(buildUcpPaymentHandlers([STRIPE_PAYMENT_HANDLER_ID])).toEqual(
+      doc.ucp.payment_handlers[STEELYARD_PAYMENT_HANDLER_NAMESPACE]
+    );
+    expect(() => buildUcpPaymentHandlers(["not-stripe"])).toThrow(/unknown UCP payment handler/);
+    expect(validateUcpDiscovery(doc).valid).toBe(true);
+    expect(() => assertValidUcpDiscovery(doc)).not.toThrow();
   });
 
   it("publishes public-only HTTP Message Signature keys at profile top level", () => {

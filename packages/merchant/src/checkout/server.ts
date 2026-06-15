@@ -69,6 +69,7 @@ export interface MerchantCheckoutOpts {
       bearer?: UcpBearerAuthConfig;
     };
     ap2?: UcpAp2Config;
+    paymentHandlers?: string[];
     allowPrivateNetwork?: boolean;
     profileCache?: UcpProfileCache;
     responseSigningPolicy?: UcpResponseSigningPolicy;
@@ -143,6 +144,13 @@ export class MerchantCheckoutConfigError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "MerchantCheckoutConfigError";
+  }
+}
+
+export class UnknownPaymentHandlerError extends MerchantCheckoutConfigError {
+  constructor(handlerId: string) {
+    super(`unknown UCP payment handler: ${handlerId}`);
+    this.name = "UnknownPaymentHandlerError";
   }
 }
 
@@ -317,7 +325,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
           ap2Locked
             ? { ...checkout, ap2_locked: true, ap2_nonces: await issueUcpAp2Nonces(ctx, checkoutId) }
             : checkout,
-          ctx.opts.psp
+          ctx.opts.ucp?.paymentHandlers
         );
         await ctx.opts.store.put(next as StoredCheckout);
         return { status: 200, body: await prepareUcpCheckoutResponse(ctx, next) };
@@ -906,23 +914,28 @@ function withAcpPaymentHandlers(session: Record<string, unknown>, psp: PspAdapte
   };
 }
 
-function withUcpPaymentHandlers(checkout: Record<string, unknown>, psp: PspAdapter): Record<string, unknown> {
+function withUcpPaymentHandlers(checkout: Record<string, unknown>, paymentHandlers: readonly string[] | undefined): Record<string, unknown> {
+  if (!paymentHandlers?.length) return checkout;
   return {
     ...checkout,
     ucp: {
       ...asRecord(checkout.ucp),
       payment_handlers: {
-        "net.steelyard": [
-          {
-            id: psp.name,
-            version: "2026-04-17",
-            spec: "https://steelyard.dev/specs/payment/vault-token",
-            schema: "https://ucp.dev/schemas/payment_handler.json",
-            config: { token_type: "vault_token" }
-          }
-        ]
+        "net.steelyard": paymentHandlers.map(ucpPaymentHandler)
       }
     }
+  };
+}
+
+function ucpPaymentHandler(id: string): Record<string, unknown> {
+  if (id !== "stripe") throw new UnknownPaymentHandlerError(id);
+  return {
+    id: "stripe",
+    version: "2026-04-17",
+    available_instruments: [
+      { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
+      { type: "shared_payment_token" }
+    ]
   };
 }
 
@@ -1094,6 +1107,13 @@ function assertPspCurrencySupport(manifest: Manifest, psp: PspAdapter): void {
 function validateUcpConfig(config: NonNullable<MerchantCheckoutOpts["ucp"]> | undefined): void {
   validateUcpAuthConfig(config?.auth);
   validateUcpAp2Config(config);
+  validateUcpPaymentHandlers(config?.paymentHandlers);
+}
+
+function validateUcpPaymentHandlers(paymentHandlers: readonly string[] | undefined): void {
+  for (const handler of paymentHandlers ?? []) {
+    if (handler !== "stripe") throw new UnknownPaymentHandlerError(handler);
+  }
 }
 
 function validateUcpAuthConfig(config: UcpAuthConfig | undefined): void {

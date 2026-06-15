@@ -27,6 +27,8 @@ export const UCP_CHECKOUT_CAPABILITY = "dev.ucp.shopping.checkout";
 export const UCP_CATALOG_SEARCH_CAPABILITY = "dev.ucp.shopping.catalog.search";
 export const UCP_CATALOG_LOOKUP_CAPABILITY = "dev.ucp.shopping.catalog.lookup";
 export const STEELYARD_CHECKOUT_MANDATE_V01 = "net.steelyard.checkout_mandate.v0_1";
+export const STEELYARD_PAYMENT_HANDLER_NAMESPACE = "net.steelyard";
+export const STRIPE_PAYMENT_HANDLER_ID = "stripe";
 
 export interface UcpEntity {
   id?: string;
@@ -39,12 +41,22 @@ export interface UcpEntity {
   config?: Record<string, unknown>;
 }
 
+export interface UcpAvailablePaymentInstrument {
+  type: string;
+  constraints?: Record<string, unknown>;
+}
+
+export interface UcpPaymentHandlerEntity extends UcpEntity {
+  id: string;
+  available_instruments?: UcpAvailablePaymentInstrument[];
+}
+
 export interface UcpDiscoveryDoc {
   ucp: {
     version: string;
     services: Record<string, UcpEntity[]>;
     capabilities: Record<string, UcpEntity[]>;
-    payment_handlers: Record<string, UcpEntity[]>;
+    payment_handlers: Record<string, UcpPaymentHandlerEntity[]>;
   };
   signing_keys?: UcpPublicSigningKey[];
   merchant: { name: string; domain?: string };
@@ -56,7 +68,7 @@ export interface UcpProfileDoc {
     version: string;
     services?: Record<string, UcpEntity[]>;
     capabilities?: Record<string, UcpEntity[]>;
-    payment_handlers?: Record<string, UcpEntity[]>;
+    payment_handlers?: Record<string, UcpPaymentHandlerEntity[]>;
   };
   signing_keys?: UcpPublicSigningKey[];
 }
@@ -81,6 +93,7 @@ export interface UcpDiscoveryOptions {
       hms?: UcpDiscoveryHmsConfig;
     };
     ap2?: UcpDiscoveryAp2Config;
+    paymentHandlers?: readonly string[];
   };
 }
 
@@ -155,6 +168,7 @@ export function buildUcpDiscovery(
       }
     ];
   }
+  const paymentHandlers = buildUcpPaymentHandlers(opts.ucp?.paymentHandlers);
   const doc: UcpDiscoveryDoc = {
     ucp: {
       version: UCP_VERSION,
@@ -177,7 +191,9 @@ export function buildUcpDiscovery(
         ]
       },
       capabilities,
-      payment_handlers: {}
+      payment_handlers: paymentHandlers.length
+        ? { [STEELYARD_PAYMENT_HANDLER_NAMESPACE]: paymentHandlers }
+        : {}
     },
     merchant: { name: manifest.identity.name, domain: manifest.identity.domain },
     links: {
@@ -193,6 +209,20 @@ export function buildUcpDiscovery(
     doc.signing_keys = hms.signingKeys.map(publicSigningKey);
   }
   return doc;
+}
+
+export function buildUcpPaymentHandlers(paymentHandlers: readonly string[] | undefined): UcpPaymentHandlerEntity[] {
+  return (paymentHandlers ?? []).map((handler) => {
+    if (handler !== STRIPE_PAYMENT_HANDLER_ID) throw new Error(`unknown UCP payment handler: ${handler}`);
+    return {
+      id: STRIPE_PAYMENT_HANDLER_ID,
+      version: UCP_VERSION,
+      available_instruments: [
+        { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
+        { type: "shared_payment_token" }
+      ]
+    };
+  });
 }
 
 export function validateUcpDiscovery(doc: unknown): UcpValidationResult {

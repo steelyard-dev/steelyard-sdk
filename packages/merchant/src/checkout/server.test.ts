@@ -17,7 +17,8 @@ import {
   createMerchantCheckout,
   memoryCheckoutSessionStore,
   memoryIdempotencyStore,
-  MerchantCheckoutConfigError
+  MerchantCheckoutConfigError,
+  UnknownPaymentHandlerError
 } from "./index.js";
 import { signUcpRequest, UCP_AP2_CAPABILITY, verifyUcpResponse } from "@steelyard/protocol/ucp";
 
@@ -254,6 +255,16 @@ describe("createMerchantCheckout", () => {
         clock: () => now
       })
     ).not.toThrow();
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: { paymentHandlers: ["not-stripe"] },
+        clock: () => now
+      })
+    ).toThrow(UnknownPaymentHandlerError);
     expect(() =>
       createMerchantCheckout(manifest, {
         protocols: ["acp"],
@@ -562,7 +573,8 @@ describe("createMerchantCheckout", () => {
         steelyardMandate: true,
         idempotency: memoryIdempotencyStore(),
         clock: () => now,
-        merchantAudience: "https://coffee.example/.well-known/ucp"
+        merchantAudience: "https://coffee.example/.well-known/ucp",
+        ucp: { paymentHandlers: ["stripe"] }
       }).handler
     );
 
@@ -570,7 +582,20 @@ describe("createMerchantCheckout", () => {
     expect(created.status).toBe(200);
     expect(created.body).toMatchObject({
       status: "ready_for_complete",
-      ucp: { payment_handlers: { "net.steelyard": [expect.objectContaining({ id: "stripe" })] } }
+      ucp: {
+        payment_handlers: {
+          "net.steelyard": [
+            {
+              id: "stripe",
+              version: "2026-04-17",
+              available_instruments: [
+                { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
+                { type: "shared_payment_token" }
+              ]
+            }
+          ]
+        }
+      }
     });
     const checkoutId = stringField(created.body, "id");
     await expect(

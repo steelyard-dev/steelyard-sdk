@@ -1,5 +1,5 @@
 // Copyright (c) Steelyard contributors. MIT License.
-export { MerchantCheckoutConfigError, createMerchantCheckout } from "./checkout/index.js";
+export { MerchantCheckoutConfigError, UnknownPaymentHandlerError, createMerchantCheckout } from "./checkout/index.js";
 export type {
   AcpRoutes,
   HmsSigningKey,

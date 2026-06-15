@@ -40,18 +40,23 @@ export {
   UCP_VERSION,
   UCP_WELL_KNOWN_PATH,
   STEELYARD_CHECKOUT_MANDATE_V01,
+  STEELYARD_PAYMENT_HANDLER_NAMESPACE,
+  STRIPE_PAYMENT_HANDLER_ID,
   assertValidUcpDiscovery,
   assertValidUcpProfile,
+  buildUcpPaymentHandlers,
   buildUcpDiscovery,
   validateUcpDiscovery,
   validateUcpProfile
 } from "./discovery.js";
 export type {
+  UcpAvailablePaymentInstrument,
   UcpDiscoveryDoc,
   UcpDiscoveryAp2Config,
   UcpDiscoveryHmsConfig,
   UcpDiscoveryOptions,
   UcpEntity,
+  UcpPaymentHandlerEntity,
   UcpProfileDoc,
   UcpPublicSigningKey,
   UcpValidationResult
