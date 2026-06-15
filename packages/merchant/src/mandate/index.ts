@@ -14,6 +14,8 @@ export {
   mockMandateVerifier,
   steelyardJwsVerifier
 } from "./verifier.js";
+export { fileNonceStore, memoryNonceStore } from "./nonce.js";
+export type { NonceConsumeFailureReason, NonceConsumeResult, NonceStore } from "./nonce.js";
 export type {
   JWKSet,
   MandateEnvelope,
