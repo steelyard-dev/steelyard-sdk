@@ -19,7 +19,7 @@
     "smoke:stripe": "tsx scripts/smoke-stripe.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "tsx": "tsx",
+    "tsx": "pnpm -w build && tsx",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .turbo"
   },
