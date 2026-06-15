@@ -36,7 +36,7 @@ import {
   verifyUcpRequest,
   type UcpRequestVerificationFailureReason
 } from "@steelyard/protocol/ucp";
-import type { MandateVerificationResult, MandateVerifier } from "../mandate/index.js";
+import type { MandateVerificationResult, MandateVerifier, MerchantAuthorizationSigner } from "../mandate/index.js";
 import type { MerchantPolicy } from "../policy/index.js";
 import type { PspAdapter, PspCaptureResult } from "../psp/index.js";
 import { IdempotencyConflict, type IdempotencyResponse, type IdempotencyStore } from "./idempotency.js";
@@ -59,6 +59,7 @@ export interface MerchantCheckoutOpts {
       hms?: UcpHmsAuthConfig;
       bearer?: UcpBearerAuthConfig;
     };
+    ap2?: UcpAp2Config;
     allowPrivateNetwork?: boolean;
     profileCache?: UcpProfileCache;
     responseSigningPolicy?: UcpResponseSigningPolicy;
@@ -79,6 +80,11 @@ export interface UcpHmsAuthConfig {
   enabled: boolean;
   signingKeys: HmsSigningKey[];
   activeKid: string;
+}
+
+export interface UcpAp2Config {
+  enabled: boolean;
+  merchantAuthorizationSigner?: MerchantAuthorizationSigner;
 }
 
 export type UcpBearerAuthResult =
@@ -136,7 +142,7 @@ export function createMerchantCheckout(manifest: Manifest, opts: MerchantCheckou
   if (protocols.has("ucp") && opts.steelyardMandate && !opts.mandateVerifier) {
     throw new MerchantCheckoutConfigError("mandateVerifier is required when steelyardMandate is enabled");
   }
-  validateUcpAuthConfig(protocols.has("ucp") ? opts.ucp?.auth : undefined);
+  validateUcpConfig(protocols.has("ucp") ? opts.ucp : undefined);
   assertPspCurrencySupport(manifest, opts.psp);
 
   const ctx = new MerchantCheckoutContext(manifest, opts);
@@ -294,12 +300,13 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
         });
         const next = withUcpPaymentHandlers(withUcpCatalogDetails(ctx.manifest, result.next), ctx.opts.psp);
         await ctx.opts.store.put(next as StoredCheckout);
-        return { status: 200, body: next };
+        return { status: 200, body: await prepareUcpCheckoutResponse(ctx, next) };
       });
     },
     async getCheckout(req, res) {
       const id = ucpCheckoutId(req);
-      sendJson(res, 200, await requireSession(ctx.opts.store, id));
+      const checkout = await requireSession(ctx.opts.store, id);
+      await sendUcpJsonResponse(ctx, res, 200, await prepareUcpCheckoutResponse(ctx, checkout), "normal");
     },
     async updateCheckout(req, res) {
       const id = ucpCheckoutId(req);
@@ -310,7 +317,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
         const result = applyUcpUpdate(current as UcpCheckout, body as Partial<UcpCheckout>, { now: ctx.clock() });
         const next = withUcpCatalogDetails(ctx.manifest, result.next);
         await ctx.opts.store.put(next as StoredCheckout);
-        return { status: 200, body: next };
+        return { status: 200, body: await prepareUcpCheckoutResponse(ctx, next) };
       });
     },
     async completeCheckout(req, res) {
@@ -369,7 +376,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
           });
           return { next: withPspReference(completed.next, pspResult) as StoredCheckout };
         });
-        return { status, body: next };
+        return { status, body: await prepareUcpCheckoutResponse(ctx, next) };
       });
     },
     async cancelCheckout(req, res) {
@@ -380,7 +387,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
           const canceled = applyUcpCancel(claimed as UcpCheckout, { now: ctx.clock() });
           return { next: canceled.next as StoredCheckout };
         });
-        return { status: 200, body: next };
+        return { status: 200, body: await prepareUcpCheckoutResponse(ctx, next) };
       });
     }
   };
@@ -514,6 +521,33 @@ function activeUcpSigningKey(ctx: MerchantCheckoutContext): { kid: string; algor
     algorithm: active.algorithm,
     privateKey: active.privateKeyJwk
   };
+}
+
+async function prepareUcpCheckoutResponse(
+  ctx: MerchantCheckoutContext,
+  checkout: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const publicCheckout = publicUcpCheckout(checkout);
+  if (ctx.opts.ucp?.ap2?.enabled !== true || checkout.ap2_locked !== true) return publicCheckout;
+
+  const signer = ctx.opts.ucp.ap2.merchantAuthorizationSigner;
+  if (!signer) {
+    throw new MerchantCheckoutConfigError("ucp.ap2.merchantAuthorizationSigner is required when AP2 is enabled");
+  }
+
+  const merchantAuthorization = await signer.sign(publicCheckout);
+  return {
+    ...publicCheckout,
+    ap2: {
+      ...asRecord(publicCheckout.ap2),
+      merchant_authorization: merchantAuthorization
+    }
+  };
+}
+
+function publicUcpCheckout(checkout: Record<string, unknown>): Record<string, unknown> {
+  const { ap2_locked: _ap2Locked, ...publicCheckout } = checkout;
+  return publicCheckout;
 }
 
 async function capture(
@@ -931,10 +965,26 @@ function assertPspCurrencySupport(manifest: Manifest, psp: PspAdapter): void {
   }
 }
 
+function validateUcpConfig(config: NonNullable<MerchantCheckoutOpts["ucp"]> | undefined): void {
+  validateUcpAuthConfig(config?.auth);
+  validateUcpAp2Config(config);
+}
+
 function validateUcpAuthConfig(config: UcpAuthConfig | undefined): void {
   validateUcpHmsAuthConfig(config?.hms);
   if (config?.bearer?.enabled && typeof config.bearer.verify !== "function") {
     throw new MerchantCheckoutConfigError("ucp.auth.bearer.verify is required when bearer auth is enabled");
+  }
+}
+
+function validateUcpAp2Config(config: NonNullable<MerchantCheckoutOpts["ucp"]> | undefined): void {
+  if (config?.ap2?.enabled !== true) return;
+  const hms = config.auth?.hms;
+  if (hms?.enabled !== true || !Array.isArray(hms.signingKeys) || hms.signingKeys.length === 0) {
+    throw new MerchantCheckoutConfigError("ucp.auth.hms.signingKeys is required when AP2 is enabled");
+  }
+  if (!config.ap2.merchantAuthorizationSigner) {
+    throw new MerchantCheckoutConfigError("ucp.ap2.merchantAuthorizationSigner is required when AP2 is enabled");
   }
 }
 

@@ -5,6 +5,7 @@ export type {
   HmsSigningKey,
   MerchantCheckout,
   MerchantCheckoutOpts,
+  UcpAp2Config,
   UcpBearerAuthConfig,
   UcpBearerAuthResult,
   UcpHmsAuthConfig,
