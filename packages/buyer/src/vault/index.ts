@@ -23,6 +23,20 @@ export {
   type UcpSigningKeyMetadata
 } from "./ucp-signing.js";
 export {
+  AP2_CHECKOUT_MANDATE_DISCLOSURE_TREE,
+  ap2CheckoutMandateSdHash,
+  ap2CheckoutMandateSdHashInput,
+  issueAp2CheckoutMandate,
+  parseAp2CheckoutMandate,
+  type Ap2CheckoutMandateBuyerClaims,
+  type Ap2CheckoutMandateDisclosures,
+  type Ap2CheckoutMandateClaims,
+  type Ap2CheckoutMandateSigner,
+  type IssueAp2CheckoutMandateArgs,
+  type IssuedAp2CheckoutMandate,
+  type ParsedAp2CheckoutMandate
+} from "./mandate-ap2/index.js";
+export {
   memoryKeystore,
   osKeystore,
   passwordKeystore,
