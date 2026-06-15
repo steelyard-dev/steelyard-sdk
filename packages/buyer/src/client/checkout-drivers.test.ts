@@ -1,6 +1,14 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { defineCommerce, ecdsaSignRaw, type EcJwk, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
+import {
+  defineCommerce,
+  ecdsaSignRaw,
+  jcsCanonicalize,
+  signDetachedJws,
+  type EcJwk,
+  type PurchaseIntent,
+  type WalletDriverPort
+} from "@steelyard/core";
 import {
   applyCompleteRequest,
   applyCreateRequest,
@@ -35,6 +43,7 @@ import {
   stringValue
 } from "./driver-common.js";
 import {
+  Ap2MerchantAuthorizationInvalid,
   UcpCanceled,
   UcpAuthMissing,
   UcpNoCompatibleHandler,
@@ -336,6 +345,58 @@ describe("UCP checkout driver", () => {
     expect(receipt.reference.ucp).toMatchObject({ checkout_id: "checkout_1", vault_token_id: "vt_1" });
   });
 
+  it("verifies AP2 merchant authorization before continuing the UCP checkout flow", async () => {
+    const merchant = await startUcpMerchant({ merchantAuthorization: "valid" });
+    const receipt = await ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "https://coffee.example/.well-known/ucp",
+      merchantProfile: { ucp: {}, signing_keys: [merchantP256PublicKey] },
+      delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+      supportsSteelyardMode: false,
+      port: testPort(),
+      idempotencyKey: "purchase_ucp_ap2",
+      clock: () => now
+    });
+
+    expect(receipt.reference.ucp).toMatchObject({ checkout_id: "checkout_1", vault_token_id: "vt_1" });
+    expect(merchant.requests.map((request) => request.path)).toEqual([
+      "/checkout",
+      "/checkout/checkout_1",
+      "/delegate",
+      "/checkout/checkout_1/complete"
+    ]);
+  });
+
+  for (const [merchantAuthorization, reason] of [
+    ["tampered_checkout", "signature_invalid"],
+    ["unknown_kid", "unknown_kid"],
+    ["substituted_alg", "signature_invalid"]
+  ] as const) {
+    it(`rejects AP2 merchant authorization before consent when it is ${merchantAuthorization}`, async () => {
+      const merchant = await startUcpMerchant({ merchantAuthorization });
+      const failedPurchase = ucpDriver.purchase(
+        { ...intent, merchant: { ...intent.merchant, protocol: "ucp" } },
+        {
+          merchantUrl: merchant.baseUrl,
+          merchantId: "https://coffee.example/.well-known/ucp",
+          merchantProfile: { ucp: {}, signing_keys: [merchantP256PublicKey] },
+          delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+          supportsSteelyardMode: false,
+          port: testPort(),
+          idempotencyKey: `purchase_ucp_ap2_${merchantAuthorization}`,
+          clock: () => now
+        }
+      );
+      await expect(failedPurchase).rejects.toBeInstanceOf(Ap2MerchantAuthorizationInvalid);
+      await expect(failedPurchase).rejects.toMatchObject({
+        name: "Ap2MerchantAuthorizationInvalid",
+        code: "merchant_authorization_invalid",
+        reason
+      });
+      expect(merchant.requests.map((request) => request.path)).toEqual(["/checkout"]);
+    });
+  }
+
   it("rejects tampered signed UCP complete responses", async () => {
     const merchant = await startUcpMerchant({ signCompleteResponse: true, tamperSignedCompleteResponse: true });
     await expect(
@@ -608,6 +669,7 @@ async function startUcpMerchant(
     requireMandate?: boolean;
     signCompleteResponse?: boolean;
     tamperSignedCompleteResponse?: boolean;
+    merchantAuthorization?: Ap2MerchantAuthorizationMode;
   } = {}
 ): Promise<{ baseUrl: string; requests: CapturedRequest[] }> {
   const requests: CapturedRequest[] = [];
@@ -623,14 +685,20 @@ async function startUcpMerchant(
       body
     });
     if (req.method === "POST" && req.url === "/checkout") {
-      checkout = withUcpHandler(applyUcpCreate(body, { now, checkoutId: "checkout_1", currency: "USD", links: [] }).next);
+      checkout = await withAp2MerchantAuthorization(
+        withUcpHandler(applyUcpCreate(body, { now, checkoutId: "checkout_1", currency: "USD", links: [] }).next),
+        opts.merchantAuthorization
+      );
       if (opts.createStatus) checkout = { ...checkout, status: opts.createStatus as UcpCheckout["status"] };
       if (opts.handlerCatalog === false) checkout = { ...checkout, ucp: { ...(checkout.ucp as Record<string, unknown>), payment_handlers: {} } };
       sendJson(res, 200, checkout);
       return;
     }
     if (req.method === "PATCH" && req.url === "/checkout/checkout_1" && checkout) {
-      checkout = applyUcpUpdate(checkout, body, { now }).next;
+      checkout = await withAp2MerchantAuthorization(
+        applyUcpUpdate(checkout, body, { now }).next,
+        opts.merchantAuthorization
+      );
       sendJson(res, 200, checkout);
       return;
     }
@@ -772,6 +840,46 @@ function withUcpHandler(checkout: UcpCheckout): UcpCheckout {
       }
     }
   };
+}
+
+type Ap2MerchantAuthorizationMode = "valid" | "tampered_checkout" | "unknown_kid" | "substituted_alg";
+
+async function withAp2MerchantAuthorization(
+  checkout: UcpCheckout,
+  mode: Ap2MerchantAuthorizationMode | undefined
+): Promise<UcpCheckout> {
+  if (!mode) return checkout;
+  const jws = await ap2MerchantAuthorization(checkout, mode);
+  const signed = {
+    ...checkout,
+    ap2: {
+      merchant_authorization: jws
+    }
+  };
+  return mode === "tampered_checkout" ? { ...signed, currency: "EUR" } : signed;
+}
+
+async function ap2MerchantAuthorization(checkout: UcpCheckout, mode: Ap2MerchantAuthorizationMode): Promise<string> {
+  const kid = mode === "unknown_kid" ? "merchant-missing" : "merchant-p256";
+  const jws = await signDetachedJws({
+    payload: jcsCanonicalize(checkoutWithoutAp2(checkout)),
+    header: { alg: "ES256", kid },
+    privateKey: merchantP256PrivateKey
+  });
+  return mode === "substituted_alg" ? replaceDetachedJwsHeader(jws, { alg: "ES384" }) : jws;
+}
+
+function checkoutWithoutAp2(checkout: UcpCheckout): UcpCheckout {
+  const { ap2: _ap2, ...payload } = checkout;
+  return payload;
+}
+
+function replaceDetachedJwsHeader(jws: string, patch: Record<string, unknown>): string {
+  const [encodedHeader, empty, encodedSignature] = jws.split(".");
+  if (!encodedHeader || empty !== "" || !encodedSignature) throw new Error("expected detached JWS");
+  const header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8")) as Record<string, unknown>;
+  const nextHeader = Buffer.from(JSON.stringify({ ...header, ...patch }), "utf8").toString("base64url");
+  return `${nextHeader}..${encodedSignature}`;
 }
 
 async function readJson(req: IncomingMessage): Promise<{ body: Record<string, unknown>; rawBody: string }> {

@@ -30,7 +30,7 @@ import { ucpDriver, type UcpAuthOptions } from "./ucp.js";
 
 export { createUcpBuyerProfile, createUcpBuyerProfileHandler } from "./profile.js";
 export type { UcpBuyerProfileOptions } from "./profile.js";
-export { UcpAuthMissing, UcpResponseSignatureInvalid } from "./ucp.js";
+export { Ap2MerchantAuthorizationInvalid, UcpAuthMissing, UcpResponseSignatureInvalid } from "./ucp.js";
 export type { UcpAuthOptions, UcpAuthPreference, UcpHmsSigningOptions } from "./ucp.js";
 
 export type Protocol = "mcp" | "acp" | "ucp";

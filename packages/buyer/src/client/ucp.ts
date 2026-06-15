@@ -1,5 +1,14 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import { mapUcpCheckoutStatus, type EcJwk, type HmsAlgorithm, type PurchaseIntent, type Receipt } from "@steelyard/core";
+import {
+  jcsCanonicalize,
+  mapUcpCheckoutStatus,
+  verifyDetachedJws,
+  type Ap2ErrorCode,
+  type EcJwk,
+  type HmsAlgorithm,
+  type PurchaseIntent,
+  type Receipt
+} from "@steelyard/core";
 import { assertValidUcpCheckout, type Checkout } from "@steelyard/protocol/ucp/checkout";
 import { resolveSigningKey, signUcpRequest, verifyUcpResponse, type UcpProfileDoc } from "@steelyard/protocol/ucp";
 import {
@@ -81,6 +90,15 @@ export class UcpResponseSignatureInvalid extends Error {
   }
 }
 
+export class Ap2MerchantAuthorizationInvalid extends Error {
+  readonly code: Ap2ErrorCode = "merchant_authorization_invalid";
+
+  constructor(readonly reason: string) {
+    super(`AP2 merchant authorization invalid: ${reason}`);
+    this.name = "Ap2MerchantAuthorizationInvalid";
+  }
+}
+
 export const ucpDriver = { purchase };
 
 export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Promise<Receipt> {
@@ -96,6 +114,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     })
   );
   assertValidUcpCheckout(checkout);
+  await verifyAp2MerchantAuthorization(checkout, opts);
   if (stringValue(checkout.status) === "canceled") throw new UcpCanceled(stringValue(checkout.id));
   const checkoutId = stringValue(checkout.id);
   const selected = selectedHandler(ucpHandlers(checkout, opts), opts.delegatePaymentUrl);
@@ -124,6 +143,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     )
   );
   assertValidUcpCheckout(checkout);
+  await verifyAp2MerchantAuthorization(checkout, opts);
   const totals = await notifyTotals(opts, checkout);
   const vaultTokenId = await delegateVaultToken({
     delegatePaymentUrl: selected.delegatePaymentUrl,
@@ -285,6 +305,32 @@ function resolveMerchantSigningKey(
 ): EcJwk | null {
   if (!profile) return null;
   return resolveSigningKey(profile as UcpProfileDoc, kid);
+}
+
+async function verifyAp2MerchantAuthorization(checkout: JsonRecord, opts: UcpDriverOpts): Promise<void> {
+  const merchantAuthorization = stringValue(asRecord(checkout.ap2).merchant_authorization);
+  if (!merchantAuthorization) return;
+
+  let result: Awaited<ReturnType<typeof verifyDetachedJws>>;
+  try {
+    result = await verifyDetachedJws({
+      jws: merchantAuthorization,
+      payload: jcsCanonicalize(checkoutWithoutAp2(checkout)),
+      resolveKey: async (kid) => resolveMerchantSigningKey(opts.merchantProfile, kid)
+    });
+  } catch {
+    throw new Ap2MerchantAuthorizationInvalid("signature_invalid");
+  }
+  if (!result.ok) throw new Ap2MerchantAuthorizationInvalid(ap2MerchantAuthorizationReason(result.reason));
+}
+
+function checkoutWithoutAp2(checkout: JsonRecord): JsonRecord {
+  const { ap2: _ap2, ...payload } = checkout;
+  return payload;
+}
+
+function ap2MerchantAuthorizationReason(reason: string): string {
+  return reason === "key_not_found" ? "unknown_kid" : reason;
 }
 
 function ucpHeaderPreparer(
