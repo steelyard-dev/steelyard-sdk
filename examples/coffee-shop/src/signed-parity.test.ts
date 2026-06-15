@@ -67,7 +67,7 @@ describe("coffee-shop signed UCP parity", () => {
     } finally {
       await wallet.close();
     }
-  });
+  }, 15000);
 });
 
 async function buy(

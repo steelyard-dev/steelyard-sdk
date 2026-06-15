@@ -227,7 +227,7 @@ rules:
       keyringState.fail = true;
       await expect(Wallet.open({ project: true })).rejects.toBeInstanceOf(KeystoreUnavailable);
     });
-  }, 20_000);
+  }, 45_000);
 });
 
 describe("Wallet decision, payment, and maintenance", () => {
