@@ -4,10 +4,24 @@ export {
   ap2MerchantAuthorizationSigner,
   checkoutWithoutAp2
 } from "./ap2.js";
+export {
+  Ap2MandateVerifierConfigError,
+  parseSdJwtKbPresentation,
+  sdJwtKbVerifier
+} from "./ap2-verifier.js";
 export type {
   Ap2MerchantAuthorizationSignerOptions,
   MerchantAuthorizationSigner
 } from "./ap2.js";
+export type {
+  Ap2DigitalPaymentCredentialTrustModel,
+  Ap2MandateFailureReason,
+  Ap2MandateTrustModel,
+  Ap2MandateVerificationResult,
+  Ap2MandateVerifier,
+  ParseSdJwtKbPresentationResult,
+  SdJwtKbVerifierOptions
+} from "./ap2-verifier.js";
 export {
   MockMandateInProductionError,
   canonicalMandateCheckout,
