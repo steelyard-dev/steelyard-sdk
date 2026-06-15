@@ -59,3 +59,16 @@ export type {
   UcpProfileCacheOptions,
   UcpProfileFetchErrorCode
 } from "./profile.js";
+export {
+  UcpSignerMissingHeader,
+  parseUcpAgentProfileUrl,
+  signUcpRequest,
+  verifyUcpRequest
+} from "./signatures.js";
+export type {
+  SignUcpRequestArgs,
+  UcpRequestVerificationFailureReason,
+  UcpRequestVerificationResult,
+  UcpSigningMaterial,
+  VerifyUcpRequestArgs
+} from "./signatures.js";
