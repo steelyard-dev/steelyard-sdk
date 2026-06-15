@@ -426,6 +426,66 @@ describe("UCP checkout driver", () => {
     expect(port.signMandatePayloads).toHaveLength(0);
   });
 
+  it("rejects a locked AP2 session when merchant authorization is missing", async () => {
+    const merchant = await startUcpMerchant();
+    const failedPurchase = ucpDriver.purchase(
+      { ...intent, merchant: { ...intent.merchant, protocol: "ucp" } },
+      {
+        merchantUrl: merchant.baseUrl,
+        merchantId: "https://coffee.example/.well-known/ucp",
+        merchantProfile: { ucp: {}, signing_keys: [merchantP256PublicKey] },
+        delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+        supportsSteelyardMode: true,
+        ap2Locked: true,
+        port: withUcpSigningKey(testPort()),
+        idempotencyKey: "purchase_ucp_ap2_locked_missing_authz",
+        clock: () => now,
+        ap2: {
+          enabled: true,
+          issuer: "did:example:bank-dpc-issuer",
+          checkoutNonce: "checkout_nonce_1",
+          paymentNonce: "payment_nonce_1"
+        }
+      }
+    );
+
+    await expect(failedPurchase).rejects.toMatchObject({
+      name: "Ap2SessionInconsistent",
+      code: "merchant_authorization_missing"
+    });
+    expect(merchant.requests.map((request) => request.path)).toEqual(["/checkout"]);
+  });
+
+  it("does not fall back to Steelyard-mode when AP2 is session-locked", async () => {
+    const merchant = await startUcpMerchant({ merchantAuthorization: "valid" });
+    const port = withUcpSigningKey(testPort());
+    const failedPurchase = ucpDriver.purchase(
+      { ...intent, merchant: { ...intent.merchant, protocol: "ucp" } },
+      {
+        merchantUrl: merchant.baseUrl,
+        merchantId: "https://coffee.example/.well-known/ucp",
+        merchantProfile: { ucp: {}, signing_keys: [merchantP256PublicKey] },
+        delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
+        supportsSteelyardMode: true,
+        ap2Locked: true,
+        port,
+        idempotencyKey: "purchase_ucp_ap2_locked_no_options",
+        clock: () => now
+      }
+    );
+
+    await expect(failedPurchase).rejects.toMatchObject({
+      name: "Ap2SessionInconsistent",
+      code: "agent_missing_key"
+    });
+    expect(port.signMandatePayloads).toHaveLength(0);
+    expect(merchant.requests.map((request) => request.path)).toEqual([
+      "/checkout",
+      "/checkout/checkout_1",
+      "/delegate"
+    ]);
+  });
+
   for (const [merchantAuthorization, reason] of [
     ["tampered_checkout", "signature_invalid"],
     ["unknown_kid", "unknown_kid"],

@@ -3,6 +3,8 @@ import type { RequestListener } from "node:http";
 import { assertValidEcJwk, type EcJwk } from "@steelyard/core";
 import {
   assertValidUcpProfile,
+  UCP_AP2_CAPABILITY,
+  UCP_CHECKOUT_CAPABILITY,
   UCP_VERSION,
   type UcpProfileDoc,
   type UcpPublicSigningKey
@@ -11,14 +13,41 @@ import {
 export interface UcpBuyerProfileOptions {
   signingKeys: readonly EcJwk[];
   ucpVersion?: string;
+  ap2?: {
+    enabled: true;
+    spec?: string;
+    schema?: string;
+  };
 }
 
 export function createUcpBuyerProfile(args: UcpBuyerProfileOptions): UcpProfileDoc {
   if (args.signingKeys.length === 0) {
     throw new Error("signingKeys must contain at least one public UCP signing key");
   }
+  const version = args.ucpVersion ?? UCP_VERSION;
   const doc: UcpProfileDoc = {
-    ucp: { version: args.ucpVersion ?? UCP_VERSION },
+    ucp: {
+      version,
+      ...(args.ap2?.enabled
+        ? {
+            capabilities: {
+              [UCP_AP2_CAPABILITY]: [
+                {
+                  version,
+                  spec: args.ap2.spec ?? `https://ucp.dev/${version}/specification/ap2-mandates`,
+                  schema: args.ap2.schema ?? `https://ucp.dev/${version}/schemas/shopping/ap2_mandate.json`,
+                  extends: UCP_CHECKOUT_CAPABILITY,
+                  config: {
+                    vp_formats_supported: {
+                      "dc+sd-jwt": {}
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        : {})
+    },
     signing_keys: args.signingKeys.map(publicSigningKey)
   };
   assertValidUcpProfile(doc);

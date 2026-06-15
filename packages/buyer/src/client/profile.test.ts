@@ -2,7 +2,7 @@
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import type { EcJwk } from "@steelyard/core";
-import { assertValidUcpProfile, UcpProfileCache } from "@steelyard/protocol/ucp";
+import { assertValidUcpProfile, UCP_AP2_CAPABILITY, UcpProfileCache } from "@steelyard/protocol/ucp";
 import { createUcpBuyerProfile, createUcpBuyerProfileHandler } from "./index.js";
 
 let server: Server | undefined;
@@ -33,6 +33,31 @@ describe("createUcpBuyerProfile", () => {
 
   it("requires at least one signing key", () => {
     expect(() => createUcpBuyerProfile({ signingKeys: [] })).toThrow(/at least one/);
+  });
+
+  it("advertises AP2 only when configured", () => {
+    const plain = createUcpBuyerProfile({ signingKeys: [walletP256PublicKey] });
+    expect(plain.ucp.capabilities?.[UCP_AP2_CAPABILITY]).toBeUndefined();
+
+    const ap2 = createUcpBuyerProfile({
+      signingKeys: [walletP256PublicKey],
+      ap2: { enabled: true }
+    });
+    expect(() => assertValidUcpProfile(ap2)).not.toThrow();
+    expect(ap2.ucp.capabilities?.[UCP_AP2_CAPABILITY]).toEqual([
+      {
+        version: "2026-04-17",
+        spec: "https://ucp.dev/2026-04-17/specification/ap2-mandates",
+        schema: "https://ucp.dev/2026-04-17/schemas/shopping/ap2_mandate.json",
+        extends: "dev.ucp.shopping.checkout",
+        config: {
+          vp_formats_supported: {
+            "dc+sd-jwt": {}
+          }
+        }
+      }
+    ]);
+    expect(JSON.stringify(ap2)).not.toContain('"d":');
   });
 });
 

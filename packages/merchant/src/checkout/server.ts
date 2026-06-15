@@ -31,9 +31,11 @@ import {
   type SelectedPaymentInstrument
 } from "@steelyard/protocol/ucp/checkout";
 import {
+  UCP_AP2_CAPABILITY,
   UcpProfileCache,
   signUcpResponse,
   verifyUcpRequest,
+  type UcpProfileDoc,
   type UcpRequestVerificationFailureReason
 } from "@steelyard/protocol/ucp";
 import type { MandateVerificationResult, MandateVerifier, MerchantAuthorizationSigner } from "../mandate/index.js";
@@ -289,16 +291,18 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
 
   return {
     async createCheckout(req, res) {
-      await withUcpJsonIdempotency(ctx, req, res, "ucp:create", "normal", async (body) => {
+      await withUcpJsonIdempotency(ctx, req, res, "ucp:create", "normal", async (body, _idempotencyKey, auth) => {
         const policy = await ctx.evaluatePolicy("ucp", body);
         if (policy) return policy;
+        const ap2Locked = await ucpAp2Locked(ctx, auth);
         const result = applyUcpCreate(body as Partial<UcpCheckout>, {
           now: ctx.clock(),
           checkoutId: `checkout_${randomUUID()}`,
           currency: checkoutCurrency(ctx.manifest),
           links: []
         });
-        const next = withUcpPaymentHandlers(withUcpCatalogDetails(ctx.manifest, result.next), ctx.opts.psp);
+        const checkout = withUcpCatalogDetails(ctx.manifest, result.next);
+        const next = withUcpPaymentHandlers(ap2Locked ? { ...checkout, ap2_locked: true } : checkout, ctx.opts.psp);
         await ctx.opts.store.put(next as StoredCheckout);
         return { status: 200, body: await prepareUcpCheckoutResponse(ctx, next) };
       });
@@ -326,6 +330,15 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
         const current = await requireSession(ctx.opts.store, id);
         const policy = await ctx.evaluatePolicy("ucp", current);
         if (policy) return policy;
+        if (current.ap2_locked === true && !hasAp2CheckoutMandate(body)) {
+          return {
+            status: 400,
+            body: {
+              code: "mandate_required",
+              content: "AP2 checkout_mandate is required for this session"
+            }
+          };
+        }
         let status = 200;
         const next = await ctx.opts.store.transition(id, "ready_for_complete", "complete_in_progress", async (claimed) => {
           const payment = ucpPaymentData(body);
@@ -458,7 +471,7 @@ async function withUcpJsonIdempotency(
   res: ServerResponse,
   scope: string,
   responseKind: UcpResponseKind,
-  fn: (body: unknown, idempotencyKey: string) => Promise<IdempotencyResponse>
+  fn: (body: unknown, idempotencyKey: string, auth: Extract<UcpAuthResult, { ok: true }>) => Promise<IdempotencyResponse>
 ): Promise<void> {
   const rawBody = await readRawBody(req);
   const auth = await authenticateUcpRequest(ctx, req, rawBody.byteLength ? rawBody : undefined);
@@ -473,7 +486,7 @@ async function withUcpJsonIdempotency(
     sendJson(res, 400, { error: "idempotency_key_required" });
     return;
   }
-  const response = await ctx.opts.idempotency.remember(key, bodyHash(scope, body), () => fn(body, key));
+  const response = await ctx.opts.idempotency.remember(key, bodyHash(scope, body), () => fn(body, key, auth));
   await sendUcpJsonResponse(ctx, res, response.status, response.body, responseKind);
 }
 
@@ -550,6 +563,29 @@ function publicUcpCheckout(checkout: Record<string, unknown>): Record<string, un
   return publicCheckout;
 }
 
+async function ucpAp2Locked(
+  ctx: MerchantCheckoutContext,
+  auth: Extract<UcpAuthResult, { ok: true }>
+): Promise<boolean> {
+  if (ctx.opts.ucp?.ap2?.enabled !== true) return false;
+  if (auth.mechanism !== "hms" || !auth.signerProfileUrl) return false;
+  const buyerProfile = await ctx.ucpProfileCache.get(auth.signerProfileUrl, {
+    allowPrivateNetwork: ctx.opts.ucp?.allowPrivateNetwork,
+    now: ctx.clock
+  });
+  return ucpProfileHasCapability(buyerProfile, UCP_AP2_CAPABILITY);
+}
+
+function ucpProfileHasCapability(profile: UcpProfileDoc, capability: string): boolean {
+  const value = profile.ucp.capabilities?.[capability];
+  return Array.isArray(value) && value.length > 0;
+}
+
+function hasAp2CheckoutMandate(body: unknown): boolean {
+  const mandate = asRecord(asRecord(body).ap2).checkout_mandate;
+  return typeof mandate === "string" && mandate.length > 0;
+}
+
 async function capture(
   ctx: MerchantCheckoutContext,
   protocol: "acp" | "ucp",
@@ -603,7 +639,7 @@ type UcpAuthFailureCode =
   | "auth_invalid";
 
 type UcpAuthResult =
-  | { ok: true; mechanism: "none" | "hms" | "bearer"; subject?: string }
+  | { ok: true; mechanism: "none" | "hms" | "bearer"; subject?: string; signerProfileUrl?: string }
   | { ok: false; status: number; code: UcpAuthFailureCode; content: string };
 
 async function authenticateUcpRequest(
@@ -645,7 +681,7 @@ async function authenticateUcpRequest(
         content: `Signature verification failed: ${verification.detail ?? verification.reason}`
       };
     }
-    return { ok: true, mechanism: "hms", subject: verification.signerProfileUrl };
+    return { ok: true, mechanism: "hms", subject: verification.signerProfileUrl, signerProfileUrl: verification.signerProfileUrl };
   }
 
   const token = bearerToken(headers.authorization);

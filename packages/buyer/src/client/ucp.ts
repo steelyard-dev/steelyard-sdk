@@ -45,6 +45,7 @@ export interface UcpDriverOpts extends DriverBaseOpts {
   merchantProfile?: { ucp?: { payment_handlers?: Record<string, unknown> }; signing_keys?: EcJwk[] };
   supportsSteelyardMode?: boolean;
   ucpAuth?: UcpAuthOptions;
+  ap2Locked?: boolean;
   ap2?: UcpAp2MandateOptions;
 }
 
@@ -118,11 +119,22 @@ export class Ap2MerchantAuthorizationInvalid extends Error {
   }
 }
 
+export class Ap2SessionInconsistent extends Error {
+  readonly code: Ap2ErrorCode;
+
+  constructor(code: Extract<Ap2ErrorCode, "merchant_authorization_missing" | "agent_missing_key">, message: string) {
+    super(message);
+    this.name = "Ap2SessionInconsistent";
+    this.code = code;
+  }
+}
+
 export const ucpDriver = { purchase };
 
 export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Promise<Receipt> {
   const key = purchaseKey(opts, intent);
   const clock = driverClock(opts);
+  const ap2Required = opts.ap2Locked === true || opts.ap2?.enabled === true;
   const auth = resolveUcpRequestAuth(opts);
   const prepareHeaders = ucpHeaderPreparer(auth, clock);
   let checkout = asRecord(
@@ -133,7 +145,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     })
   );
   assertValidUcpCheckout(checkout);
-  await verifyAp2MerchantAuthorization(checkout, opts);
+  await verifyAp2MerchantAuthorization(checkout, opts, { required: ap2Required });
   if (stringValue(checkout.status) === "canceled") throw new UcpCanceled(stringValue(checkout.id));
   const checkoutId = stringValue(checkout.id);
   const selected = selectedHandler(ucpHandlers(checkout, opts), opts.delegatePaymentUrl);
@@ -162,7 +174,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     )
   );
   assertValidUcpCheckout(checkout);
-  await verifyAp2MerchantAuthorization(checkout, opts);
+  await verifyAp2MerchantAuthorization(checkout, opts, { required: ap2Required });
   const totals = await notifyTotals(opts, checkout);
   const vaultTokenId = await delegateVaultToken({
     delegatePaymentUrl: selected.delegatePaymentUrl,
@@ -176,7 +188,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     clock
   });
   const audience = opts.merchantId;
-  const ap2Mandates = opts.ap2?.enabled
+  const ap2Mandates = ap2Required
     ? await issueUcpAp2Mandates({
         opts,
         checkout: checkout as Checkout,
@@ -250,7 +262,9 @@ async function issueUcpAp2Mandates(args: {
   clock: () => Date;
 }): Promise<{ checkout_mandate: string; payment_mandate: string }> {
   const ap2 = args.opts.ap2;
-  if (!ap2?.enabled) throw new Error("AP2 mandate options are required");
+  if (!ap2?.enabled) {
+    throw new Ap2SessionInconsistent("agent_missing_key", "AP2 session is locked but AP2 mandate options are not configured");
+  }
   if (!canIssueAp2Mandates(args.opts.port)) {
     throw new UcpAuthMissing("UCP AP2 mandates require a UCP signing key");
   }
@@ -422,9 +436,21 @@ function resolveMerchantSigningKey(
   return resolveSigningKey(profile as UcpProfileDoc, kid);
 }
 
-async function verifyAp2MerchantAuthorization(checkout: JsonRecord, opts: UcpDriverOpts): Promise<void> {
+async function verifyAp2MerchantAuthorization(
+  checkout: JsonRecord,
+  opts: UcpDriverOpts,
+  session: { required: boolean }
+): Promise<void> {
   const merchantAuthorization = stringValue(asRecord(checkout.ap2).merchant_authorization);
-  if (!merchantAuthorization) return;
+  if (!merchantAuthorization) {
+    if (session.required) {
+      throw new Ap2SessionInconsistent(
+        "merchant_authorization_missing",
+        "AP2 session is locked but checkout.ap2.merchant_authorization is missing"
+      );
+    }
+    return;
+  }
 
   let result: Awaited<ReturnType<typeof verifyDetachedJws>>;
   try {

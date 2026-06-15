@@ -18,7 +18,7 @@ import {
   memoryIdempotencyStore,
   MerchantCheckoutConfigError
 } from "./index.js";
-import { signUcpRequest, verifyUcpResponse } from "@steelyard/protocol/ucp";
+import { signUcpRequest, UCP_AP2_CAPABILITY, verifyUcpResponse } from "@steelyard/protocol/ucp";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const manifest = defineCommerce({
@@ -795,7 +795,7 @@ describe("createMerchantCheckout", () => {
   it("mounts AP2 merchant authorization on AP2-locked UCP checkout responses", async () => {
     const signingKeys = [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" as const }];
     const store = memoryCheckoutSessionStore();
-    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey], { ap2: true });
     const client = await listen(
       createMerchantCheckout(manifest, {
         protocols: ["ucp"],
@@ -828,11 +828,14 @@ describe("createMerchantCheckout", () => {
       await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-ap2-create", buyerProfileUrl)
     );
     expect(created.status).toBe(200);
-    expect(created.body).not.toHaveProperty("ap2");
     const checkoutId = stringField(created.body, "id");
     const stored = await store.get(checkoutId);
     if (!stored) throw new Error("expected created checkout to be stored");
-    await store.put({ ...stored, ap2_locked: true });
+    expect(stored).toMatchObject({ ap2_locked: true });
+    expect(stored).not.toHaveProperty("ap2");
+
+    const createdAp2 = recordField(created.body, "ap2");
+    expect(stringField(createdAp2, "merchant_authorization")).toMatch(/^[A-Za-z0-9_-]+\.\.[A-Za-z0-9_-]+$/);
 
     const fetched = await client.get(`/ucp/api/checkout/${checkoutId}`);
     expect(fetched.status).toBe(200);
@@ -858,6 +861,82 @@ describe("createMerchantCheckout", () => {
     const storedAfterFetch = await store.get(checkoutId);
     expect(storedAfterFetch).toMatchObject({ ap2_locked: true });
     expect(storedAfterFetch).not.toHaveProperty("ap2");
+
+    const missingMandateBody = { payment: ucpPaymentComplete };
+    const missingMandate = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      missingMandateBody,
+      "ucp-ap2-complete-missing",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        missingMandateBody,
+        "ucp-ap2-complete-missing",
+        buyerProfileUrl
+      )
+    );
+    expect(missingMandate).toMatchObject({
+      status: 400,
+      body: { code: "mandate_required", content: expect.stringContaining("checkout_mandate") }
+    });
+  });
+
+  it("does not AP2-lock a UCP checkout when the buyer profile lacks AP2 capability", async () => {
+    const signingKeys = [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" as const }];
+    const store = memoryCheckoutSessionStore();
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store,
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          allowPrivateNetwork: true,
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys,
+              activeKid: "merchant-p256"
+            }
+          },
+          ap2: {
+            enabled: true,
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
+          }
+        }
+      }).handler
+    );
+
+    const createBody = { line_items: ucpLineItems };
+    const created = await client.post(
+      "/ucp/api/checkout",
+      createBody,
+      "ucp-non-ap2-create",
+      await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-non-ap2-create", buyerProfileUrl)
+    );
+    expect(created.status).toBe(200);
+    expect(created.body).not.toHaveProperty("ap2");
+    const checkoutId = stringField(created.body, "id");
+    await expect(store.get(checkoutId)).resolves.not.toMatchObject({ ap2_locked: true });
+
+    const completeBody = { payment: ucpPaymentComplete };
+    const completed = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      completeBody,
+      "ucp-non-ap2-complete",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        completeBody,
+        "ucp-non-ap2-complete",
+        buyerProfileUrl
+      )
+    );
+    expect(completed).toMatchObject({ status: 200, body: { status: "completed" } });
   });
 
   it("dispatches UCP bearer auth and rejects missing or unsupported auth methods", async () => {
@@ -1123,7 +1202,7 @@ async function request(
   };
 }
 
-async function startBuyerProfile(signingKeys: EcJwk[]): Promise<string> {
+async function startBuyerProfile(signingKeys: EcJwk[], opts: { ap2?: boolean } = {}): Promise<string> {
   const server = createServer((req, res) => {
     if (req.method !== "GET") {
       res.writeHead(405);
@@ -1131,7 +1210,31 @@ async function startBuyerProfile(signingKeys: EcJwk[]): Promise<string> {
       return;
     }
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ucp: { version: "2026-04-17" }, signing_keys: signingKeys }));
+    res.end(JSON.stringify({
+      ucp: {
+        version: "2026-04-17",
+        ...(opts.ap2
+          ? {
+              capabilities: {
+                [UCP_AP2_CAPABILITY]: [
+                  {
+                    version: "2026-04-17",
+                    spec: "https://ucp.dev/2026-04-17/specification/ap2-mandates",
+                    schema: "https://ucp.dev/2026-04-17/schemas/shopping/ap2_mandate.json",
+                    extends: "dev.ucp.shopping.checkout",
+                    config: {
+                      vp_formats_supported: {
+                        "dc+sd-jwt": {}
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          : {})
+      },
+      signing_keys: signingKeys
+    }));
   });
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
