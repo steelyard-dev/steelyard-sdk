@@ -10,7 +10,14 @@ import {
   type Receipt
 } from "@steelyard/core";
 import { assertValidUcpCheckout, type Checkout } from "@steelyard/protocol/ucp/checkout";
-import { resolveSigningKey, signUcpRequest, verifyUcpResponse, type UcpProfileDoc } from "@steelyard/protocol/ucp";
+import {
+  UcpAp2EnvelopeValidationError,
+  assertValidAp2EnvelopeOnResponse,
+  resolveSigningKey,
+  signUcpRequest,
+  verifyUcpResponse,
+  type UcpProfileDoc
+} from "@steelyard/protocol/ucp";
 import {
   issueAp2CheckoutMandate,
   issueAp2PaymentMandate,
@@ -441,6 +448,19 @@ async function verifyAp2MerchantAuthorization(
   opts: UcpDriverOpts,
   session: { required: boolean }
 ): Promise<void> {
+  if (session.required) {
+    try {
+      assertValidAp2EnvelopeOnResponse(checkout);
+    } catch (error) {
+      if (error instanceof UcpAp2EnvelopeValidationError) {
+        throw new Ap2SessionInconsistent(
+          "merchant_authorization_missing",
+          "AP2 session is locked but checkout.ap2.merchant_authorization is missing"
+        );
+      }
+      throw error;
+    }
+  }
   const merchantAuthorization = stringValue(asRecord(checkout.ap2).merchant_authorization);
   if (!merchantAuthorization) {
     if (session.required) {

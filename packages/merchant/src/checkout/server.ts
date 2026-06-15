@@ -33,6 +33,8 @@ import {
 import {
   UCP_AP2_CAPABILITY,
   UcpProfileCache,
+  assertValidAp2EnvelopeOnResponse,
+  isValidAp2EnvelopeOnRequest,
   signUcpResponse,
   verifyUcpRequest,
   type UcpProfileDoc,
@@ -330,7 +332,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
         const current = await requireSession(ctx.opts.store, id);
         const policy = await ctx.evaluatePolicy("ucp", current);
         if (policy) return policy;
-        if (current.ap2_locked === true && !hasAp2CheckoutMandate(body)) {
+        if (current.ap2_locked === true && !isValidAp2EnvelopeOnRequest(body)) {
           return {
             status: 400,
             body: {
@@ -549,13 +551,15 @@ async function prepareUcpCheckoutResponse(
   }
 
   const merchantAuthorization = await signer.sign(publicCheckout);
-  return {
+  const response = {
     ...publicCheckout,
     ap2: {
       ...asRecord(publicCheckout.ap2),
       merchant_authorization: merchantAuthorization
     }
   };
+  assertValidAp2EnvelopeOnResponse(response);
+  return response;
 }
 
 function publicUcpCheckout(checkout: Record<string, unknown>): Record<string, unknown> {
@@ -579,11 +583,6 @@ async function ucpAp2Locked(
 function ucpProfileHasCapability(profile: UcpProfileDoc, capability: string): boolean {
   const value = profile.ucp.capabilities?.[capability];
   return Array.isArray(value) && value.length > 0;
-}
-
-function hasAp2CheckoutMandate(body: unknown): boolean {
-  const mandate = asRecord(asRecord(body).ap2).checkout_mandate;
-  return typeof mandate === "string" && mandate.length > 0;
 }
 
 async function capture(

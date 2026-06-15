@@ -880,6 +880,25 @@ describe("createMerchantCheckout", () => {
       status: 400,
       body: { code: "mandate_required", content: expect.stringContaining("checkout_mandate") }
     });
+
+    const emptyMandateBody = { payment: ucpPaymentComplete, ap2: { checkout_mandate: "" } };
+    const emptyMandate = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      emptyMandateBody,
+      "ucp-ap2-complete-empty",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        emptyMandateBody,
+        "ucp-ap2-complete-empty",
+        buyerProfileUrl
+      )
+    );
+    expect(emptyMandate).toMatchObject({
+      status: 400,
+      body: { code: "mandate_required", content: expect.stringContaining("checkout_mandate") }
+    });
   });
 
   it("does not AP2-lock a UCP checkout when the buyer profile lacks AP2 capability", async () => {

@@ -1,4 +1,15 @@
 export {
+  UcpAp2EnvelopeValidationError,
+  assertValidAp2EnvelopeOnRequest,
+  assertValidAp2EnvelopeOnResponse,
+  isValidAp2EnvelopeOnRequest,
+  isValidAp2EnvelopeOnResponse
+} from "./ap2-envelope.js";
+export type {
+  Ap2WithCheckoutMandate,
+  Ap2WithMerchantAuthorization
+} from "./ap2-envelope.js";
+export {
   assertValidGetProductResponse,
   assertValidLookupResponse,
   assertValidSearchResponse,
