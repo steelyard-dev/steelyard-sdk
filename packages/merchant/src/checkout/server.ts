@@ -40,7 +40,12 @@ import {
   type UcpProfileDoc,
   type UcpRequestVerificationFailureReason
 } from "@steelyard/protocol/ucp";
-import type { MandateVerificationResult, MandateVerifier, MerchantAuthorizationSigner } from "../mandate/index.js";
+import type {
+  MandateVerificationResult,
+  MandateVerifier,
+  MerchantAuthorizationSigner,
+  NonceStore
+} from "../mandate/index.js";
 import type { MerchantPolicy } from "../policy/index.js";
 import type { PspAdapter, PspCaptureResult, PspPaymentMandate } from "../psp/index.js";
 import { IdempotencyConflict, type IdempotencyResponse, type IdempotencyStore } from "./idempotency.js";
@@ -90,6 +95,8 @@ export interface UcpAp2Config {
   enabled: boolean;
   mandateVerifier?: MandateVerifier;
   merchantAuthorizationSigner?: MerchantAuthorizationSigner;
+  nonceStore?: NonceStore;
+  nonceTtlSeconds?: number;
 }
 
 export type UcpBearerAuthResult =
@@ -298,14 +305,20 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
         const policy = await ctx.evaluatePolicy("ucp", body);
         if (policy) return policy;
         const ap2Locked = await ucpAp2Locked(ctx, auth);
+        const checkoutId = `checkout_${randomUUID()}`;
         const result = applyUcpCreate(body as Partial<UcpCheckout>, {
           now: ctx.clock(),
-          checkoutId: `checkout_${randomUUID()}`,
+          checkoutId,
           currency: checkoutCurrency(ctx.manifest),
           links: []
         });
         const checkout = withUcpCatalogDetails(ctx.manifest, result.next);
-        const next = withUcpPaymentHandlers(ap2Locked ? { ...checkout, ap2_locked: true } : checkout, ctx.opts.psp);
+        const next = withUcpPaymentHandlers(
+          ap2Locked
+            ? { ...checkout, ap2_locked: true, ap2_nonces: await issueUcpAp2Nonces(ctx, checkoutId) }
+            : checkout,
+          ctx.opts.psp
+        );
         await ctx.opts.store.put(next as StoredCheckout);
         return { status: 200, body: await prepareUcpCheckoutResponse(ctx, next) };
       });
@@ -359,10 +372,11 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
           const verifier = current.ap2_locked === true ? ctx.opts.ucp?.ap2?.mandateVerifier : mandateVerifier;
           let mandateOk: Extract<MandateVerificationResult, { ok: true }> | undefined;
           if (current.ap2_locked === true || ctx.opts.steelyardMandate) {
+            const verificationScope = current.ap2_locked === true ? stringValue(claimed.id, id) : ctx.ucpAudience;
             const mandate = await verifier!.verify(
               body as Record<string, unknown>,
               { ...claimed, payment: (body as Record<string, unknown>).payment },
-              ctx.ucpAudience
+              verificationScope
             );
             if (!mandate.ok) {
               status = 400;
@@ -553,10 +567,12 @@ async function prepareUcpCheckoutResponse(
   }
 
   const merchantAuthorization = await signer.sign(publicCheckout);
+  const nonces = ap2NonceFields(checkout);
   const response = {
     ...publicCheckout,
     ap2: {
       ...asRecord(publicCheckout.ap2),
+      ...nonces,
       merchant_authorization: merchantAuthorization
     }
   };
@@ -565,8 +581,36 @@ async function prepareUcpCheckoutResponse(
 }
 
 function publicUcpCheckout(checkout: Record<string, unknown>): Record<string, unknown> {
-  const { ap2_locked: _ap2Locked, ...publicCheckout } = checkout;
+  const { ap2_locked: _ap2Locked, ap2_nonces: _ap2Nonces, ...publicCheckout } = checkout;
   return publicCheckout;
+}
+
+async function issueUcpAp2Nonces(ctx: MerchantCheckoutContext, checkoutId: string): Promise<Record<string, unknown>> {
+  const store = ctx.opts.ucp?.ap2?.nonceStore;
+  if (!store) throw new MerchantCheckoutConfigError("ucp.ap2.nonceStore is required when AP2 is enabled");
+  const ttlSeconds = ctx.opts.ucp?.ap2?.nonceTtlSeconds;
+  const checkout = await store.issue({ session_id: checkoutId, ...(ttlSeconds ? { ttlSeconds } : {}) });
+  const payment = await store.issue({ session_id: checkoutId, ...(ttlSeconds ? { ttlSeconds } : {}) });
+  return {
+    checkout_nonce: checkout.nonce,
+    checkout_nonce_expires_at: checkout.expires_at,
+    payment_nonce: payment.nonce,
+    payment_nonce_expires_at: payment.expires_at
+  };
+}
+
+function ap2NonceFields(checkout: Record<string, unknown>): Record<string, unknown> {
+  const nonces = asRecord(checkout.ap2_nonces);
+  const checkoutNonce = stringValue(nonces.checkout_nonce, "");
+  const paymentNonce = stringValue(nonces.payment_nonce, "");
+  return {
+    ...(checkoutNonce ? { checkout_nonce: checkoutNonce } : {}),
+    ...(typeof nonces.checkout_nonce_expires_at === "string"
+      ? { checkout_nonce_expires_at: nonces.checkout_nonce_expires_at }
+      : {}),
+    ...(paymentNonce ? { payment_nonce: paymentNonce } : {}),
+    ...(typeof nonces.payment_nonce_expires_at === "string" ? { payment_nonce_expires_at: nonces.payment_nonce_expires_at } : {})
+  };
 }
 
 async function ucpAp2Locked(
@@ -1070,6 +1114,9 @@ function validateUcpAp2Config(config: NonNullable<MerchantCheckoutOpts["ucp"]> |
   }
   if (!config.ap2.mandateVerifier) {
     throw new MerchantCheckoutConfigError("ucp.ap2.mandateVerifier is required when AP2 is enabled");
+  }
+  if (!config.ap2.nonceStore) {
+    throw new MerchantCheckoutConfigError("ucp.ap2.nonceStore is required when AP2 is enabled");
   }
 }
 

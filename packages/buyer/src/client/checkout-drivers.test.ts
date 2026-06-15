@@ -387,8 +387,6 @@ describe("UCP checkout driver", () => {
       ap2: {
         enabled: true,
         issuer: "did:example:bank-dpc-issuer",
-        checkoutNonce: "checkout_nonce_1",
-        paymentNonce: "payment_nonce_1",
         payee: {
           id: "merchant_1",
           name: "Acme Coffee",
@@ -414,8 +412,8 @@ describe("UCP checkout driver", () => {
     expect(receipt.reference.ucp?.mandate_id).toHaveLength(16);
     expect(complete).not.toHaveProperty("steelyard.checkout_mandate");
     expect(credential).toMatchObject({ type: "ap2_payment_mandate" });
-    expect(parsedCheckout.kbPayload).toMatchObject({ nonce: "checkout_nonce_1" });
-    expect(parsedPayment.kbPayload).toMatchObject({ nonce: "payment_nonce_1" });
+    expect(parsedCheckout.kbPayload).toMatchObject({ nonce: "response_checkout_nonce_1" });
+    expect(parsedPayment.kbPayload).toMatchObject({ nonce: "response_payment_nonce_1" });
     expect(parsedPayment.issuerPayload).toMatchObject({
       vct: "mandate.payment.1",
       payment_amount: { amount: 0, currency: "USD" },
@@ -972,6 +970,10 @@ async function withAp2MerchantAuthorization(
   const signed = {
     ...checkout,
     ap2: {
+      checkout_nonce: "response_checkout_nonce_1",
+      checkout_nonce_expires_at: "2026-06-14T12:15:00.000Z",
+      payment_nonce: "response_payment_nonce_1",
+      payment_nonce_expires_at: "2026-06-14T12:15:00.000Z",
       merchant_authorization: jws
     }
   };

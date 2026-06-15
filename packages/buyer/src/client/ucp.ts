@@ -73,8 +73,8 @@ export interface UcpAuthOptions {
 export interface UcpAp2MandateOptions {
   enabled: boolean;
   issuer: string;
-  checkoutNonce: string;
-  paymentNonce: string;
+  checkoutNonce?: string;
+  paymentNonce?: string;
   paymentAudience?: string;
   payee?: Ap2PaymentMerchant;
   paymentInstrument?: Ap2PaymentInstrument;
@@ -280,7 +280,7 @@ async function issueUcpAp2Mandates(args: {
     checkout: args.checkout,
     issuer: ap2.issuer,
     audience: args.audience,
-    nonce: ap2.checkoutNonce,
+    nonce: resolveAp2Nonce(args.checkout, ap2.checkoutNonce, "checkout_nonce"),
     buyer: {
       name: args.opts.port.billing.name,
       email: args.opts.port.billing.email,
@@ -295,7 +295,7 @@ async function issueUcpAp2Mandates(args: {
     checkout: args.checkout,
     issuer: ap2.issuer,
     audience: ap2.paymentAudience ?? args.audience,
-    nonce: ap2.paymentNonce,
+    nonce: resolveAp2Nonce(args.checkout, ap2.paymentNonce, "payment_nonce"),
     payment: {
       amount: args.totals.amount,
       currency: args.totals.currency,
@@ -315,6 +315,16 @@ async function issueUcpAp2Mandates(args: {
     checkout_mandate: checkoutMandate.checkout_mandate,
     payment_mandate: paymentMandate.payment_mandate
   };
+}
+
+function resolveAp2Nonce(checkout: Checkout, configured: string | undefined, field: "checkout_nonce" | "payment_nonce"): string {
+  if (configured) return configured;
+  const nonce = asRecord(asRecord(checkout).ap2)[field];
+  if (typeof nonce === "string" && nonce) return nonce;
+  throw new Ap2SessionInconsistent(
+    "merchant_authorization_missing",
+    `AP2 session is locked but checkout.ap2.${field} is missing`
+  );
 }
 
 function ucpReceipt(

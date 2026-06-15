@@ -10,7 +10,7 @@ import {
   type PurchaseIntent
 } from "@steelyard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ap2MerchantAuthorizationSigner, checkoutWithoutAp2, mockMandateVerifier } from "../mandate/index.js";
+import { ap2MerchantAuthorizationSigner, checkoutWithoutAp2, memoryNonceStore, mockMandateVerifier } from "../mandate/index.js";
 import type { MerchantPolicy } from "../policy/index.js";
 import type { PspAdapter, PspCaptureArgs, PspCaptureResult } from "../psp/index.js";
 import {
@@ -365,6 +365,30 @@ describe("createMerchantCheckout", () => {
             enabled: true,
             mandateVerifier: mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "wallet-p256" } }),
             merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
+          }
+        }
+      })
+    ).toThrow(/nonceStore/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys,
+              activeKid: "merchant-p256"
+            }
+          },
+          ap2: {
+            enabled: true,
+            mandateVerifier: mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "wallet-p256" } }),
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" }),
+            nonceStore: memoryNonceStore({ clock: () => now })
           }
         }
       })
@@ -822,6 +846,7 @@ describe("createMerchantCheckout", () => {
     const psp = recordingPsp();
     const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey], { ap2: true });
     let verifiedAp2Checkout: Record<string, unknown> | undefined;
+    let verifiedAp2SessionId = "";
     const client = await listen(
       createMerchantCheckout(manifest, {
         protocols: ["ucp"],
@@ -841,7 +866,8 @@ describe("createMerchantCheckout", () => {
           ap2: {
             enabled: true,
             mandateVerifier: {
-              async verify() {
+              async verify(_envelope, _checkout, sessionId) {
+                verifiedAp2SessionId = sessionId;
                 return {
                   ok: true,
                   subject_id: "buyer_1",
@@ -854,7 +880,8 @@ describe("createMerchantCheckout", () => {
                 };
               }
             },
-            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" }),
+            nonceStore: memoryNonceStore({ clock: () => now })
           }
         }
       }).handler
@@ -876,11 +903,25 @@ describe("createMerchantCheckout", () => {
 
     const createdAp2 = recordField(created.body, "ap2");
     expect(stringField(createdAp2, "merchant_authorization")).toMatch(/^[A-Za-z0-9_-]+\.\.[A-Za-z0-9_-]+$/);
+    const checkoutNonce = stringField(createdAp2, "checkout_nonce");
+    const paymentNonce = stringField(createdAp2, "payment_nonce");
+    expect(checkoutNonce).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(paymentNonce).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(checkoutNonce).not.toBe(paymentNonce);
+    expect(stored).toMatchObject({
+      ap2_nonces: {
+        checkout_nonce: checkoutNonce,
+        payment_nonce: paymentNonce,
+        checkout_nonce_expires_at: "2026-06-14T12:15:00.000Z",
+        payment_nonce_expires_at: "2026-06-14T12:15:00.000Z"
+      }
+    });
 
     const fetched = await client.get(`/ucp/api/checkout/${checkoutId}`);
     expect(fetched.status).toBe(200);
     expect(fetched.body).not.toHaveProperty("ap2_locked");
     const ap2 = recordField(fetched.body, "ap2");
+    expect(ap2).toMatchObject({ checkout_nonce: checkoutNonce, payment_nonce: paymentNonce });
     const merchantAuthorization = stringField(ap2, "merchant_authorization");
     verifiedAp2Checkout = fetched.body;
     expect(merchantAuthorization).toMatch(/^[A-Za-z0-9_-]+\.\.[A-Za-z0-9_-]+$/);
@@ -969,6 +1010,7 @@ describe("createMerchantCheckout", () => {
       )
     );
     expect(completed).toMatchObject({ status: 200, body: { status: "completed" } });
+    expect(verifiedAp2SessionId).toBe(checkoutId);
     expect(psp.captures[0]?.payment_mandate).toMatchObject({
       format: "ap2-sd-jwt-kb",
       payload: "payment-mandate-token",
@@ -1005,7 +1047,8 @@ describe("createMerchantCheckout", () => {
           ap2: {
             enabled: true,
             mandateVerifier: mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "wallet-p256" } }),
-            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" }),
+            nonceStore: memoryNonceStore({ clock: () => now })
           }
         }
       }).handler
