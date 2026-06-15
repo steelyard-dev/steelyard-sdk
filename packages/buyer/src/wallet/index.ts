@@ -12,7 +12,8 @@ import type {
   SimpleCard,
   SimpleLimits,
   SpendReceipt,
-  WalletDriverPort
+  WalletDriverPort,
+  WalletPaymentIssuer
 } from "@steelyard/core";
 import { newIdempotencyKey, systemClock } from "@steelyard/core";
 import { randomUUID } from "node:crypto";
@@ -54,11 +55,13 @@ export interface WalletCreateOptions {
   project?: boolean;
   overwrite?: boolean;
   mandateKey?: boolean;
+  paymentIssuer?: WalletPaymentIssuer;
 }
 
 export interface WalletOpenOptions {
   password?: string;
   project?: boolean;
+  paymentIssuer?: WalletPaymentIssuer;
 }
 
 export interface PaymentMetadata {
@@ -224,6 +227,7 @@ export class Wallet {
   #vaultPath: string;
   #password?: string;
   #project: boolean;
+  #paymentIssuer?: WalletPaymentIssuer;
 
   private constructor(opts: {
     vault: BuyerVault;
@@ -232,6 +236,7 @@ export class Wallet {
     vaultPath: string;
     password?: string;
     project: boolean;
+    paymentIssuer?: WalletPaymentIssuer;
   }) {
     this.#vault = opts.vault;
     this.#policy = opts.policy;
@@ -239,6 +244,7 @@ export class Wallet {
     this.#vaultPath = opts.vaultPath;
     this.#password = opts.password;
     this.#project = opts.project;
+    this.#paymentIssuer = opts.paymentIssuer;
   }
 
   static async create(opts: WalletCreateOptions): Promise<Wallet> {
@@ -294,7 +300,8 @@ export class Wallet {
         policyPath: paths.policyPath,
         vaultPath: paths.vaultPath,
         password: opts.password,
-        project: !!opts.project
+        project: !!opts.project,
+        paymentIssuer: opts.paymentIssuer
       });
     } catch (error) {
       await Promise.all(created.map((path) => rm(path, { force: true })));
@@ -328,7 +335,8 @@ export class Wallet {
       policyPath: paths.policyPath,
       vaultPath: paths.vaultPath,
       password: opts.password,
-      project: !!opts.project
+      project: !!opts.project,
+      paymentIssuer: opts.paymentIssuer
     });
   }
 
@@ -602,6 +610,7 @@ export class Wallet {
     const billing = await this.#vault.billing();
     return {
       billing,
+      ...(this.#paymentIssuer ? { paymentIssuer: this.#paymentIssuer } : {}),
       withRawCard: async (fn) => {
         const raw = await this.#vault.revealCard(card.id);
         const released = { ...raw };

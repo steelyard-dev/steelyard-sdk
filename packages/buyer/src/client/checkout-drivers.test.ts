@@ -424,6 +424,74 @@ describe("UCP checkout driver", () => {
     expect(port.signMandatePayloads).toHaveLength(0);
   });
 
+  it("embeds a Stripe SPT in the AP2 payment mandate without replacing credential.token (SI2, AP1)", async () => {
+    const merchant = await startUcpMerchant({ merchantAuthorization: "valid" });
+    const minted: unknown[] = [];
+    const port = withUcpSigningKey({
+      ...testPort(),
+      paymentIssuer: {
+        instrumentType: "shared_payment_token",
+        async mintForMandate(mandate) {
+          minted.push(mandate);
+          return {
+            id: "spt_123",
+            expires_at: Math.floor(Date.parse(mandate.payment.expires_at) / 1000),
+            max_amount: mandate.payment.amount,
+            currency: mandate.payment.currency,
+            scope_proof: {
+              type: "stripe_spt_usage_limits",
+              idempotency_key: "spt_idem_1"
+            }
+          };
+        }
+      }
+    });
+    const receipt = await ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "https://coffee.example/.well-known/ucp",
+      merchantProfile: { ucp: {}, signing_keys: [merchantP256PublicKey] },
+      supportsSteelyardMode: true,
+      port,
+      idempotencyKey: "purchase_ucp_ap2_spt",
+      clock: () => now,
+      ap2: {
+        enabled: true,
+        issuer: "did:example:bank-dpc-issuer",
+        payee: {
+          id: "merchant_1",
+          name: "Acme Coffee",
+          website: "https://coffee.example"
+        }
+      }
+    });
+
+    const complete = asRecord(merchant.requests[2]!.body);
+    const selected = asRecord((asRecord(complete.payment).instruments as unknown[])[0]);
+    const credential = asRecord(selected.credential);
+    const parsedPayment = parseAp2PaymentMandate(stringValue(credential.token));
+
+    expect(receipt.reference.ucp).toMatchObject({ checkout_id: "checkout_1", vault_token_id: "spt_123" });
+    expect(merchant.requests.map((request) => request.path)).toEqual([
+      "/checkout",
+      "/checkout/checkout_1",
+      "/checkout/checkout_1/complete"
+    ]);
+    expect(minted).toHaveLength(1);
+    expect(minted[0]).toMatchObject({
+      nonce: "response_payment_nonce_1",
+      payment: { amount: 0, currency: "USD", checkout_id: "checkout_1" }
+    });
+    expect(credential).toMatchObject({ type: "ap2_payment_mandate" });
+    expect(stringValue(credential.token)).toMatch(/~/);
+    expect(parsedPayment.issuerPayload).toMatchObject({
+      payment_instrument: {
+        id: "spt_123",
+        type: "shared_payment_token",
+        description: "Stripe Shared Payment Token (test mode)"
+      }
+    });
+  });
+
   it("rejects a locked AP2 session when merchant authorization is missing", async () => {
     const merchant = await startUcpMerchant();
     const failedPurchase = ucpDriver.purchase(

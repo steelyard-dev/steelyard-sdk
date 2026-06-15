@@ -76,7 +76,10 @@ export type {
   RawCard,
   Receipt,
   Total,
-  WalletDriverPort
+  WalletDriverPort,
+  PaymentIssuerMandateDraft,
+  SptHandle,
+  WalletPaymentIssuer
 } from "./purchase.js";
 export type {
   AcpCheckoutSessionStatus,

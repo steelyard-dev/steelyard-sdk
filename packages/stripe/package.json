@@ -1,0 +1,36 @@
+{
+  "name": "@steelyard/stripe",
+  "version": "0.2.0",
+  "description": "Stripe agentic payment helpers for Steelyard.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/buyer.cjs",
+  "module": "./dist/buyer.js",
+  "types": "./dist/buyer.d.ts",
+  "exports": {
+    "./buyer": {
+      "types": "./dist/buyer.d.ts",
+      "import": "./dist/buyer.js",
+      "require": "./dist/buyer.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo coverage"
+  },
+  "dependencies": {
+    "@steelyard/core": "workspace:^"
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.5",
+    "@vitest/coverage-v8": "^2.1.9"
+  }
+}

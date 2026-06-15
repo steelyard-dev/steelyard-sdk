@@ -72,6 +72,7 @@ export interface ApprovalResume {
 export interface WalletDriverPort {
   withRawCard<T>(fn: (card: RawCard) => Promise<T>): Promise<T>;
   billing: BillingPayload;
+  paymentIssuer?: WalletPaymentIssuer;
   signMandate(payload: object): Promise<{ jwt: string; key_id: string }>;
   pairwiseSubject(audience: string): Promise<string>;
   mandatePublicKey(): Promise<{ jwk: JsonWebKey; key_id: string }>;
@@ -79,6 +80,33 @@ export interface WalletDriverPort {
   hasUcpSigningKey?(): Promise<boolean>;
   exportUcpSigningPublicKey?(): Promise<EcJwk>;
   signWithUcpKey?(args: { data: Uint8Array; algorithm: HmsAlgorithm }): Promise<Uint8Array>;
+}
+
+export interface PaymentIssuerMandateDraft {
+  iat: number;
+  nonce: string;
+  payment: {
+    amount: number;
+    currency: string;
+    checkout_id: string;
+    expires_at: string;
+  };
+}
+
+export interface SptHandle {
+  id: string;
+  expires_at: number;
+  max_amount: number;
+  currency: string;
+  scope_proof: {
+    type: "stripe_spt_usage_limits";
+    idempotency_key: string;
+  };
+}
+
+export interface WalletPaymentIssuer {
+  instrumentType: "shared_payment_token";
+  mintForMandate(mandate: PaymentIssuerMandateDraft): Promise<SptHandle>;
 }
 
 export interface Total {
