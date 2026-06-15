@@ -61,6 +61,26 @@ identical-shape methods regardless of source.
 endpoint to ACP and UCP drivers when the merchant advertises handlers that
 require direct vault-token delegation.
 
+`Steelyard.connect(url, { ucpAuth })` configures UCP checkout auth. HMS signing
+requires a wallet UCP signing key plus a buyer profile URL; bearer auth requires
+a token:
+
+```ts
+const merchant = await Steelyard.connect("https://coffee.example/.well-known/ucp", {
+  ucpAuth: {
+    preferred: "hms",
+    signing: {
+      kid: "wallet_2026",
+      algorithm: "ES256",
+      profileUrl: "https://wallet.example/.well-known/ucp"
+    },
+    bearerToken: process.env.UCP_BEARER
+  }
+});
+```
+
+See [Configuring UCP auth](../guides/configuring-ucp-auth.md).
+
 ## Version handshake
 
 `connect()` enforces the [pre-1.0 minor-match rule](../concepts/versioning.md):

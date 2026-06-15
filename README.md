@@ -5,8 +5,9 @@ as static `commerce.json`, plain HTTP, MCP, ACP, and UCP, and letting buyers
 gate purchases through a local encrypted Wallet.
 
 The current surface is read-side across `commerce.json`, `/commerce`, MCP, ACP,
-and UCP, plus checkout for ACP and UCP. MCP checkout remains out of scope for
-this release.
+and UCP, plus checkout for ACP and UCP. UCP checkout can use RFC 9421 HTTP
+Message Signatures or bearer auth. MCP checkout remains out of scope for this
+release.
 
 ## Install
 
@@ -43,6 +44,15 @@ export const manifest = defineCommerce({
 Pass that manifest to `@steelyard/protocol/mcp`, `@steelyard/protocol/acp`, and `@steelyard/protocol/ucp` to expose one catalog through all three protocols.
 Pass the same manifest to `@steelyard/merchant/checkout` to mount ACP and UCP
 checkout routes.
+
+## Signed UCP Checkout
+
+v0.4.2 adds UCP HTTP Message Signatures for checkout traffic. Buyers can sign
+requests with a vault-backed ES256 or ES384 UCP signing key, advertise their
+public key through a UCP profile, and verify signed merchant completion
+responses. Merchants can accept HMS, bearer tokens, or both.
+
+See `docs/guides/configuring-ucp-auth.md` for operator configuration.
 
 ## v0.4 Read-Side Surfaces
 
@@ -190,6 +200,9 @@ pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol acp
 STEELYARD_ALLOW_MOCK_PSP=1 \
 STEELYARD_ALLOW_MOCK_MANDATE=1 \
 pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol ucp
+
+STEELYARD_ALLOW_MOCK_PSP=1 \
+pnpm --filter @steelyard/example-coffee-shop smoke:bearer
 ```
 
 ## Wallet

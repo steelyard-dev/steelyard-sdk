@@ -19,6 +19,12 @@ import {
   createUcpHandler,
   validateUcpDiscovery,
   assertValidUcpDiscovery,
+  fetchUcpProfile,
+  resolveSigningKey,
+  signUcpRequest,
+  signUcpResponse,
+  verifyUcpRequest,
+  verifyUcpResponse,
   // catalog
   searchCatalog,
   lookupCatalog,
@@ -32,15 +38,16 @@ import {
   // constants
   UCP_VERSION,
   UCP_WELL_KNOWN_PATH,
-	  UCP_API_PATH,
-	  UCP_SHOPPING_SERVICE,
-	  UCP_CHECKOUT_CAPABILITY,
-	  UCP_CATALOG_SEARCH_CAPABILITY,
-	  UCP_CATALOG_LOOKUP_CAPABILITY,
-	  STEELYARD_CHECKOUT_MANDATE_V01,
+  UCP_API_PATH,
+  UCP_SHOPPING_SERVICE,
+  UCP_CHECKOUT_CAPABILITY,
+  UCP_CATALOG_SEARCH_CAPABILITY,
+  UCP_CATALOG_LOOKUP_CAPABILITY,
+  STEELYARD_CHECKOUT_MANDATE_V01,
   // types
   type UcpDiscoveryDoc,
   type UcpEntity,
+  type UcpProfileDoc,
   type UcpCatalogResponse,
   type UcpLookupResponse,
   type UcpProduct,
@@ -75,6 +82,10 @@ import {
 
 The discovery `links.commerce_manifest` field is a Steelyard-defined UCP link
 relation that points at `${baseUrl}/.well-known/commerce.json`.
+
+When HMS auth is enabled, discovery publishes public-only top-level
+`signing_keys[]` for the merchant keys. Incoming peer signatures are resolved
+from the peer profile URL in `UCP-Agent`, not from the merchant's own keys.
 
 ### Catalog
 

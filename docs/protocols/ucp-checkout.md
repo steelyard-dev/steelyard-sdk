@@ -18,12 +18,25 @@ const discovery = buildUcpDiscovery(manifest, {
 ## Route shape
 
 `buildUcpDiscovery()` advertises the REST shopping service at `/api`.
-`createMerchantCheckout()` serves UCP checkout routes at `/ucp/api`. Deployments
-that combine both helpers should route or rewrite `/api/checkout*` to
-`/ucp/api/checkout*`.
+`createMerchantCheckout()` accepts both the spec-facing `/api/checkout*` routes
+and the namespaced `/ucp/api/checkout*` routes.
 
 Catalog routes stay at `/api/catalog/search`, `/api/catalog/lookup`, and
 `/api/catalog/product`.
+
+## Auth
+
+UCP checkout can run unsigned for local interop, with HTTP Message Signatures,
+with bearer auth, or with both enabled. When auth is configured on the merchant,
+UCP signing failures use the `{ code, content }` UCP REST error envelope.
+
+Buyers configure `ucpAuth` on `Steelyard.connect()`. HMS buyers must provide a
+`signing.profileUrl` that hosts public `signing_keys[]`; bearer buyers provide
+`bearerToken`. See [Configuring UCP auth](../guides/configuring-ucp-auth.md).
+
+High-value UCP completion responses are signed by default when the merchant has
+HMS keys configured, and the buyer verifies signed completion responses before
+returning a receipt.
 
 ## Mandates
 

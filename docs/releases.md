@@ -6,6 +6,8 @@ Steelyard v0.4.2 closes the UCP HTTP Message Signatures audit finding. UCP reque
 
 The buyer side gains an encrypted-vault UCP signing key that will be reused as the AP2 holder key, plus helpers for publishing a public buyer signer profile. That prepares the next AP2 release without changing the ACP path or the existing checkout state machine.
 
+Operator documentation now covers UCP HTTP Message Signatures, HMS versus bearer selection, key rotation, and buyer signer-profile hosting.
+
 ## 0.4.1 - 2026-06-15
 
 Steelyard v0.4.1 is a UCP discovery compatibility hotfix. It restores canonical full-key capability advertising while keeping explicit sniffing support for legacy v0.3/v0.4 bucketed capability profiles. It also fixes base UCP completion so vanilla UCP partners can complete checkout without the Steelyard-mode mandate extension.

@@ -101,7 +101,14 @@ details inside `withRawCard()`.
 | `listReceipts(opts)` | Reads persisted v0.3 merchant checkout receipts. |
 | `pendingReservations()` | Lists reservations that have not settled or released. |
 | `spendInWindow(window, currency)` | Sums daily, weekly, or monthly spend. |
-| `createMandateKey()` | Creates the UCP checkout signing key if missing. |
-| `exportMandatePublicKey()` | Exports the public key for merchant trust configuration. |
+| `createMandateKey()` | Creates the legacy Steelyard mandate key for pre-AP2 mandate mode. |
+| `exportMandatePublicKey()` | Exports the legacy mandate public key for merchant trust configuration. |
+| `createUcpSigningKey({ algorithm })` | Creates the ES256 or ES384 UCP HTTP Message Signature key. |
+| `hasUcpSigningKey()` | Checks whether the wallet has a UCP signing key. |
+| `exportUcpSigningPublicKey()` | Exports the public EC JWK for a buyer HMS profile. |
 | `exportRecovery({ path, password })` | Writes a password-wrapped recovery file. |
 | `rotatePassword({ oldPassword, newPassword })` | Rotates password-mode vaults. |
+
+The UCP signing key is stored in the encrypted vault and used opaquely by the
+buyer driver. Publish only `exportUcpSigningPublicKey()` output in a buyer HMS
+profile; never publish private JWK `d`.

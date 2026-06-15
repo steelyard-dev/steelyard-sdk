@@ -16,6 +16,7 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 - Buyer signer-profile helpers for publishing public `signing_keys[]` at a platform profile URL (DM4).
 - UCP signing error envelope coverage for `{ code, content }` responses (ER1).
 - `CHANGELOG.md` and `docs/releases.md` as canonical public release-history surfaces (IN1, IN2).
+- Public operator docs for UCP HTTP Message Signatures, dual auth, key rotation, and buyer HMS profiles (IN5).
 
 ### Changed
 - `buildUcpDiscovery()` publishes public-only top-level `signing_keys[]` when merchant HMS auth is enabled (KE3).
