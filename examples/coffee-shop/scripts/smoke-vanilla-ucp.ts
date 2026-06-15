@@ -6,7 +6,8 @@ if (process.env.STEELYARD_ALLOW_MOCK_PSP !== "1") {
 
 const server = await startCoffeeShopCheckoutServer({
   clock: () => new Date("2026-06-14T12:00:00.000Z"),
-  steelyardMandate: false
+  steelyardMandate: false,
+  ucpAuthMode: "none"
 });
 
 try {

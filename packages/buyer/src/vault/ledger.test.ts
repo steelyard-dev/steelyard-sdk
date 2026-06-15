@@ -46,6 +46,11 @@ function receipt(overrides: Partial<SpendReceipt> = {}): SpendReceipt {
   };
 }
 
+function freezeLedgerClock(at = "2026-06-14T12:05:00.000Z"): void {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date(at));
+}
+
 const intent: PurchaseIntent = {
   merchant: { domain: "shop.example", transport_url: "https://shop.example/acp", protocol: "acp" },
   offer: { id: "coffee", title: "Coffee", categories: ["coffee"] },
@@ -300,6 +305,7 @@ describe("BuyerVault encrypted spend ledger", () => {
   });
 
   it("migrates v0.2 plaintext JSONL on open and keeps listReceipts legacy-free", async () => {
+    freezeLedgerClock();
     const root = await mkdtemp(join(tmpdir(), "steelyard-ledger-migrate-"));
     try {
       const keystore = memoryKeystore();
@@ -418,6 +424,7 @@ describe("BuyerVault encrypted spend ledger", () => {
   });
 
   it("reserves under cap, denies over cap, adjusts, settles, and translates receipts", async () => {
+    freezeLedgerClock();
     await withVault(async ({ vault }) => {
       const reservation = await vault.reserve({
         intent,
@@ -453,6 +460,7 @@ describe("BuyerVault encrypted spend ledger", () => {
   });
 
   it("releases reservations on hard-ceiling and cap-adjust failures", async () => {
+    freezeLedgerClock();
     await withVault(async ({ vault }) => {
       const hardCeiling = await vault.reserve({
         intent,
@@ -489,6 +497,7 @@ describe("BuyerVault encrypted spend ledger", () => {
   });
 
   it("releases adjusted reservations when other spend consumes the remaining cap", async () => {
+    freezeLedgerClock();
     await withVault(async ({ vault }) => {
       const capped = await vault.reserve({
         intent: { ...intent, intent_id: "intent_capped" },
@@ -514,6 +523,7 @@ describe("BuyerVault encrypted spend ledger", () => {
   });
 
   it("keeps escalated reservations counted until release or resume expiry", async () => {
+    freezeLedgerClock();
     await withVault(async ({ vault }) => {
       const reservation = await vault.reserve({
         intent,

@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type RequestListener, type ServerResponse } from "node:http";
+import { createUcpBuyerProfileHandler } from "@steelyard/buyer/client";
 import { buildAcpFeed } from "@steelyard/protocol/acp";
 import { createCommerceManifestHandler } from "@steelyard/protocol/commerce-manifest";
 import { HTTP_API_DEFAULT_PREFIX, createHttpApiHandler } from "@steelyard/protocol/http";
@@ -12,6 +13,7 @@ import {
   type PeerName
 } from "@steelyard/core";
 import { coffeeShopManifest } from "./catalog.js";
+import { buyerDemoUcpPublicKey, merchantDemoUcpPrivateKey } from "./demo-ucp-keys.js";
 
 export interface CoffeeShopHandlerOptions {
   publicOrigin?: string;
@@ -26,7 +28,17 @@ interface CoffeeShopCommerceHandlers {
 
 export function createCoffeeShopHandler(opts: CoffeeShopHandlerOptions = {}) {
   const mcp = createMcpHttpHandler(coffeeShopManifest);
-  const ucp = createUcpHandler(coffeeShopManifest);
+  const ucp = createUcpHandler(coffeeShopManifest, {
+    ucp: {
+      auth: {
+        hms: {
+          enabled: true,
+          signingKeys: [merchantDemoUcpPrivateKey]
+        }
+      }
+    }
+  });
+  const buyerProfile = createUcpBuyerProfileHandler({ signingKeys: [buyerDemoUcpPublicKey] });
   let commerceHandlers: CoffeeShopCommerceHandlers | undefined;
 
   function getCommerceHandlers(req: IncomingMessage): CoffeeShopCommerceHandlers {
@@ -55,6 +67,10 @@ export function createCoffeeShopHandler(opts: CoffeeShopHandlerOptions = {}) {
         merchant: { domain: "coffee.example" },
         capabilities: { services: ["read"] }
       }));
+      return;
+    }
+    if (path === "/buyer/.well-known/ucp") {
+      void buyerProfile(req, res);
       return;
     }
     void ucp(req, res);

@@ -59,7 +59,8 @@ you target.
 - **Read-side across all three agentic protocols.** Catalog discovery, offer
   listing, manifest, and policies work over MCP, ACP, and UCP.
 - **ACP and UCP checkout.** Merchant checkout assembly, PSP adapters,
-  delegate-payment, UCP mandates, buyer reservations, and persisted receipts.
+  delegate-payment, UCP mandates, UCP HTTP Message Signatures or bearer auth,
+  buyer reservations, and persisted receipts.
 - **MCP checkout is deferred.** MCP remains the read-side runtime substrate in
   this release.
 - **No stubs.** Every package is end-to-end tested against the real protocol
@@ -73,6 +74,7 @@ you target.
 | MCP | `/mcp` streamable HTTP or stdio | `@steelyard/protocol/mcp` |
 | ACP feed | `/acp/feed` | `@steelyard/protocol/acp` |
 | UCP discovery/catalog | `/.well-known/ucp`, `/api/catalog/*` | `@steelyard/protocol/ucp` |
+| UCP checkout | `/api/checkout*` or `/ucp/api/checkout*` | `@steelyard/merchant/checkout` |
 
 ## Get started
 
@@ -84,7 +86,7 @@ you target.
 
 ## Status
 
-v0.4 WIP. MIT. Pinned to the published versions of each protocol spec (ACP
+v0.4.2 WIP. MIT. Pinned to the published versions of each protocol spec (ACP
 2026-04-17, UCP 2026-04-17, MCP per `@modelcontextprotocol/sdk` >= 1.29).
 
 [Get started →](getting-started.md){ .md-button .md-button--primary }

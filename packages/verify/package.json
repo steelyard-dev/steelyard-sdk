@@ -16,5 +16,9 @@
     "typecheck": "tsc --noEmit",
     "verify": "tsx src/cli.ts"
   },
+  "dependencies": {
+    "@steelyard/core": "workspace:^",
+    "@steelyard/protocol": "workspace:^"
+  },
   "devDependencies": {}
 }

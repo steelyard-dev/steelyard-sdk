@@ -17,17 +17,27 @@ import {
 } from "@steelyard/core";
 import {
   STEELYARD_CHECKOUT_MANDATE_V01,
+  UCP_AP2_CAPABILITY,
   UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,
   UCP_CHECKOUT_CAPABILITY,
   UCP_SHOPPING_SERVICE,
-  UCP_WELL_KNOWN_PATH
+  UCP_WELL_KNOWN_PATH,
+  UcpProfileCache,
+  UcpProfileFetchError,
+  resolveSigningKey,
+  type UcpProfileDoc
 } from "@steelyard/protocol/ucp";
 import { acpDriver } from "./acp.js";
-import { ucpDriver } from "./ucp.js";
+import { ucpDriver, type UcpAp2MandateOptions, type UcpAuthOptions } from "./ucp.js";
+
+export { createUcpBuyerProfile, createUcpBuyerProfileHandler } from "./profile.js";
+export type { UcpBuyerProfileOptions } from "./profile.js";
+export { Ap2MerchantAuthorizationInvalid, Ap2SessionInconsistent, UcpAuthMissing, UcpResponseSignatureInvalid } from "./ucp.js";
+export type { UcpAp2MandateOptions, UcpAuthOptions, UcpAuthPreference, UcpHmsSigningOptions } from "./ucp.js";
 
 export type Protocol = "mcp" | "acp" | "ucp";
-export type MerchantCapability = "read" | "checkout" | "checkout:steelyard" | "discounts";
+export type MerchantCapability = "read" | "checkout" | "checkout:steelyard" | "checkout:ap2" | "discounts";
 
 export interface SteelyardError {
   error: ErrorCode;
@@ -35,7 +45,11 @@ export interface SteelyardError {
 }
 
 export interface ConnectOptions {
+  allowPrivateNetwork?: boolean;
   delegatePaymentUrl?: string;
+  ucpProfileCache?: UcpProfileCache;
+  ucpAuth?: UcpAuthOptions;
+  ap2?: UcpAp2MandateOptions;
 }
 
 export interface PurchaseOpts {
@@ -74,6 +88,20 @@ export class MerchantNoCheckout extends Error {
   }
 }
 
+export class BuyerHmsProfileMissing extends Error {
+  constructor() {
+    super("UCP HMS signing requires ucpAuth.signing.profileUrl");
+    this.name = "BuyerHmsProfileMissing";
+  }
+}
+
+export class BuyerAp2ProfileMissing extends Error {
+  constructor() {
+    super("UCP AP2 requires ucpAuth.signing.profileUrl so the buyer profile can advertise AP2");
+    this.name = "BuyerAp2ProfileMissing";
+  }
+}
+
 type DetectionResult = Merchant | SteelyardError | undefined;
 
 export const UCP_LEGACY_CAPABILITY_ALIASES: Record<string, { bucket: string; id: string }> = {
@@ -87,15 +115,20 @@ export const Steelyard = {
   connect
 };
 
+const defaultUcpProfileCache = new UcpProfileCache();
+
 export async function connect(url: string, opts: ConnectOptions = {}): Promise<Merchant | SteelyardError> {
+  assertConnectUcpAuth(opts);
   const parsed = parseUrl(url);
   if ("error" in parsed) return parsed;
 
   const mcp = await detectMcp(parsed);
   if (mcp) return mcp;
 
-  const acp = await detectAcp(parsed, opts);
-  if (acp) return acp;
+  if (!parsed.pathname.endsWith(UCP_WELL_KNOWN_PATH)) {
+    const acp = await detectAcp(parsed, opts);
+    if (acp) return acp;
+  }
 
   const ucp = await detectUcp(parsed, opts);
   if (ucp) return ucp;
@@ -139,13 +172,26 @@ async function detectAcp(url: URL, opts: ConnectOptions): Promise<DetectionResul
 }
 
 async function detectUcp(url: URL, opts: ConnectOptions): Promise<DetectionResult> {
-  const discoveryUrl = url.pathname.endsWith(UCP_WELL_KNOWN_PATH)
+  const explicitDiscoveryUrl = url.pathname.endsWith(UCP_WELL_KNOWN_PATH);
+  const discoveryUrl = explicitDiscoveryUrl
     ? url
     : new URL(UCP_WELL_KNOWN_PATH, url);
-  const doc = await fetchJson(discoveryUrl);
-  if (isError(doc)) return doc.error === "network_error" ? doc : undefined;
+  let doc: unknown;
+  try {
+    doc = await (opts.ucpProfileCache ?? defaultUcpProfileCache).get(discoveryUrl, {
+      allowPrivateNetwork: opts.allowPrivateNetwork
+    });
+  } catch (error) {
+    return ucpProfileFetchFailure(error, explicitDiscoveryUrl);
+  }
   if (!isUcpDiscovery(doc)) return undefined;
-  return ucpMerchant(doc, discoveryUrl, opts);
+  let buyerProfile: UcpProfileDoc | undefined;
+  try {
+    buyerProfile = await fetchBuyerAp2Profile(opts);
+  } catch (error) {
+    return ucpProfileFetchFailure(error, true);
+  }
+  return ucpMerchant(doc, discoveryUrl, opts, buyerProfile);
 }
 
 function mcpMerchant(client: Client, url: URL): Merchant {
@@ -256,7 +302,12 @@ function acpMerchant(url: URL, initialFeed: unknown, config: ConnectOptions): Me
   return merchant;
 }
 
-function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOptions): Merchant {
+function ucpMerchant(
+  doc: UcpDiscovery,
+  discoveryUrl: URL,
+  config: ConnectOptions,
+  buyerProfile?: UcpProfileDoc
+): Merchant {
   const endpoint = restEndpoint(doc) ?? new URL("/api", discoveryUrl).toString();
   const identity = { name: doc.merchant?.name ?? discoveryUrl.host, domain: doc.merchant?.domain };
   const id = canonicalMerchantAudience({
@@ -265,6 +316,7 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOption
     discoveryUrl: discoveryUrl.toString()
   });
   const checkoutSupported = ucpHasCapability(doc, UCP_CHECKOUT_CAPABILITY);
+  const ap2Locked = checkoutSupported && buyerSupportsAp2(config, buyerProfile) && ucpHasCapability(doc, UCP_AP2_CAPABILITY);
   const post = (path: string, body: unknown) => fetchJson(new URL(`${endpoint.replace(/\/$/, "")}${path}`), {
     method: "POST",
     body: JSON.stringify(body),
@@ -279,7 +331,10 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOption
       if (capability === "read") return true;
       if (capability === "checkout") return checkoutSupported;
       if (capability === "checkout:steelyard") {
-        return checkoutSupported && ucpHasCapability(doc, STEELYARD_CHECKOUT_MANDATE_V01);
+        return checkoutSupported && !ap2Locked && ucpHasCapability(doc, STEELYARD_CHECKOUT_MANDATE_V01);
+      }
+      if (capability === "checkout:ap2") {
+        return ap2Locked;
       }
       if (capability === "discounts") return false;
       return false;
@@ -325,8 +380,11 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOption
         merchantId: merchant.id,
         merchantUrl: endpoint,
         merchantProfile: doc,
-        supportsSteelyardMode: merchant.supports("checkout:steelyard"),
+        supportsSteelyardMode: !ap2Locked && merchant.supports("checkout:steelyard"),
+        ap2Locked,
+        ap2: ap2Locked ? config.ap2 : undefined,
         delegatePaymentUrl: config.delegatePaymentUrl,
+        ucpAuth: config.ucpAuth,
         port: opts.port,
         idempotencyKey: opts.idempotencyKey,
         clock: opts.clock,
@@ -335,6 +393,35 @@ function ucpMerchant(doc: UcpDiscovery, discoveryUrl: URL, config: ConnectOption
     }
   };
   return merchant;
+}
+
+function assertConnectUcpAuth(opts: ConnectOptions): void {
+  const auth = opts.ucpAuth;
+  if (opts.ap2?.enabled && !auth?.signing?.profileUrl) {
+    throw new BuyerAp2ProfileMissing();
+  }
+  if (!auth) return;
+  const preferred = auth.preferred ?? "hms";
+  if (preferred !== "hms") return;
+  if (auth.signing && (typeof auth.signing.profileUrl !== "string" || !auth.signing.profileUrl)) {
+    throw new BuyerHmsProfileMissing();
+  }
+}
+
+async function fetchBuyerAp2Profile(opts: ConnectOptions): Promise<UcpProfileDoc | undefined> {
+  if (opts.ap2?.enabled !== true) return undefined;
+  const profileUrl = opts.ucpAuth?.signing?.profileUrl;
+  if (!profileUrl) return undefined;
+  return await (opts.ucpProfileCache ?? defaultUcpProfileCache).get(profileUrl, {
+    allowPrivateNetwork: opts.allowPrivateNetwork
+  });
+}
+
+function buyerSupportsAp2(opts: ConnectOptions, profile: UcpProfileDoc | undefined): boolean {
+  if (opts.ap2?.enabled !== true || !profile) return false;
+  if (!ucpHasCapability(profile, UCP_AP2_CAPABILITY)) return false;
+  const kid = opts.ucpAuth?.signing?.kid;
+  return typeof kid === "string" && !!resolveSigningKey(profile, kid);
 }
 
 function readMcpCommerceVersion(client: Client): string | undefined {
@@ -515,7 +602,7 @@ function acpCheckoutBaseUrl(url: URL): URL {
   return checkoutUrl;
 }
 
-function ucpHasCapability(doc: UcpDiscovery, capabilityKey: string): boolean {
+function ucpHasCapability(doc: { ucp: { capabilities?: Record<string, unknown> } }, capabilityKey: string): boolean {
   const canonical = doc.ucp.capabilities?.[capabilityKey];
   if (Array.isArray(canonical) && canonical.length > 0) return true;
 
@@ -582,6 +669,17 @@ async function closeQuietly(client: Client): Promise<void> {
 
 function fail(error: ErrorCode, error_detail?: string): SteelyardError {
   return error_detail ? { error, error_detail } : { error };
+}
+
+function ucpProfileFetchFailure(error: unknown, explicitDiscoveryUrl: boolean): DetectionResult {
+  if (!(error instanceof UcpProfileFetchError)) return fail("protocol_mismatch", (error as Error).message);
+  if (!explicitDiscoveryUrl && (error.code === "Ucp.ProfileHttp" || error.code === "Ucp.ProfileInvalid")) {
+    return undefined;
+  }
+  if (error.code === "Ucp.ProfileTimeout" || error.code === "Ucp.ProfileUnreachable") {
+    return fail("network_error", error.message);
+  }
+  return fail("protocol_mismatch", error.message);
 }
 
 interface AcpFeed {

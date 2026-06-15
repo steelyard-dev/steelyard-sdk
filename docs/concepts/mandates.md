@@ -1,8 +1,33 @@
 # Mandates
 
-A mandate is a signed buyer instruction that binds a vault token to a specific
-merchant checkout. Steelyard mandate mode is an optional UCP checkout extension
-for merchants that want a buyer-signed checkout snapshot before PSP capture.
+A mandate is a signed buyer instruction that binds authorization to a specific
+merchant checkout.
+
+Steelyard now has two UCP mandate paths:
+
+- AP2 mandates for `dev.ucp.shopping.ap2_mandate` sessions.
+- Legacy Steelyard mandates for pre-AP2 partners that advertise
+  `net.steelyard.checkout_mandate.v0_1`.
+
+AP2 is preferred whenever both buyer and merchant advertise it. Legacy
+Steelyard mode is never used inside an AP2-locked session.
+
+## AP2 Mandates
+
+AP2 uses three artifacts:
+
+- `ap2.merchant_authorization`, signed by the merchant over checkout terms
+- `ap2.checkout_mandate`, signed by the buyer as an SD-JWT+KB presentation
+- a payment mandate at `payment.instruments[*].credential.token`
+
+See [UCP AP2 Mandates](../protocols/ap2-mandates.md) and
+[Payment Mandates](payment-mandates.md).
+
+## Legacy Steelyard Mode
+
+Legacy Steelyard mandate mode is an optional UCP checkout extension for
+merchants that want a buyer-signed checkout snapshot before PSP capture without
+AP2.
 
 ## What is signed
 

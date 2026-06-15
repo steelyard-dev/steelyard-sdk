@@ -1,4 +1,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
+import { createHash } from "node:crypto";
+import { SDJwtInstance } from "@sd-jwt/core";
+import { ecdsaSignRaw, type EcJwk, type HmsAlgorithm } from "@steelyard/core";
 import { describe, expect, it } from "vitest";
 import {
   MockInProductionError,
@@ -19,6 +22,8 @@ const captureArgs: PspCaptureArgs = {
   merchant_id: "merchant_1",
   handler_id: "handler_1"
 };
+const now = new Date("2026-06-14T12:00:00.000Z");
+const nowSeconds = Math.floor(now.getTime() / 1000);
 
 describe("mockPsp", () => {
   it("is default-deny outside known test environments", async () => {
@@ -82,6 +87,62 @@ describe("mockPsp", () => {
       expect(() => mockVaultToken({ paymentCredential: "", idempotencyKey: "idem" })).toThrow(/paymentCredential/);
     });
   });
+
+  it("verifies AP2 payment mandates before mock capture (PM5-3)", async () => {
+    await withMockEnv({ STEELYARD_TEST: "1" }, async () => {
+      const paymentMandate = await issuePaymentMandate();
+      const psp = mockPsp({ seed: "unit", clock: () => now });
+
+      await expect(psp.capture({ ...captureArgs, payment_mandate: paymentMandate })).resolves.toMatchObject({
+        ok: true,
+        status: "captured"
+      });
+      await expect(
+        psp.capture({
+          ...captureArgs,
+          idempotencyKey: "idem_ap2_bad_amount",
+          payment_mandate: {
+            ...paymentMandate,
+            payment_intent: { ...paymentMandate.payment_intent, amount: 999 }
+          }
+        })
+      ).rejects.toThrow(/amount_mismatch/);
+    });
+  });
+
+  it("rejects malformed AP2 payment mandates before mock capture", async () => {
+    await withMockEnv({ STEELYARD_TEST: "1" }, async () => {
+      const paymentMandate = await issuePaymentMandate();
+      const psp = mockPsp({ seed: "unit", clock: () => now });
+      const cases: [string, NonNullable<PspCaptureArgs["payment_mandate"]>][] = [
+        ["shape_invalid", { ...paymentMandate, payload: "" }],
+        ["holder_key_invalid", { ...paymentMandate, holder_jwk: { ...holderP256PrivateKey } }],
+        [
+          "transaction_mismatch",
+          { ...paymentMandate, payment_intent: { ...paymentMandate.payment_intent, transaction_id: undefined } }
+        ],
+        [
+          "currency_mismatch",
+          { ...paymentMandate, payment_intent: { ...paymentMandate.payment_intent, currency: "EUR" } }
+        ],
+        ["expired", { ...paymentMandate, payment_intent: { ...paymentMandate.payment_intent, expires_at: now.toISOString() } }]
+      ];
+
+      for (const [reason, invalidMandate] of cases) {
+        await expect(
+          psp.capture({
+            ...captureArgs,
+            idempotencyKey: `idem_ap2_${reason}`,
+            payment_mandate: invalidMandate
+          })
+        ).rejects.toThrow(reason);
+      }
+      await expect(
+        mockPsp({ seed: "unit", clock: () => new Date(now.getTime() + 16 * 60_000) })
+          .capture({ ...captureArgs, idempotencyKey: "idem_ap2_expired", payment_mandate: paymentMandate })
+      ).rejects.toThrow(/expired/);
+    });
+  });
 });
 
 describe("stripePsp", () => {
@@ -120,6 +181,38 @@ describe("stripePsp", () => {
     expect(body.get("metadata[purchase_key]")).toBe("purchase_1");
   });
 
+  it("verifies AP2 payment mandates before Stripe capture (PM5-3)", async () => {
+    const paymentMandate = await issuePaymentMandate();
+    const calls: { url: string; init: RequestInit }[] = [];
+    const psp = stripePsp({
+      apiKey: "sk_test_unit",
+      apiBaseUrl: "https://stripe.test",
+      clock: () => now,
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), init: init! });
+        return stripeResponse({ id: "pi_1", status: "succeeded" });
+      }
+    });
+
+    await expect(psp.capture({ ...captureArgs, payment_mandate: paymentMandate })).resolves.toMatchObject({
+      ok: true,
+      psp_payment_id: "pi_1"
+    });
+    const body = calls[0]!.init.body as URLSearchParams;
+    expect(body.get("payment_method")).toBe("card_1");
+    await expect(
+      psp.capture({
+        ...captureArgs,
+        idempotencyKey: "idem_ap2_bad_transaction",
+        payment_mandate: {
+          ...paymentMandate,
+          payment_intent: { ...paymentMandate.payment_intent, transaction_id: "wrong" }
+        }
+      })
+    ).rejects.toThrow(/transaction_mismatch/);
+    expect(calls).toHaveLength(1);
+  });
+
   it("maps Stripe statuses and errors", async () => {
     await expect(
       stripePsp({
@@ -146,6 +239,24 @@ describe("stripePsp", () => {
         fetch: async () => stripeResponse({ error: { code: "card_declined", message: "declined" } }, 402)
       }).capture(captureArgs)
     ).resolves.toEqual({ ok: false, reason: "declined", message: "declined" });
+    await expect(
+      stripePsp({
+        apiKey: "sk_test_unit",
+        fetch: async () => stripeResponse({ error: { code: "expired_card", message: "expired" } }, 402)
+      }).capture(captureArgs)
+    ).resolves.toEqual({ ok: false, reason: "expired_card", message: "expired" });
+    await expect(
+      stripePsp({
+        apiKey: "sk_test_unit",
+        fetch: async () => stripeResponse({ error: { code: "insufficient_funds", message: "funds" } }, 402)
+      }).capture(captureArgs)
+    ).resolves.toEqual({ ok: false, reason: "insufficient_funds", message: "funds" });
+    await expect(
+      stripePsp({
+        apiKey: "sk_test_unit",
+        fetch: async () => stripeResponse({ error: { code: "other", message: "other" } }, 402)
+      }).capture(captureArgs)
+    ).resolves.toEqual({ ok: false, reason: "other", message: "other" });
   });
 
   it("redacts Stripe API keys from thrown errors and supports cancel idempotency", async () => {
@@ -188,6 +299,85 @@ function stripeResponse(body: unknown, status = 200): Response {
     headers: { "content-type": "application/json" }
   });
 }
+
+async function issuePaymentMandate(): Promise<NonNullable<PspCaptureArgs["payment_mandate"]>> {
+  const transaction_id = createHash("sha256").update("merchant-authorization-jws").digest("base64url");
+  const expires_at = new Date(now.getTime() + 15 * 60_000).toISOString();
+  const claims = {
+    iss: "did:example:bank-dpc-issuer",
+    iat: nowSeconds,
+    exp: nowSeconds + 300,
+    aud: "https://coffee.example/.well-known/ucp",
+    cnf: { jwk: holderP256PublicKey },
+    vct: "mandate.payment.1",
+    transaction_id,
+    payee: { id: "merchant_1", name: "Demo Merchant", website: "https://coffee.example" },
+    payment_amount: { amount: 500, currency: "USD" },
+    payment_instrument: { id: "card_1", type: "card", description: "Visa 4242" }
+  };
+  const sdJwt = new SDJwtInstance<typeof claims>({
+    signer: signerFor(holderP256PrivateKey, "ES256"),
+    signAlg: "ES256",
+    kbSigner: signerFor(holderP256PrivateKey, "ES256"),
+    kbSignAlg: "ES256",
+    hasher: sha256Hasher,
+    hashAlg: "sha-256",
+    saltGenerator: saltSequence()
+  });
+  const issued = await sdJwt.issue(claims, {}, { header: { typ: "dc+sd-jwt", kid: holderP256PublicKey.kid } });
+  const payload = await sdJwt.present(issued, {}, {
+    kb: { payload: { iat: nowSeconds, aud: "https://coffee.example/.well-known/ucp", nonce: "payment_nonce_1" } }
+  });
+  return {
+    format: "ap2-sd-jwt-kb",
+    payload,
+    holder_jwk: holderP256PublicKey,
+    payment_intent: {
+      amount: 500,
+      currency: "USD",
+      checkout_id: "checkout_123",
+      expires_at,
+      transaction_id
+    }
+  };
+}
+
+function signerFor(privateKey: EcJwk, algorithm: HmsAlgorithm) {
+  return async (data: string): Promise<string> => {
+    const signature = await ecdsaSignRaw({ algorithm, privateKeyJwk: privateKey, data: Buffer.from(data, "utf8") });
+    return Buffer.from(signature).toString("base64url");
+  };
+}
+
+async function sha256Hasher(data: string | ArrayBuffer, alg: string): Promise<Uint8Array> {
+  if (alg !== "sha-256" && alg !== "sha256") throw new Error(`unsupported hash alg: ${alg}`);
+  const bytes = typeof data === "string" ? Buffer.from(data, "utf8") : Buffer.from(data);
+  return createHash("sha256").update(bytes).digest();
+}
+
+function saltSequence(): () => string {
+  let index = 0;
+  return () => `salt-${index++}`;
+}
+
+function b64urlHex(value: string): string {
+  return Buffer.from(value, "hex").toString("base64url");
+}
+
+const holderP256PublicKey = {
+  kid: "holder-p256",
+  kty: "EC",
+  crv: "P-256",
+  x: b64urlHex("60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6"),
+  y: b64urlHex("7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299"),
+  use: "sig",
+  alg: "ES256"
+} satisfies EcJwk;
+
+const holderP256PrivateKey = {
+  ...holderP256PublicKey,
+  d: b64urlHex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721")
+} satisfies EcJwk;
 
 async function withMockEnv(env: Record<string, string | undefined>, fn: () => Promise<void>): Promise<void> {
   const keys = ["VITEST", "JEST_WORKER_ID", "STEELYARD_TEST", "STEELYARD_ALLOW_MOCK_PSP", "NODE_ENV"] as const;

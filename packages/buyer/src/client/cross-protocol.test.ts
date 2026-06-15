@@ -63,6 +63,7 @@ describe("wallet checkout across ACP and UCP", () => {
         });
         if ("error" in acpMerchant) throw new Error(acpMerchant.error_detail ?? acpMerchant.error);
         const ucpMerchant = await Steelyard.connect(`${merchant.baseUrl}/.well-known/ucp`, {
+          allowPrivateNetwork: true,
           delegatePaymentUrl: delegate.delegatePaymentUrl
         });
         if ("error" in ucpMerchant) throw new Error(ucpMerchant.error_detail ?? ucpMerchant.error);

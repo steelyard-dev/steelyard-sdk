@@ -10,6 +10,7 @@ export {
   validateCommerceManifest
 } from "./commerce-manifest.js";
 export { ERROR_CODES } from "./errors.js";
+export { AP2_ERROR_CODES, UCP_AP2_CAPABILITY } from "./ap2.js";
 export { defaultClock, systemClock } from "./clock.js";
 export {
   canonicalMerchantAudience,
@@ -20,6 +21,19 @@ export {
   totalAmount
 } from "./purchase.js";
 export { mapAcpToOrderState, mapUcpCheckoutStatus } from "./order-state.js";
+export {
+  buildSignatureBase,
+  assertValidEcJwk,
+  contentDigestHeader,
+  ecdsaSignRaw,
+  ecdsaVerifyRaw,
+  jcsCanonicalize,
+  normalizeAuthority,
+  parseSf941Dict,
+  serializeSf941Dict,
+  signDetachedJws,
+  verifyDetachedJws
+} from "./rfc9421.js";
 export type {
   CommerceManifestOpts,
   CommerceManifestValidationResult
@@ -72,6 +86,20 @@ export type {
   UcpCheckoutStatus,
   UnknownAcpOrderStatusWarning
 } from "./order-state.js";
+export type { UcpErrorEnvelope, V04ErrorEnvelope } from "./errors.js";
+export type { Ap2ErrorCode, DisclosureClaim, DisclosureTree } from "./ap2.js";
+export type {
+  BuildSignatureBaseArgs,
+  EcJwk,
+  HmsAlgorithm,
+  Sf941BareItem,
+  Sf941Dict,
+  Sf941DictMember,
+  Sf941InnerList,
+  Sf941Item,
+  Sf941Token,
+  SignatureParameters
+} from "./rfc9421.js";
 export type { ErrorCode } from "./errors.js";
 export type { ValidationResult } from "./validate.js";
 export type { Clock } from "./clock.js";

@@ -14,9 +14,9 @@ type CheckoutProtocol = "acp" | "ucp";
 const protocol = parseProtocol(process.argv.slice(2));
 const clock = () => new Date("2026-06-14T12:00:00.000Z");
 const delegate = await startMockDelegatePaymentServer({ clock });
-const shop = await startCoffeeShopCheckoutServer({ clock });
 const root = await mkdtemp(join(tmpdir(), "steelyard-buy-real-"));
 const cwd = process.cwd();
+let shop: Awaited<ReturnType<typeof startCoffeeShopCheckoutServer>> | undefined;
 
 try {
   process.chdir(root);
@@ -33,8 +33,30 @@ try {
   });
 
   try {
+    let ucpSigningKid: string | undefined;
+    if (protocol === "ucp") {
+      ucpSigningKid = (await wallet.createUcpSigningKey({ algorithm: "ES256" })).kid;
+    }
+    shop = await startCoffeeShopCheckoutServer({
+      clock,
+      ...(protocol === "ucp" ? { buyerSigningKeys: [await wallet.exportUcpSigningPublicKey()] } : {})
+    });
+
     const merchant = await Steelyard.connect(discoveryUrl(shop.baseUrl, protocol), {
-      delegatePaymentUrl: delegate.delegatePaymentUrl
+      allowPrivateNetwork: true,
+      delegatePaymentUrl: delegate.delegatePaymentUrl,
+      ...(protocol === "ucp" && ucpSigningKid
+        ? {
+            ucpAuth: {
+              preferred: "hms" as const,
+              signing: {
+                kid: ucpSigningKid,
+                algorithm: "ES256" as const,
+                profileUrl: `${shop.baseUrl}/buyer/.well-known/ucp`
+              }
+            }
+          }
+        : {})
     });
     if ("error" in merchant) throw new Error(merchant.error_detail ?? merchant.error);
     if (!merchant.supports("checkout")) throw new Error(`${protocol} merchant did not advertise checkout`);
@@ -62,7 +84,7 @@ try {
 } finally {
   process.chdir(cwd);
   await rm(root, { recursive: true, force: true });
-  await Promise.all([shop.close(), delegate.close()]);
+  await Promise.all([shop?.close(), delegate.close()]);
 }
 
 function discoveryUrl(baseUrl: string, protocol: CheckoutProtocol): string {

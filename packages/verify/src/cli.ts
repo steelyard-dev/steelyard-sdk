@@ -5,6 +5,16 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  buildSignatureBase,
+  contentDigestHeader,
+  ecdsaSignRaw,
+  ecdsaVerifyRaw,
+  parseSf941Dict,
+  serializeSf941Dict,
+  type EcJwk
+} from "@steelyard/core";
+import { fetchUcpProfile, type UcpProfileFetchErrorCode } from "@steelyard/protocol/ucp";
 
 type VerifyStatus = "passed" | "failed" | "skipped";
 
@@ -181,6 +191,8 @@ function addBehavioralCases(cases: VerifyCase[]): void {
   addCases(cases, "VD", range("VD-", 1, 6), "Discovery capability sniffing", behavioral);
   addCases(cases, "VPSP", range("VPSP-", 1, 6), "PSP handler selection", behavioral);
   addV041ConformanceCases(cases);
+  addV042SignatureConformanceCases(cases);
+  addV05Ap2ConformanceCases(cases);
   cases.push({
     id: "docs:migration",
     suite: "docs",
@@ -189,6 +201,87 @@ function addBehavioralCases(cases: VerifyCase[]): void {
     evidence: ["docs/guides/migrating-from-v0.2.md", "README.md"],
     run: assertMigrationDocs
   });
+}
+
+function addV05Ap2ConformanceCases(cases: VerifyCase[]): void {
+  const entries: Array<[string, string, string[], (ctx: VerifyContext) => Promise<void>]> = [
+    [
+      "VAP2-01",
+      "AP2 checkout mandate is SD-JWT+KB with KB-JWT sd_hash",
+      ["packages/buyer/src/vault/mandate-ap2.test.ts", "RFC 9901 Section 4.3"],
+      (ctx) => runFocusedVitest(ctx, "vap2-buyer-mandate-ap2", "@steelyard/buyer", "src/vault/mandate-ap2.test.ts")
+    ],
+    [
+      "VAP2-02",
+      "AP2 payment mandate uses mandate.payment.1 claims",
+      ["packages/buyer/src/vault/mandate-ap2.test.ts", "AP2 mandate.payment.1"],
+      (ctx) => runFocusedVitest(ctx, "vap2-buyer-mandate-ap2", "@steelyard/buyer", "src/vault/mandate-ap2.test.ts")
+    ],
+    [
+      "VAP2-03",
+      "PSP adapters verify AP2 payment mandates before capture",
+      ["packages/merchant/src/psp/psp.test.ts", "PM5-3"],
+      (ctx) => runFocusedVitest(ctx, "vap2-merchant-psp", "@steelyard/merchant", "src/psp/psp.test.ts")
+    ],
+    [
+      "VAP2-04",
+      "AP2 envelope validation accepts SD-JWT+KB shape and defers signature checks",
+      ["packages/protocol/src/ucp/ap2-envelope.test.ts", "SC5-2"],
+      (ctx) => runFocusedVitest(ctx, "vap2-protocol-ap2-envelope", "@steelyard/protocol", "src/ucp/ap2-envelope.test.ts")
+    ],
+    [
+      "VBV-01",
+      "Merchant authorization signer emits AP2 detached JWS",
+      ["packages/merchant/src/mandate/ap2.test.ts", "MA5-1"],
+      (ctx) => runFocusedVitest(ctx, "vbv-merchant-ap2", "@steelyard/merchant", "src/mandate/ap2.test.ts")
+    ],
+    [
+      "VBV-02",
+      "Buyer verifies AP2 merchant authorization before complete",
+      ["packages/buyer/src/client/checkout-drivers.test.ts", "BV5"],
+      (ctx) => runFocusedVitest(ctx, "vbv-buyer-ucp-driver", "@steelyard/buyer", "src/client/checkout-drivers.test.ts")
+    ],
+    [
+      "VBV-03",
+      "Merchant mounts AP2 merchant authorization on locked checkout responses",
+      ["packages/merchant/src/checkout/server.test.ts", "MA5-2", "DI5-3"],
+      (ctx) => runFocusedVitest(ctx, "vbv-merchant-checkout", "@steelyard/merchant", "src/checkout/server.test.ts")
+    ],
+    [
+      "VNO-01",
+      "AP2 nonce store is single-use and file-backed",
+      ["packages/merchant/src/mandate/nonce.test.ts", "NO5-1", "NO5-2"],
+      (ctx) => runFocusedVitest(ctx, "vno-merchant-nonce", "@steelyard/merchant", "src/mandate/nonce.test.ts")
+    ],
+    [
+      "VNO-02",
+      "AP2 verifier consumes checkout nonces and rejects replay",
+      ["packages/merchant/src/mandate/ap2-verifier.test.ts", "VE5-2", "NO5-2"],
+      (ctx) => runFocusedVitest(ctx, "vno-merchant-ap2-verifier", "@steelyard/merchant", "src/mandate/ap2-verifier.test.ts")
+    ],
+    [
+      "VNO-03",
+      "Coffee-shop AP2 smoke completes with merchant-issued nonces",
+      ["examples/coffee-shop/scripts/smoke-ap2.ts", "IN5-2"],
+      (ctx) =>
+        runCommandOnce(ctx, "vno-coffee-shop-ap2-smoke", "pnpm", [
+          "--filter",
+          "@steelyard/example-coffee-shop",
+          "tsx",
+          "scripts/smoke-ap2.ts"
+        ])
+    ]
+  ];
+  for (const [id, title, evidence, run] of entries) {
+    cases.push({
+      id,
+      suite: id.split("-")[0] ?? "AP2",
+      title,
+      verifies: [],
+      evidence,
+      run
+    });
+  }
 }
 
 function addV041ConformanceCases(cases: VerifyCase[]): void {
@@ -227,6 +320,57 @@ function addV041ConformanceCases(cases: VerifyCase[]): void {
       suite: "VK",
       title,
       verifies: ["VE1"],
+      evidence,
+      run
+    });
+  }
+}
+
+function addV042SignatureConformanceCases(cases: VerifyCase[]): void {
+  const entries: Array<[string, string, string[], (ctx: VerifyContext) => Promise<void>]> = [
+    [
+      "AP-VS1",
+      "RFC 9421 B.2.5 request signature base is byte-identical",
+      ["packages/core/src/rfc9421.ts", "RFC 9421 B.2.5"],
+      assertRfc9421B25SignatureBase
+    ],
+    [
+      "AP-VS2",
+      "RFC 9421 ECC example key signs and verifies the worked example",
+      ["packages/core/src/rfc9421.ts", "RFC 9421 B.1.3", "RFC 9421 B.2.4"],
+      assertRfc9421EccExampleSignsAndVerifies
+    ],
+    [
+      "AP-VS3",
+      "RFC 9530 Appendix B Content-Digest examples round-trip",
+      ["packages/core/src/rfc9421.ts", "RFC 9530 Appendix B"],
+      assertRfc9530ContentDigestExamples
+    ],
+    [
+      "AP-VS4",
+      "RFC 8941 dictionary parser round-trips structured field examples",
+      ["packages/core/src/rfc9421.ts", "RFC 8941 Section 3.2"],
+      assertRfc8941DictionaryExamples
+    ],
+    [
+      "AP-VS5",
+      "ECDSA helpers emit fixed-width raw r||s for ES256 and ES384",
+      ["packages/core/src/rfc9421.ts", "protocols/ucp/docs/specification/signatures.md"],
+      assertEcdsaRawSignatureWidths
+    ],
+    [
+      "AP-VS6",
+      "UCP profile fetch rejects unsafe or unbounded responses",
+      ["packages/protocol/src/ucp/profile.ts", "protocols/ucp/docs/specification/overview.md"],
+      assertProfileFetchRejectionModes
+    ]
+  ];
+  for (const [id, title, evidence, run] of entries) {
+    cases.push({
+      id,
+      suite: "AP",
+      title,
+      verifies: ["IN3"],
       evidence,
       run
     });
@@ -386,6 +530,154 @@ function addCases(
 
 async function runBehavioralSuites(ctx: VerifyContext): Promise<void> {
   await runCommandOnce(ctx, "pnpm-test", "pnpm", ["test"]);
+}
+
+async function assertRfc9421B25SignatureBase(): Promise<void> {
+  const base = buildSignatureBase({
+    method: "POST",
+    authority: "example.com",
+    path: "/foo",
+    headers: {
+      date: "Tue, 20 Apr 2021 02:07:55 GMT",
+      "content-type": "application/json"
+    },
+    components: ["date", "@authority", "content-type"],
+    parameters: { created: 1618884473, keyid: "test-shared-secret" }
+  });
+
+  assertEqual(
+    text(base),
+    [
+      "\"date\": Tue, 20 Apr 2021 02:07:55 GMT",
+      "\"@authority\": example.com",
+      "\"content-type\": application/json",
+      "\"@signature-params\": (\"date\" \"@authority\" \"content-type\");created=1618884473;keyid=\"test-shared-secret\""
+    ].join("\n"),
+    "RFC 9421 B.2.5 signature base mismatch"
+  );
+}
+
+async function assertRfc9421EccExampleSignsAndVerifies(): Promise<void> {
+  const base = buildSignatureBase({
+    status: 200,
+    headers: {
+      "content-type": "application/json",
+      "content-digest":
+        "sha-512=:mEWXIS7MaLRuGgxOBdODa3xqM1XdEvxoYhvlCFJ41QJgJc4GTsPp29l5oGX69wWdXymyU0rjJuahq4l5aGgfLQ==:",
+      "content-length": "23"
+    },
+    components: ["@status", "content-type", "content-digest", "content-length"],
+    parameters: { created: 1618884473, keyid: "test-key-ecc-p256" }
+  });
+  const expectedSignature = Buffer.from(
+    "wNmSUAhwb5LxtOtOpNa6W5xj067m5hFrj0XQ4fvpaCLx0NKocgPquLgyahnzDnDAUy5eCdlYUEkLIj+32oiasw==",
+    "base64"
+  );
+  assertEqual(expectedSignature.byteLength, 64, "RFC 9421 B.2.4 example signature must be 64 raw bytes");
+  assert(
+    await ecdsaVerifyRaw({
+      algorithm: "ES256",
+      publicKeyJwk: rfc9421P256.publicJwk,
+      data: base,
+      signature: expectedSignature
+    }),
+    "RFC 9421 B.2.4 example signature must verify with the example public key"
+  );
+
+  const generated = await ecdsaSignRaw({
+    algorithm: "ES256",
+    privateKeyJwk: rfc9421P256.privateJwk,
+    data: base
+  });
+  assertEqual(generated.byteLength, 64, "generated ES256 signature must be 64 raw bytes");
+  assert(
+    await ecdsaVerifyRaw({
+      algorithm: "ES256",
+      publicKeyJwk: rfc9421P256.publicJwk,
+      data: base,
+      signature: generated
+    }),
+    "generated RFC 9421 example signature must verify with the example public key"
+  );
+}
+
+async function assertRfc9530ContentDigestExamples(): Promise<void> {
+  const fullRepresentation = Buffer.from("{\"hello\": \"world\"}\n", "utf8");
+  const partialContent = Buffer.from("\"world\"}\n", "utf8");
+  const examples = [
+    [fullRepresentation, "sha-256=:RK/0qy18MlBSVnWgjwz6lZEWjP/lF5HF9bvEF8FabDg=:"],
+    [new Uint8Array(), "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:"],
+    [partialContent, "sha-256=:jjcgBDWNAtbYUXI37CVG3gRuGOAjaaDRGpIUFsdyepQ=:"]
+  ] as const;
+
+  for (const [body, expected] of examples) {
+    const actual = contentDigestHeader({ body });
+    assertEqual(actual, expected, `Content-Digest mismatch for RFC 9530 body ${text(body)}`);
+    assertEqual(serializeSf941Dict(parseSf941Dict(actual)), expected, "Content-Digest dictionary must round-trip");
+  }
+}
+
+async function assertRfc8941DictionaryExamples(): Promise<void> {
+  const examples = [
+    "en=\"Applepie\", da=:w4ZibGV0w6ZydGU=:",
+    "a=?0, b, c;foo=bar, flag;secure",
+    "rating=1.5, feelings=(joy sadness)",
+    "sig1=(\"@method\" \"@authority\" \"ucp-agent\");keyid=\"platform-2026\""
+  ];
+  for (const example of examples) {
+    assertEqual(serializeSf941Dict(parseSf941Dict(example)), example, `RFC 8941 dictionary did not round-trip: ${example}`);
+  }
+  await assertRejects(() => parseSf941Dict("a=1, a=2"), "duplicate structured field key");
+}
+
+async function assertEcdsaRawSignatureWidths(): Promise<void> {
+  const data = Buffer.from("steelyard raw ecdsa width check", "utf8");
+  const p256 = await ecdsaSignRaw({ algorithm: "ES256", privateKeyJwk: rfc6979P256.privateJwk, data });
+  const p384 = await ecdsaSignRaw({ algorithm: "ES384", privateKeyJwk: rfc6979P384.privateJwk, data });
+  assertEqual(p256.byteLength, 64, "ES256 signature must be 64 raw bytes");
+  assertEqual(p384.byteLength, 96, "ES384 signature must be 96 raw bytes");
+  assert(p256[0] !== 0x30, "ES256 signature must not be DER-encoded");
+  assert(p384[0] !== 0x30, "ES384 signature must not be DER-encoded");
+  assert(await ecdsaVerifyRaw({ algorithm: "ES256", publicKeyJwk: rfc6979P256.publicJwk, data, signature: p256 }), "ES256 signature must verify");
+  assert(await ecdsaVerifyRaw({ algorithm: "ES384", publicKeyJwk: rfc6979P384.publicJwk, data, signature: p384 }), "ES384 signature must verify");
+}
+
+async function assertProfileFetchRejectionModes(): Promise<void> {
+  const lookup = async () => [{ address: "203.0.113.10" }] as const;
+  await assertRejectsProfileCode(
+    fetchUcpProfile("http://profiles.example/.well-known/ucp", {
+      fetch: async () => {
+        throw new Error("HTTP scheme rejection should happen before fetch");
+      }
+    }),
+    "Ucp.ProfileScheme"
+  );
+  await assertRejectsProfileCode(
+    fetchUcpProfile("https://profiles.example/.well-known/ucp", {
+      lookup,
+      fetch: async () => new Response("", { status: 302, headers: { location: "https://other.example/.well-known/ucp" } })
+    }),
+    "Ucp.ProfileRedirect"
+  );
+  await assertRejectsProfileCode(
+    fetchUcpProfile("https://profiles.example/.well-known/ucp", {
+      lookup,
+      maxBytes: 8,
+      fetch: async () => new Response("{\"oversize\":true}", { status: 200 })
+    }),
+    "Ucp.ProfileTooLarge"
+  );
+  await assertRejectsProfileCode(
+    fetchUcpProfile("https://profiles.example/.well-known/ucp", {
+      lookup,
+      timeoutMs: 1,
+      fetch: async (_input, init) =>
+        await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+        })
+    }),
+    "Ucp.ProfileTimeout"
+  );
 }
 
 async function assertMigrationDocs(ctx: VerifyContext): Promise<void> {
@@ -725,6 +1017,42 @@ function assertIncludes(source: string, needle: string, message: string): void {
   if (!source.includes(needle)) throw new Error(message);
 }
 
+function assert(value: boolean, message: string): void {
+  if (!value) throw new Error(message);
+}
+
+function assertEqual(actual: unknown, expected: unknown, message: string): void {
+  if (!Object.is(actual, expected)) {
+    throw new Error(`${message}: expected ${String(expected)}, got ${String(actual)}`);
+  }
+}
+
+async function assertRejects(fn: () => unknown, messagePattern: string): Promise<void> {
+  try {
+    await fn();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message.includes(messagePattern)) return;
+    throw new Error(`expected rejection including ${messagePattern}, got ${message}`);
+  }
+  throw new Error(`expected rejection including ${messagePattern}`);
+}
+
+async function assertRejectsProfileCode(promise: Promise<unknown>, code: UcpProfileFetchErrorCode): Promise<void> {
+  try {
+    await promise;
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === code) return;
+    const actual = typeof error === "object" && error !== null && "code" in error ? String(error.code) : error instanceof Error ? error.message : String(error);
+    throw new Error(`expected ${code}, got ${actual}`);
+  }
+  throw new Error(`expected ${code}`);
+}
+
+function text(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString("utf8");
+}
+
 function parseArgs(argv: string[]): VerifyArgs {
   const args: VerifyArgs = {
     suites: [],
@@ -795,6 +1123,88 @@ function invertCoverage(coverage: Record<string, string[]>): Record<string, stri
 function tail(value: string, lines: number): string {
   return value.split(/\r?\n/).slice(-lines).join("\n");
 }
+
+function b64urlHex(value: string): string {
+  return Buffer.from(value, "hex").toString("base64url");
+}
+
+const rfc9421P256 = {
+  publicJwk: {
+    kid: "test-key-ecc-p256",
+    kty: "EC",
+    crv: "P-256",
+    x: "qIVYZVLCrPZHGHjP17CTW0_-D9Lfw0EkjqF7xB4FivA",
+    y: "Mc4nN9LTDOBhfoUeg8Ye9WedFRhnZXZJA12Qp0zZ6F0",
+    use: "sig",
+    alg: "ES256"
+  },
+  privateJwk: {
+    kid: "test-key-ecc-p256",
+    kty: "EC",
+    crv: "P-256",
+    d: "UpuF81l-kOxbjf7T4mNSv0r5tN67Gim7rnf6EFpcYDs",
+    x: "qIVYZVLCrPZHGHjP17CTW0_-D9Lfw0EkjqF7xB4FivA",
+    y: "Mc4nN9LTDOBhfoUeg8Ye9WedFRhnZXZJA12Qp0zZ6F0",
+    use: "sig",
+    alg: "ES256"
+  }
+} satisfies { publicJwk: EcJwk; privateJwk: EcJwk };
+
+const rfc6979P256 = {
+  publicJwk: {
+    kid: "p256",
+    kty: "EC",
+    crv: "P-256",
+    x: b64urlHex("60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6"),
+    y: b64urlHex("7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299"),
+    use: "sig",
+    alg: "ES256"
+  },
+  privateJwk: {
+    kid: "p256",
+    kty: "EC",
+    crv: "P-256",
+    x: b64urlHex("60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6"),
+    y: b64urlHex("7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299"),
+    d: b64urlHex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721"),
+    use: "sig",
+    alg: "ES256"
+  }
+} satisfies { publicJwk: EcJwk; privateJwk: EcJwk };
+
+const rfc6979P384 = {
+  publicJwk: {
+    kid: "p384",
+    kty: "EC",
+    crv: "P-384",
+    x: b64urlHex(
+      "EC3A4E415B4E19A4568618029F427FA5DA9A8BC4AE92E02E06AAE5286B300C64" +
+        "DEF8F0EA9055866064A254515480BC13"
+    ),
+    y: b64urlHex(
+      "8015D9B72D7D57244EA8EF9AC0C621896708A59367F9DFB9F54CA84B3F1C9DB1" +
+        "288B231C3AE0D4FE7344FD2533264720"
+    ),
+    use: "sig",
+    alg: "ES384"
+  },
+  privateJwk: {
+    kid: "p384",
+    kty: "EC",
+    crv: "P-384",
+    x: b64urlHex(
+      "EC3A4E415B4E19A4568618029F427FA5DA9A8BC4AE92E02E06AAE5286B300C64" +
+        "DEF8F0EA9055866064A254515480BC13"
+    ),
+    y: b64urlHex(
+      "8015D9B72D7D57244EA8EF9AC0C621896708A59367F9DFB9F54CA84B3F1C9DB1" +
+        "288B231C3AE0D4FE7344FD2533264720"
+    ),
+    d: b64urlHex("6B9D3DAD2E1B8C1C05B19875B6659F4DE23C3B667BF297BA9AA47740787137D8" + "96D5724E4C70A825F872C9EA60D2EDF5"),
+    use: "sig",
+    alg: "ES384"
+  }
+} satisfies { publicJwk: EcJwk; privateJwk: EcJwk };
 
 main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));

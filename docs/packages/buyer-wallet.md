@@ -101,7 +101,29 @@ details inside `withRawCard()`.
 | `listReceipts(opts)` | Reads persisted v0.3 merchant checkout receipts. |
 | `pendingReservations()` | Lists reservations that have not settled or released. |
 | `spendInWindow(window, currency)` | Sums daily, weekly, or monthly spend. |
-| `createMandateKey()` | Creates the UCP checkout signing key if missing. |
-| `exportMandatePublicKey()` | Exports the public key for merchant trust configuration. |
+| `createMandateKey()` | Creates the legacy Steelyard mandate key for pre-AP2 mandate mode. |
+| `exportMandatePublicKey()` | Exports the legacy mandate public key for merchant trust configuration. |
+| `createUcpSigningKey({ algorithm })` | Creates the ES256 or ES384 UCP HTTP Message Signature key. |
+| `hasUcpSigningKey()` | Checks whether the wallet has a UCP signing key. |
+| `exportUcpSigningPublicKey()` | Exports the public EC JWK for a buyer HMS profile. |
 | `exportRecovery({ path, password })` | Writes a password-wrapped recovery file. |
 | `rotatePassword({ oldPassword, newPassword })` | Rotates password-mode vaults. |
+
+The UCP signing key is stored in the encrypted vault and used opaquely by the
+buyer driver. Publish only `exportUcpSigningPublicKey()` output in a buyer HMS
+profile; never publish private JWK `d`.
+
+## AP2 Holder Key
+
+The AP2 holder key is the same encrypted-vault UCP signing key used for UCP HMS
+requests. New wallets that use the default `Wallet.create()` mandate setup get
+both the legacy Ed25519 mandate key and an ES256 UCP signing key. Existing
+wallets can add the AP2 holder key with:
+
+```ts
+await wallet.createUcpSigningKey({ algorithm: "ES256" });
+```
+
+To advertise AP2, host a buyer profile with `ap2: { enabled: true }` and pass
+that profile URL in `ucpAuth.signing.profileUrl` when calling
+`Steelyard.connect()`.

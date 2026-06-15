@@ -100,9 +100,24 @@ UCP catalog lookup response failed spec validation:
   data/products/0/variants/0 must have required property 'inputs'
 ```
 
+## Transport Security
+
+v0.4.2 adds UCP HTTP Message Signatures for checkout and streamable HTTP MCP.
+Signed requests carry `UCP-Agent`, `Signature-Input`, `Signature`, and
+`Content-Digest` when a body is present. Verifiers resolve `keyid` against the
+signer's top-level profile `signing_keys[]`.
+
+Merchants can also accept bearer tokens for partners that do not yet publish
+HMS profiles. When both a signature and bearer token are present, Steelyard
+prefers the signature.
+
+See [HTTP Message Signatures](../concepts/http-signatures.md),
+[UCP auth mechanisms](../concepts/auth-mechanisms.md), and
+[Configuring UCP auth](../guides/configuring-ucp-auth.md).
+
 ## Checkout
 
-v0.4.1 supports base UCP checkout and optional Steelyard mandates. Discovery
+v0.4.2 supports base UCP checkout and optional Steelyard mandates. Discovery
 advertises checkout with the canonical UCP capability key
 `dev.ucp.shopping.checkout`. Steelyard mandate mode is advertised separately as
 `net.steelyard.checkout_mandate.v0_1`.

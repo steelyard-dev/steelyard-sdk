@@ -4,6 +4,8 @@ import type {
   BillingAddress,
   CardMetadata,
   Decision,
+  EcJwk,
+  HmsAlgorithm,
   JsonWebKey,
   PurchaseIntent,
   Receipt,
@@ -29,7 +31,8 @@ import {
   osKeystore,
   passwordKeystore,
   type MandateKeyMetadata,
-  type Reservation
+  type Reservation,
+  type UcpSigningKeyMetadata
 } from "../vault/index.js";
 import type { Merchant } from "../client/index.js";
 import { openVaultBox, sealVaultBox } from "../vault/crypto.js";
@@ -275,6 +278,7 @@ export class Wallet {
       if (address.id) await vault.setDefaultAddress(address.id);
       if (opts.mandateKey !== false) {
         await vault.createMandateKey();
+        await vault.createUcpSigningKey({ algorithm: "ES256" });
       }
       if (opts.recovery) {
         await vault.exportKeyToFile({
@@ -559,6 +563,18 @@ export class Wallet {
     return this.#vault.exportMandatePublicKey();
   }
 
+  async createUcpSigningKey(opts: { algorithm: HmsAlgorithm }): Promise<UcpSigningKeyMetadata> {
+    return this.#vault.createUcpSigningKey(opts);
+  }
+
+  async hasUcpSigningKey(): Promise<boolean> {
+    return this.#vault.hasUcpSigningKey();
+  }
+
+  async exportUcpSigningPublicKey(): Promise<EcJwk> {
+    return this.#vault.exportUcpSigningPublicKey();
+  }
+
   async exportRecovery(opts: { path: string; password: string }): Promise<string> {
     return this.#vault.exportKeyToFile({ path: expandHome(opts.path), recoveryPassword: opts.password });
   }
@@ -599,7 +615,11 @@ export class Wallet {
       },
       signMandate: (payload) => this.#vault.signMandate(payload),
       pairwiseSubject: (audience) => this.#vault.pairwiseSubject(audience),
-      mandatePublicKey: () => this.#vault.mandatePublicKey()
+      mandatePublicKey: () => this.#vault.mandatePublicKey(),
+      createUcpSigningKey: (keyOpts) => this.#vault.createUcpSigningKey(keyOpts),
+      hasUcpSigningKey: () => this.#vault.hasUcpSigningKey(),
+      exportUcpSigningPublicKey: () => this.#vault.exportUcpSigningPublicKey(),
+      signWithUcpKey: (args) => this.#vault.signWithUcpKey(args)
     };
   }
 }

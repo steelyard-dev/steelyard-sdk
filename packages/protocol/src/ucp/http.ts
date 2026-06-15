@@ -2,9 +2,14 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Manifest } from "@steelyard/core";
 import { getProduct, lookupCatalog, searchCatalog, type UcpProductResponse } from "./catalog.js";
-import { assertValidUcpDiscovery, buildUcpDiscovery, UCP_WELL_KNOWN_PATH } from "./discovery.js";
+import {
+  assertValidUcpDiscovery,
+  buildUcpDiscovery,
+  UCP_WELL_KNOWN_PATH,
+  type UcpDiscoveryOptions
+} from "./discovery.js";
 
-export interface UcpHandlerOptions {
+export interface UcpHandlerOptions extends Omit<UcpDiscoveryOptions, "baseUrl"> {
   baseUrl?: string;
 }
 
@@ -17,7 +22,7 @@ export function createUcpHandler(manifest: Manifest, opts: UcpHandlerOptions = {
         sendJson(res, 405, { error: "method_not_allowed" });
         return;
       }
-      const doc = buildUcpDiscovery(manifest, { baseUrl: requestBaseUrl(req, opts) });
+      const doc = buildUcpDiscovery(manifest, { ...opts, baseUrl: requestBaseUrl(req, opts) });
       assertValidUcpDiscovery(doc);
       sendJson(res, 200, doc, req.method === "HEAD");
       return;

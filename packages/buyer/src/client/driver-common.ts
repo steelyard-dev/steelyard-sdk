@@ -31,6 +31,18 @@ export interface PaymentHandlerLike {
 }
 
 export type JsonRecord = Record<string, unknown>;
+export type JsonRequestHeaderPreparer = (args: {
+  method: "POST" | "PATCH";
+  url: URL;
+  headers: Record<string, string>;
+  body: Uint8Array;
+}) => Promise<Record<string, string>>;
+export interface JsonHttpResponse {
+  status: number;
+  headers: Record<string, string>;
+  rawBody: Uint8Array;
+  body: unknown;
+}
 
 export function driverClock(opts: { clock?: () => Date }): () => Date {
   return opts.clock ?? systemClock;
@@ -43,38 +55,80 @@ export function purchaseKey(opts: { idempotencyKey?: string }, intent: PurchaseI
 export async function postJson(
   url: string,
   body: unknown,
-  opts: { idempotencyKey: string; fetch?: typeof fetch }
+  opts: {
+    idempotencyKey: string;
+    fetch?: typeof fetch;
+    prepareHeaders?: JsonRequestHeaderPreparer;
+  }
 ): Promise<unknown> {
+  return (await postJsonResponse(url, body, opts)).body;
+}
+
+export async function postJsonResponse(
+  url: string,
+  body: unknown,
+  opts: {
+    idempotencyKey: string;
+    fetch?: typeof fetch;
+    prepareHeaders?: JsonRequestHeaderPreparer;
+  }
+): Promise<JsonHttpResponse> {
   const fetchImpl = opts.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(url, {
+  const rawBody = JSON.stringify(body);
+  const headers = await prepareJsonHeaders({
     method: "POST",
+    url,
+    body: rawBody,
     headers: {
       "content-type": "application/json",
       "idempotency-key": opts.idempotencyKey
     },
-    body: JSON.stringify(body)
+    prepareHeaders: opts.prepareHeaders
   });
-  const text = await response.text();
+  const response = await fetchImpl(url, {
+    method: "POST",
+    headers,
+    body: rawBody
+  });
+  const responseBody = await readResponseBody(response);
+  const text = new TextDecoder().decode(responseBody);
   const parsed = text ? parseJson(text) : {};
   if (!response.ok) {
     throw new Error(redactCardData(`HTTP ${response.status} from ${url}: ${text}`));
   }
-  return parsed;
+  return {
+    status: response.status,
+    headers: responseHeaders(response),
+    rawBody: responseBody,
+    body: parsed
+  };
 }
 
 export async function patchJson(
   url: string,
   body: unknown,
-  opts: { idempotencyKey: string; fetch?: typeof fetch }
+  opts: {
+    idempotencyKey: string;
+    fetch?: typeof fetch;
+    prepareHeaders?: JsonRequestHeaderPreparer;
+  }
 ): Promise<unknown> {
   const fetchImpl = opts.fetch ?? globalThis.fetch;
-  const response = await fetchImpl(url, {
+  const rawBody = JSON.stringify(body);
+  const headers = await prepareJsonHeaders({
     method: "PATCH",
+    url,
+    body: rawBody,
     headers: {
       "content-type": "application/json",
       "idempotency-key": opts.idempotencyKey
     },
-    body: JSON.stringify(body)
+    prepareHeaders: opts.prepareHeaders
+  });
+  const response = await fetchImpl(url, {
+    method: "PATCH",
+    headers,
+    body: rawBody
   });
   const text = await response.text();
   if (!response.ok) throw new Error(redactCardData(`HTTP ${response.status} from ${url}: ${text}`));
@@ -229,6 +283,37 @@ function parseJson(text: string): unknown {
   } catch (error) {
     throw new Error(`invalid JSON response: ${(error as Error).message}`);
   }
+}
+
+async function readResponseBody(response: Response): Promise<Uint8Array> {
+  if (typeof response.arrayBuffer === "function") {
+    return new Uint8Array(await response.arrayBuffer());
+  }
+  const text = await response.text();
+  return new TextEncoder().encode(text);
+}
+
+function responseHeaders(response: Response): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (!response.headers) return headers;
+  for (const [name, value] of response.headers.entries()) headers[name.toLowerCase()] = value;
+  return headers;
+}
+
+async function prepareJsonHeaders(args: {
+  method: "POST" | "PATCH";
+  url: string;
+  body: string;
+  headers: Record<string, string>;
+  prepareHeaders?: JsonRequestHeaderPreparer;
+}): Promise<Record<string, string>> {
+  if (!args.prepareHeaders) return args.headers;
+  return await args.prepareHeaders({
+    method: args.method,
+    url: new URL(args.url),
+    headers: { ...args.headers },
+    body: Buffer.from(args.body, "utf8")
+  });
 }
 
 function parseExpiry(exp: string): { month: number; year: number } {

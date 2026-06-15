@@ -5,12 +5,13 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { buildAcpFeed } from "@steelyard/protocol/acp";
-import { defineCommerce, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
+import { defineCommerce, type EcJwk, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
 import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
 import {
   STEELYARD_CHECKOUT_MANDATE_V01,
   UCP_CATALOG_SEARCH_CAPABILITY,
   UCP_CHECKOUT_CAPABILITY,
+  UcpProfileCache,
   buildUcpDiscovery,
   createUcpHandler
 } from "@steelyard/protocol/ucp";
@@ -26,10 +27,12 @@ import {
   type Checkout as UcpCheckout
 } from "@steelyard/protocol/ucp/checkout";
 import {
+  BuyerHmsProfileMissing,
   MerchantNoCheckout,
   Steelyard,
   UCP_LEGACY_CAPABILITY_ALIASES,
   connect,
+  createUcpBuyerProfile,
   isCompatibleReadVersion,
   type Merchant
 } from "./index.js";
@@ -67,6 +70,20 @@ const manifest = defineCommerce({
 });
 
 const now = new Date("2026-01-02T03:04:05.000Z");
+
+function b64urlHex(value: string): string {
+  return Buffer.from(value, "hex").toString("base64url");
+}
+
+const walletP256PublicKey = {
+  kid: "wallet-p256",
+  kty: "EC",
+  crv: "P-256",
+  x: b64urlHex("60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6"),
+  y: b64urlHex("7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299"),
+  use: "sig",
+  alg: "ES256"
+} satisfies EcJwk;
 
 let server: NodeServer | undefined;
 
@@ -176,7 +193,7 @@ describe("Steelyard.connect", () => {
 
   it("detects UCP discovery and uses the REST catalog service", async () => {
     const base = await startMerchantServer();
-    const merchant = await connect(`${base}/.well-known/ucp`);
+    const merchant = await connect(`${base}/.well-known/ucp`, { allowPrivateNetwork: true });
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
@@ -200,16 +217,25 @@ describe("Steelyard.connect", () => {
     );
   });
 
+  it("requires explicit private-network opt-in for loopback UCP discovery", async () => {
+    const base = await startMerchantServer();
+
+    await expect(connect(`${base}/.well-known/ucp`)).resolves.toMatchObject({
+      error: "protocol_mismatch",
+      error_detail: expect.stringContaining("HTTPS")
+    });
+  });
+
   it("falls back from a base URL to UCP well-known discovery", async () => {
     const base = await startMerchantServer();
-    const merchant = await connect(base);
+    const merchant = await connect(base, { allowPrivateNetwork: true });
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
   });
 
   it("uses the default UCP REST endpoint and maps UCP product fallbacks", async () => {
     const base = await startUcpDefaultEndpointServer();
-    const merchant = await connect(base);
+    const merchant = await connect(base, { allowPrivateNetwork: true });
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
@@ -253,7 +279,7 @@ describe("Steelyard.connect", () => {
 
   it("accepts legacy UCP discovery bucket/id capabilities for read compatibility", async () => {
     const base = await startLegacyUcpDiscoveryServer();
-    const merchant = await connect(base);
+    const merchant = await connect(base, { allowPrivateNetwork: true });
 
     expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
@@ -263,7 +289,7 @@ describe("Steelyard.connect", () => {
 
   it("sniffs UCP checkout and Steelyard-mode capabilities independently", async () => {
     const steelyardBase = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: true });
-    const steelyardMerchant = await connect(steelyardBase);
+    const steelyardMerchant = await connect(steelyardBase, { allowPrivateNetwork: true });
 
     expect(isMerchant(steelyardMerchant) && steelyardMerchant.protocol).toBe("ucp");
     if (!isMerchant(steelyardMerchant)) throw new Error("Expected merchant");
@@ -273,7 +299,7 @@ describe("Steelyard.connect", () => {
     await closeServer();
 
     const ap2Base = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: false });
-    const ap2Merchant = await connect(ap2Base);
+    const ap2Merchant = await connect(ap2Base, { allowPrivateNetwork: true });
 
     expect(isMerchant(ap2Merchant) && ap2Merchant.protocol).toBe("ucp");
     if (!isMerchant(ap2Merchant)) throw new Error("Expected merchant");
@@ -281,15 +307,76 @@ describe("Steelyard.connect", () => {
     expect(ap2Merchant.supports("checkout:steelyard")).toBe(false);
   });
 
+  it("sniffs UCP AP2 checkout only from merchant and buyer capability intersection", async () => {
+    const profileCache = new UcpProfileCache();
+    const buyerProfile = await startBuyerProfileServer({ ap2: true });
+    const base = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: true, ap2: true });
+    const merchant = await connect(base, {
+      allowPrivateNetwork: true,
+      ucpProfileCache: profileCache,
+      ucpAuth: {
+        preferred: "hms",
+        signing: { kid: "wallet-p256", algorithm: "ES256", profileUrl: buyerProfile.url }
+      },
+      ap2: {
+        enabled: true,
+        issuer: "did:example:bank",
+        checkoutNonce: "checkout_nonce",
+        paymentNonce: "payment_nonce"
+      }
+    });
+
+    expect(isMerchant(merchant) && merchant.protocol).toBe("ucp");
+    if (!isMerchant(merchant)) throw new Error("Expected merchant");
+    expect(merchant.supports("checkout")).toBe(true);
+    expect(merchant.supports("checkout:ap2")).toBe(true);
+    expect(merchant.supports("checkout:steelyard")).toBe(false);
+
+    await closeServer();
+    await buyerProfile.close();
+
+    const nonAp2BuyerProfile = await startBuyerProfileServer({ ap2: false });
+    const nonAp2Base = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: true, ap2: true });
+    const nonAp2Merchant = await connect(nonAp2Base, {
+      allowPrivateNetwork: true,
+      ucpProfileCache: new UcpProfileCache(),
+      ucpAuth: {
+        preferred: "hms",
+        signing: { kid: "wallet-p256", algorithm: "ES256", profileUrl: nonAp2BuyerProfile.url }
+      },
+      ap2: {
+        enabled: true,
+        issuer: "did:example:bank",
+        checkoutNonce: "checkout_nonce",
+        paymentNonce: "payment_nonce"
+      }
+    });
+
+    expect(isMerchant(nonAp2Merchant) && nonAp2Merchant.supports("checkout:ap2")).toBe(false);
+    expect(isMerchant(nonAp2Merchant) && nonAp2Merchant.supports("checkout:steelyard")).toBe(true);
+    await nonAp2BuyerProfile.close();
+  });
+
+  it("fails fast when HMS buyer auth is configured without a signer profile URL", async () => {
+    await expect(
+      connect("https://coffee.example/.well-known/ucp", {
+        ucpAuth: {
+          preferred: "hms",
+          signing: { kid: "wallet-p256", algorithm: "ES256" } as never
+        }
+      })
+    ).rejects.toBeInstanceOf(BuyerHmsProfileMissing);
+  });
+
   it("sniffs canonical, legacy, mixed, and absent UCP checkout capabilities", async () => {
     const canonicalBase = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: true });
-    const canonicalMerchant = await connect(canonicalBase);
+    const canonicalMerchant = await connect(canonicalBase, { allowPrivateNetwork: true });
     expect(isMerchant(canonicalMerchant) && canonicalMerchant.supports("checkout")).toBe(true);
     expect(isMerchant(canonicalMerchant) && canonicalMerchant.supports("checkout:steelyard")).toBe(true);
     await closeServer();
 
     const legacyBase = await startLegacyUcpDiscoveryServer({ checkout: true, steelyardMandate: true });
-    const legacyMerchant = await connect(legacyBase);
+    const legacyMerchant = await connect(legacyBase, { allowPrivateNetwork: true });
     expect(isMerchant(legacyMerchant) && legacyMerchant.supports("checkout")).toBe(true);
     expect(isMerchant(legacyMerchant) && legacyMerchant.supports("checkout:steelyard")).toBe(true);
     await closeServer();
@@ -300,13 +387,13 @@ describe("Steelyard.connect", () => {
       [UCP_CHECKOUT_CAPABILITY]: [{ version: "2026-04-17" }],
       [steelyardAlias.bucket]: [{ id: steelyardAlias.id, version: "2026-04-17" }]
     });
-    const mixedMerchant = await connect(mixedBase);
+    const mixedMerchant = await connect(mixedBase, { allowPrivateNetwork: true });
     expect(isMerchant(mixedMerchant) && mixedMerchant.supports("checkout")).toBe(true);
     expect(isMerchant(mixedMerchant) && mixedMerchant.supports("checkout:steelyard")).toBe(true);
     await closeServer();
 
     const absentBase = await startUcpDiscoveryServer({ checkout: false, steelyardMandate: false });
-    const absentMerchant = await connect(absentBase);
+    const absentMerchant = await connect(absentBase, { allowPrivateNetwork: true });
     expect(isMerchant(absentMerchant) && absentMerchant.supports("checkout")).toBe(false);
     expect(isMerchant(absentMerchant) && absentMerchant.supports("checkout:steelyard")).toBe(false);
   });
@@ -340,7 +427,7 @@ describe("Steelyard.connect", () => {
   it("routes UCP merchant.purchase with Steelyard-mode support", async () => {
     const { base, requests } = await startUcpCheckoutServer();
     const port = testPort();
-    const merchant = await connect(base, { delegatePaymentUrl: `${base}/delegate-override` });
+    const merchant = await connect(base, { allowPrivateNetwork: true, delegatePaymentUrl: `${base}/delegate-override` });
 
     expect(isMerchant(merchant) && merchant.supports("checkout:steelyard")).toBe(true);
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
@@ -369,7 +456,7 @@ describe("Steelyard.connect", () => {
     await listen(server);
     const { port } = server.address() as { port: number };
 
-    expect(await connect(`http://127.0.0.1:${port}/unknown`)).toEqual({
+    expect(await connect(`http://127.0.0.1:${port}/unknown`, { allowPrivateNetwork: true })).toEqual({
       error: "protocol_mismatch",
       error_detail: "Could not detect MCP, ACP, or UCP at the supplied URL."
     });
@@ -558,9 +645,7 @@ async function startUcpDefaultEndpointServer(): Promise<string> {
         ucp: {
           version: "2026-04-17",
           services: {
-            "dev.ucp.shopping": [
-              { version: "2026-04-17", transport: "other" }
-            ]
+            "dev.ucp.shopping": []
           },
           capabilities: {
             [UCP_CATALOG_SEARCH_CAPABILITY]: [{ version: "2026-04-17" }]
@@ -611,10 +696,15 @@ function ucpVariantProduct(): Record<string, unknown> {
   };
 }
 
-async function startUcpDiscoveryServer(opts: { checkout: boolean; steelyardMandate: boolean }): Promise<string> {
+async function startUcpDiscoveryServer(opts: { checkout: boolean; steelyardMandate: boolean; ap2?: boolean }): Promise<string> {
   server = createServer((req, res) => {
     if (req.method === "GET" && req.url?.startsWith("/.well-known/ucp")) {
-      sendJson(res, buildUcpDiscovery(manifest, { baseUrl: `http://${req.headers.host}`, ...opts }));
+      sendJson(res, buildUcpDiscovery(manifest, {
+        baseUrl: `http://${req.headers.host}`,
+        checkout: opts.checkout,
+        steelyardMandate: opts.steelyardMandate,
+        ...(opts.ap2 ? { ucp: { ap2: { enabled: true } } } : {})
+      }));
       return;
     }
     sendJson(res, { error: "not_found" }, 404);
@@ -622,6 +712,28 @@ async function startUcpDiscoveryServer(opts: { checkout: boolean; steelyardManda
   await listen(server);
   const { port } = server.address() as { port: number };
   return `http://127.0.0.1:${port}`;
+}
+
+async function startBuyerProfileServer(opts: { ap2: boolean }): Promise<{ url: string; close: () => Promise<void> }> {
+  const profileServer = createServer((req, res) => {
+    if (req.method === "GET" && req.url?.startsWith("/buyer/.well-known/ucp")) {
+      sendJson(res, createUcpBuyerProfile({
+        signingKeys: [walletP256PublicKey],
+        ...(opts.ap2 ? { ap2: { enabled: true } } : {})
+      }));
+      return;
+    }
+    sendJson(res, { error: "not_found" }, 404);
+  });
+  await listen(profileServer);
+  const { port } = profileServer.address() as { port: number };
+  return {
+    url: `http://127.0.0.1:${port}/buyer/.well-known/ucp`,
+    close: async () => {
+      profileServer.closeAllConnections();
+      await new Promise<void>((resolve) => profileServer.close(() => resolve()));
+    }
+  };
 }
 
 async function startAcpCheckoutServer(): Promise<{ base: string; requests: CapturedRequest[] }> {

@@ -1,4 +1,15 @@
 export {
+  UcpAp2EnvelopeValidationError,
+  assertValidAp2EnvelopeOnRequest,
+  assertValidAp2EnvelopeOnResponse,
+  isValidAp2EnvelopeOnRequest,
+  isValidAp2EnvelopeOnResponse
+} from "./ap2-envelope.js";
+export type {
+  Ap2WithCheckoutMandate,
+  Ap2WithMerchantAuthorization
+} from "./ap2-envelope.js";
+export {
   assertValidGetProductResponse,
   assertValidLookupResponse,
   assertValidSearchResponse,
@@ -21,6 +32,7 @@ export type {
 } from "./catalog.js";
 export {
   UCP_API_PATH,
+  UCP_AP2_CAPABILITY,
   UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,
   UCP_CHECKOUT_CAPABILITY,
@@ -29,9 +41,54 @@ export {
   UCP_WELL_KNOWN_PATH,
   STEELYARD_CHECKOUT_MANDATE_V01,
   assertValidUcpDiscovery,
+  assertValidUcpProfile,
   buildUcpDiscovery,
-  validateUcpDiscovery
+  validateUcpDiscovery,
+  validateUcpProfile
 } from "./discovery.js";
-export type { UcpDiscoveryDoc, UcpEntity, UcpValidationResult } from "./discovery.js";
+export type {
+  UcpDiscoveryDoc,
+  UcpDiscoveryAp2Config,
+  UcpDiscoveryHmsConfig,
+  UcpDiscoveryOptions,
+  UcpEntity,
+  UcpProfileDoc,
+  UcpPublicSigningKey,
+  UcpValidationResult
+} from "./discovery.js";
 export { createUcpHandler } from "./http.js";
 export type { UcpHandlerOptions } from "./http.js";
+export {
+  UCP_PROFILE_MAX_BYTES,
+  UCP_PROFILE_MAX_TTL_MS,
+  UCP_PROFILE_MIN_TTL_MS,
+  UcpProfileCache,
+  UcpProfileFetchError,
+  fetchUcpProfile,
+  resolveSigningKey
+} from "./profile.js";
+export type {
+  FetchUcpProfileOptions,
+  UcpProfileCacheOptions,
+  UcpProfileFetchErrorCode
+} from "./profile.js";
+export {
+  UcpSignerMissingHeader,
+  parseUcpAgentProfileUrl,
+  signUcpRequest,
+  signUcpResponse,
+  verifyUcpRequest,
+  verifyUcpResponse
+} from "./signatures.js";
+export type {
+  SignUcpRequestArgs,
+  SignUcpResponseArgs,
+  UcpRequestVerificationFailureReason,
+  UcpRequestVerificationResult,
+  UcpOpaqueSigningMaterial,
+  UcpPrivateSigningMaterial,
+  UcpResponseVerificationResult,
+  UcpSigningMaterial,
+  VerifyUcpRequestArgs,
+  VerifyUcpResponseArgs
+} from "./signatures.js";

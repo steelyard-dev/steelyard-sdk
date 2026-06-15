@@ -43,7 +43,7 @@ describe("coffee-shop protocol parity", () => {
     const merchants = await Promise.all([
       Steelyard.connect(`${base}/mcp`),
       Steelyard.connect(`${base}/acp/feed`),
-      Steelyard.connect(`${base}/.well-known/ucp`)
+      Steelyard.connect(`${base}/.well-known/ucp`, { allowPrivateNetwork: true })
     ]);
 
     const [mcp, acp, ucp] = merchants;

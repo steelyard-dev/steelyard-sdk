@@ -10,6 +10,7 @@ graph TD
   mcp["@steelyard/protocol/mcp<br/><i>tools + resources<br/>@modelcontextprotocol/sdk</i>"]
   acp["@steelyard/protocol/acp<br/><i>ProductsResponse<br/>AJV spec validation</i>"]
   ucp["@steelyard/protocol/ucp<br/><i>discovery + catalog<br/>AJV spec validation</i>"]
+  hms["@steelyard/core RFC 9421<br/><i>HMS base · digest · ECDSA</i>"]
   merchant["@steelyard/merchant<br/><i>ACP/UCP checkout assembly</i>"]
   client["@steelyard/buyer/client<br/><i>auto-detect buyer SDK</i>"]
   agent["@steelyard/agent<br/><i>LLM-driven CLI</i>"]
@@ -21,6 +22,7 @@ graph TD
   core --> mcp
   core --> acp
   core --> ucp
+  core --> hms
   core --> client
   core --> merchant
   core --> cli
@@ -29,6 +31,9 @@ graph TD
   mcp --> client
   acp --> client
   ucp --> client
+  hms --> ucp
+  hms --> merchant
+  hms --> client
   client --> agent
   core --> example
   cm --> example
@@ -85,10 +90,32 @@ emit time:
 | `@steelyard/protocol/ucp` (discovery) | AJV2020 | `protocols/ucp/source/schemas/ucp.json` + transitive deps |
 | `@steelyard/protocol/ucp` (catalog) | AJV2020 | `protocols/ucp/source/schemas/shopping/catalog_*.json` |
 | `@steelyard/protocol/{acp,ucp}/checkout` | AJV2020 | Vendored checkout schemas |
+| UCP HTTP Message Signatures | RFC fixtures + package tests | RFC 9421, RFC 9530, RFC 8941, UCP `signatures.md` |
 | `@steelyard/protocol/mcp` | — | Uses the official `@modelcontextprotocol/sdk`; conformance is by construction |
 
 Bugs that would produce non-conformant output throw at emit time with the
 specific spec violation. **No fake / incomplete stuff.**
+
+## UCP Signing Layer
+
+```mermaid
+sequenceDiagram
+  participant Buyer as Buyer wallet
+  participant Merchant as Merchant checkout
+  participant Profile as Signer profile
+
+  Buyer->>Buyer: signUcpRequest()
+  Buyer->>Merchant: POST /api/checkout*<br/>Signature-Input + Signature + UCP-Agent
+  Merchant->>Profile: fetch profile from UCP-Agent
+  Profile-->>Merchant: signing_keys[]
+  Merchant->>Merchant: verifyUcpRequest()
+  Merchant-->>Buyer: complete response<br/>optional Signature-Input + Signature
+  Buyer->>Buyer: verifyUcpResponse()
+```
+
+The signer profile is always the peer's profile. Merchant keys sign outgoing
+merchant responses and publish merchant public keys; they are not used to
+verify buyer requests.
 
 ## What's vendored
 

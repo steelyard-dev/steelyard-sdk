@@ -12,6 +12,8 @@ export type {
   MockPspOptions,
   PspAdapter,
   PspCaptureArgs,
+  PspPaymentIntent,
+  PspPaymentMandate,
   PspCaptureResult,
   StripePspOptions
 } from "./adapters.js";

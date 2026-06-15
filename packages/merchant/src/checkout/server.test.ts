@@ -1,8 +1,16 @@
 // Copyright (c) Steelyard contributors. MIT License.
+import { createHash } from "node:crypto";
 import { createServer, type RequestListener, type Server } from "node:http";
-import { defineCommerce, type Decision, type PurchaseIntent } from "@steelyard/core";
+import {
+  defineCommerce,
+  jcsCanonicalize,
+  verifyDetachedJws,
+  type Decision,
+  type EcJwk,
+  type PurchaseIntent
+} from "@steelyard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mockMandateVerifier } from "../mandate/index.js";
+import { ap2MerchantAuthorizationSigner, checkoutWithoutAp2, memoryNonceStore, mockMandateVerifier } from "../mandate/index.js";
 import type { MerchantPolicy } from "../policy/index.js";
 import type { PspAdapter, PspCaptureArgs, PspCaptureResult } from "../psp/index.js";
 import {
@@ -11,6 +19,7 @@ import {
   memoryIdempotencyStore,
   MerchantCheckoutConfigError
 } from "./index.js";
+import { signUcpRequest, UCP_AP2_CAPABILITY, verifyUcpResponse } from "@steelyard/protocol/ucp";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const manifest = defineCommerce({
@@ -45,6 +54,52 @@ const ucpPaymentComplete = {
     }
   ]
 };
+
+function b64urlHex(value: string): string {
+  return Buffer.from(value, "hex").toString("base64url");
+}
+
+const merchantP256PublicKey = {
+  kid: "merchant-p256",
+  kty: "EC",
+  crv: "P-256",
+  x: b64urlHex("60FED4BA255A9D31C961EB74C6356D68C049B8923B61FA6CE669622E60F29FB6"),
+  y: b64urlHex("7903FE1008B8BC99A41AE9E95628BC64F2F1B20C2D7E9F5177A3C294D4462299"),
+  use: "sig",
+  alg: "ES256"
+} satisfies EcJwk;
+
+const merchantP256PrivateKey = {
+  ...merchantP256PublicKey,
+  d: b64urlHex("C9AFA9D845BA75166B5C215767B1D6934E50C3DB36E89B127B8A622B120F6721")
+} satisfies EcJwk;
+
+const walletP256PublicKey = {
+  ...merchantP256PublicKey,
+  kid: "wallet-p256"
+} satisfies EcJwk;
+
+const walletP256PrivateKey = {
+  ...walletP256PublicKey,
+  d: merchantP256PrivateKey.d
+} satisfies EcJwk;
+
+const merchantP384PrivateKey = {
+  kid: "merchant-p384",
+  kty: "EC",
+  crv: "P-384",
+  x: b64urlHex(
+    "EC3A4E415B4E19A4568618029F427FA5DA9A8BC4AE92E02E06AAE5286B300C64" +
+      "DEF8F0EA9055866064A254515480BC13"
+  ),
+  y: b64urlHex(
+    "8015D9B72D7D57244EA8EF9AC0C621896708A59367F9DFB9F54CA84B3F1C9DB1" +
+      "288B231C3AE0D4FE7344FD2533264720"
+  ),
+  d: b64urlHex("6B9D3DAD2E1B8C1C05B19875B6659F4DE23C3B667BF297BA9AA47740787137D8" + "96D5724E4C70A825F872C9EA60D2EDF5"),
+  use: "sig",
+  alg: "ES384"
+} satisfies EcJwk;
 
 const servers: Server[] = [];
 
@@ -85,6 +140,122 @@ describe("createMerchantCheckout", () => {
     ).toThrow(/mandateVerifier/);
     expect(() =>
       createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: { auth: { hms: { enabled: false, signingKeys: [], activeKid: "" } } },
+        clock: () => now
+      })
+    ).not.toThrow();
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: { auth: { hms: { enabled: true, signingKeys: [], activeKid: "merchant-p256" } } },
+        clock: () => now
+      })
+    ).toThrow(/signingKeys/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }],
+              activeKid: "missing"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).toThrow(/activeKid/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES384" }],
+              activeKid: "merchant-p256"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).toThrow(/ES256/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PublicKey, algorithm: "ES256" }],
+              activeKid: "merchant-p256"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).toThrow(/private d/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [
+                { kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" },
+                { kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }
+              ],
+              activeKid: "merchant-p256"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).toThrow(/duplicate/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [
+                { kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" },
+                { kid: "merchant-p384", privateKeyJwk: merchantP384PrivateKey, algorithm: "ES384" }
+              ],
+              activeKid: "merchant-p384"
+            }
+          }
+        },
+        clock: () => now
+      })
+    ).not.toThrow();
+    expect(() =>
+      createMerchantCheckout(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: Object.assign(recordingPsp().adapter, { supportedCurrencies: ["EUR"] }),
@@ -117,6 +288,111 @@ describe("createMerchantCheckout", () => {
       status: 404,
       body: { error: "not_found", id: "missing" }
     });
+  });
+
+  it("requires AP2 merchant authorization config when AP2 is enabled", () => {
+    const psp = recordingPsp();
+    const signingKeys = [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" as const }];
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          ap2: { enabled: true }
+        }
+      })
+    ).toThrow(/signingKeys/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys,
+              activeKid: "merchant-p256"
+            }
+          },
+          ap2: { enabled: true }
+        }
+      })
+    ).toThrow(/merchantAuthorizationSigner/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys,
+              activeKid: "merchant-p256"
+            }
+          },
+          ap2: {
+            enabled: true,
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
+          }
+        }
+      })
+    ).toThrow(/mandateVerifier/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys,
+              activeKid: "merchant-p256"
+            }
+          },
+          ap2: {
+            enabled: true,
+            mandateVerifier: mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "wallet-p256" } }),
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" })
+          }
+        }
+      })
+    ).toThrow(/nonceStore/);
+    expect(() =>
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys,
+              activeKid: "merchant-p256"
+            }
+          },
+          ap2: {
+            enabled: true,
+            mandateVerifier: mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "wallet-p256" } }),
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" }),
+            nonceStore: memoryNonceStore({ clock: () => now })
+          }
+        }
+      })
+    ).not.toThrow();
   });
 
   it("runs the ACP checkout routes with idempotent policy and PSP capture", async () => {
@@ -437,6 +713,458 @@ describe("createMerchantCheckout", () => {
     expect(psp.captures).toHaveLength(2);
   });
 
+  it("verifies signed UCP requests before policy and prefers HMS over bearer", async () => {
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
+    const psp = recordingPsp();
+    const policy = recordingPolicy();
+    const bearerVerify = vi.fn(async () => ({ ok: true, subject: "bearer-subject" as const }));
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: psp.adapter,
+        policy: policy.instance,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          allowPrivateNetwork: true,
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }],
+              activeKid: "merchant-p256"
+            },
+            bearer: { enabled: true, verify: bearerVerify }
+          }
+        }
+      }).handler
+    );
+
+    const createBody = { line_items: ucpLineItems };
+    const hmsHeaders = await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-hms-create", buyerProfileUrl);
+    hmsHeaders.authorization = "Bearer ignored";
+    await expect(client.post("/ucp/api/checkout", createBody, "ucp-hms-create", hmsHeaders)).resolves.toMatchObject({
+      status: 200,
+      body: expect.objectContaining({ status: "ready_for_complete" })
+    });
+    expect(bearerVerify).not.toHaveBeenCalled();
+    expect(policy.calls).toHaveLength(1);
+
+    const tamperedHeaders = await signedUcpHeaders(
+      client,
+      "POST",
+      "/ucp/api/checkout",
+      createBody,
+      "ucp-hms-tampered",
+      buyerProfileUrl
+    );
+    await expect(
+      client.post("/ucp/api/checkout", { line_items: [{ item: { id: "latte" }, quantity: 2 }] }, "ucp-hms-tampered", tamperedHeaders)
+    ).resolves.toMatchObject({
+      status: 400,
+      body: { code: "digest_mismatch", content: expect.stringContaining("digest_mismatch") }
+    });
+
+    const unknownKid = await client.post(
+      "/ucp/api/checkout",
+      createBody,
+      "ucp-hms-unknown-kid",
+      await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-hms-unknown-kid", buyerProfileUrl, "wallet-missing")
+    );
+    expect(unknownKid).toMatchObject({
+      status: 401,
+      body: { code: "key_not_found", content: expect.stringContaining("key_not_found") }
+    });
+    expect(String(unknownKid.body.content)).not.toContain("ucp-hms-unknown-kid");
+    expect(policy.calls).toHaveLength(1);
+    expect(psp.captures).toHaveLength(0);
+  });
+
+  it("signs high-value UCP complete responses when HMS is enabled", async () => {
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          allowPrivateNetwork: true,
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }],
+              activeKid: "merchant-p256"
+            }
+          }
+        }
+      }).handler
+    );
+
+    const createBody = { line_items: ucpLineItems };
+    const created = await client.post(
+      "/ucp/api/checkout",
+      createBody,
+      "ucp-hms-response-create",
+      await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-hms-response-create", buyerProfileUrl)
+    );
+    const checkoutId = stringField(created.body, "id");
+    const completeBody = { payment: ucpPaymentComplete };
+    const completed = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      completeBody,
+      "ucp-hms-response-complete",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        completeBody,
+        "ucp-hms-response-complete",
+        buyerProfileUrl
+      )
+    );
+
+    expect(completed).toMatchObject({ status: 200, body: { status: "completed" } });
+    expect(completed.headers["signature-input"]).toContain("\"@status\"");
+    expect(completed.headers.signature).toContain("sig1=:");
+    expect(completed.headers["content-digest"]).toBeTruthy();
+    await expect(
+      verifyUcpResponse({
+        status: completed.status,
+        headers: completed.headers,
+        body: Buffer.from(completed.rawBody, "utf8"),
+        resolveKey: async (kid) => (kid === "merchant-p256" ? merchantP256PublicKey : null),
+        now
+      })
+    ).resolves.toMatchObject({ ok: true, kid: "merchant-p256", algorithm: "ES256" });
+  });
+
+  it("mounts AP2 merchant authorization on AP2-locked UCP checkout responses", async () => {
+    const signingKeys = [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" as const }];
+    const store = memoryCheckoutSessionStore();
+    const psp = recordingPsp();
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey], { ap2: true });
+    let verifiedAp2Checkout: Record<string, unknown> | undefined;
+    let verifiedAp2SessionId = "";
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store,
+        psp: psp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          allowPrivateNetwork: true,
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys,
+              activeKid: "merchant-p256"
+            }
+          },
+          ap2: {
+            enabled: true,
+            mandateVerifier: {
+              async verify(_envelope, _checkout, sessionId) {
+                verifiedAp2SessionId = sessionId;
+                return {
+                  ok: true,
+                  subject_id: "buyer_1",
+                  key_id: "wallet-p256",
+                  claims: {
+                    exp: Math.floor(now.getTime() / 1000) + 300,
+                    cnf: { jwk: walletP256PublicKey }
+                  },
+                  checkout: verifiedAp2Checkout
+                };
+              }
+            },
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" }),
+            nonceStore: memoryNonceStore({ clock: () => now })
+          }
+        }
+      }).handler
+    );
+
+    const createBody = { line_items: ucpLineItems };
+    const created = await client.post(
+      "/ucp/api/checkout",
+      createBody,
+      "ucp-ap2-create",
+      await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-ap2-create", buyerProfileUrl)
+    );
+    expect(created.status).toBe(200);
+    const checkoutId = stringField(created.body, "id");
+    const stored = await store.get(checkoutId);
+    if (!stored) throw new Error("expected created checkout to be stored");
+    expect(stored).toMatchObject({ ap2_locked: true });
+    expect(stored).not.toHaveProperty("ap2");
+
+    const createdAp2 = recordField(created.body, "ap2");
+    expect(stringField(createdAp2, "merchant_authorization")).toMatch(/^[A-Za-z0-9_-]+\.\.[A-Za-z0-9_-]+$/);
+    const checkoutNonce = stringField(createdAp2, "checkout_nonce");
+    const paymentNonce = stringField(createdAp2, "payment_nonce");
+    expect(checkoutNonce).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(paymentNonce).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(checkoutNonce).not.toBe(paymentNonce);
+    expect(stored).toMatchObject({
+      ap2_nonces: {
+        checkout_nonce: checkoutNonce,
+        payment_nonce: paymentNonce,
+        checkout_nonce_expires_at: "2026-06-14T12:15:00.000Z",
+        payment_nonce_expires_at: "2026-06-14T12:15:00.000Z"
+      }
+    });
+
+    const fetched = await client.get(`/ucp/api/checkout/${checkoutId}`);
+    expect(fetched.status).toBe(200);
+    expect(fetched.body).not.toHaveProperty("ap2_locked");
+    const ap2 = recordField(fetched.body, "ap2");
+    expect(ap2).toMatchObject({ checkout_nonce: checkoutNonce, payment_nonce: paymentNonce });
+    const merchantAuthorization = stringField(ap2, "merchant_authorization");
+    verifiedAp2Checkout = fetched.body;
+    expect(merchantAuthorization).toMatch(/^[A-Za-z0-9_-]+\.\.[A-Za-z0-9_-]+$/);
+    await expect(
+      verifyDetachedJws({
+        jws: merchantAuthorization,
+        payload: jcsCanonicalize(checkoutWithoutAp2(fetched.body)),
+        resolveKey: async (kid, alg) => (kid === "merchant-p256" && alg === "ES256" ? merchantP256PublicKey : null)
+      })
+    ).resolves.toMatchObject({ ok: true, kid: "merchant-p256", alg: "ES256" });
+    await expect(
+      verifyDetachedJws({
+        jws: merchantAuthorization,
+        payload: jcsCanonicalize(fetched.body),
+        resolveKey: async (kid, alg) => (kid === "merchant-p256" && alg === "ES256" ? merchantP256PublicKey : null)
+      })
+    ).resolves.toMatchObject({ ok: false, reason: "signature_invalid" });
+
+    const storedAfterFetch = await store.get(checkoutId);
+    expect(storedAfterFetch).toMatchObject({ ap2_locked: true });
+    expect(storedAfterFetch).not.toHaveProperty("ap2");
+
+    const missingMandateBody = { payment: ucpPaymentComplete };
+    const missingMandate = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      missingMandateBody,
+      "ucp-ap2-complete-missing",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        missingMandateBody,
+        "ucp-ap2-complete-missing",
+        buyerProfileUrl
+      )
+    );
+    expect(missingMandate).toMatchObject({
+      status: 400,
+      body: { code: "mandate_required", content: expect.stringContaining("checkout_mandate") }
+    });
+
+    const emptyMandateBody = { payment: ucpPaymentComplete, ap2: { checkout_mandate: "" } };
+    const emptyMandate = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      emptyMandateBody,
+      "ucp-ap2-complete-empty",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        emptyMandateBody,
+        "ucp-ap2-complete-empty",
+        buyerProfileUrl
+      )
+    );
+    expect(emptyMandate).toMatchObject({
+      status: 400,
+      body: { code: "mandate_required", content: expect.stringContaining("checkout_mandate") }
+    });
+
+    const paymentMandateBody = {
+      payment: {
+        instruments: [
+          {
+            id: "instrument_1",
+            handler_id: "stripe",
+            type: "vault_token",
+            credential: { type: "ap2_payment_mandate", token: "payment-mandate-token" },
+            selected: true
+          }
+        ]
+      },
+      ap2: { checkout_mandate: "checkout-mandate-token" }
+    };
+    const completed = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      paymentMandateBody,
+      "ucp-ap2-complete-valid",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        paymentMandateBody,
+        "ucp-ap2-complete-valid",
+        buyerProfileUrl
+      )
+    );
+    expect(completed).toMatchObject({ status: 200, body: { status: "completed" } });
+    expect(verifiedAp2SessionId).toBe(checkoutId);
+    expect(psp.captures[0]?.payment_mandate).toMatchObject({
+      format: "ap2-sd-jwt-kb",
+      payload: "payment-mandate-token",
+      holder_jwk: walletP256PublicKey,
+      payment_intent: {
+        amount: 500,
+        currency: "USD",
+        checkout_id: checkoutId,
+        transaction_id: createHash("sha256").update(merchantAuthorization).digest("base64url")
+      }
+    });
+  });
+
+  it("does not AP2-lock a UCP checkout when the buyer profile lacks AP2 capability", async () => {
+    const signingKeys = [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" as const }];
+    const store = memoryCheckoutSessionStore();
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
+    const client = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store,
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          allowPrivateNetwork: true,
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys,
+              activeKid: "merchant-p256"
+            }
+          },
+          ap2: {
+            enabled: true,
+            mandateVerifier: mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "wallet-p256" } }),
+            merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({ signingKeys, activeKid: "merchant-p256" }),
+            nonceStore: memoryNonceStore({ clock: () => now })
+          }
+        }
+      }).handler
+    );
+
+    const createBody = { line_items: ucpLineItems };
+    const created = await client.post(
+      "/ucp/api/checkout",
+      createBody,
+      "ucp-non-ap2-create",
+      await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-non-ap2-create", buyerProfileUrl)
+    );
+    expect(created.status).toBe(200);
+    expect(created.body).not.toHaveProperty("ap2");
+    const checkoutId = stringField(created.body, "id");
+    await expect(store.get(checkoutId)).resolves.not.toMatchObject({ ap2_locked: true });
+
+    const completeBody = { payment: ucpPaymentComplete };
+    const completed = await client.post(
+      `/ucp/api/checkout/${checkoutId}/complete`,
+      completeBody,
+      "ucp-non-ap2-complete",
+      await signedUcpHeaders(
+        client,
+        "POST",
+        `/ucp/api/checkout/${checkoutId}/complete`,
+        completeBody,
+        "ucp-non-ap2-complete",
+        buyerProfileUrl
+      )
+    );
+    expect(completed).toMatchObject({ status: 200, body: { status: "completed" } });
+  });
+
+  it("dispatches UCP bearer auth and rejects missing or unsupported auth methods", async () => {
+    const bearerVerify = vi.fn(async (token: string) =>
+      token === "good" ? { ok: true, subject: "buyer_1" } : { ok: false, reason: "bad token" }
+    );
+    const bearerClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: { auth: { bearer: { enabled: true, verify: bearerVerify } } }
+      }).handler
+    );
+
+    await expect(
+      bearerClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-bearer-create", {
+        authorization: "Bearer good"
+      })
+    ).resolves.toMatchObject({ status: 200 });
+    expect(bearerVerify).toHaveBeenCalledWith("good");
+
+    await expect(
+      bearerClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-missing-auth")
+    ).resolves.toMatchObject({
+      status: 401,
+      body: { code: "auth_missing", content: expect.stringContaining("requires") }
+    });
+
+    await expect(
+      bearerClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-bad-bearer", {
+        authorization: "Bearer bad"
+      })
+    ).resolves.toMatchObject({
+      status: 401,
+      body: { code: "auth_invalid", content: "bad token" }
+    });
+
+    const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
+    const hmsHeaders = await signedUcpHeaders(
+      bearerClient,
+      "POST",
+      "/ucp/api/checkout",
+      { line_items: ucpLineItems },
+      "ucp-hms-disabled",
+      buyerProfileUrl
+    );
+    await expect(
+      bearerClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-hms-disabled", hmsHeaders)
+    ).resolves.toMatchObject({
+      status: 401,
+      body: { code: "auth_method_not_supported", content: expect.stringContaining("Signatures") }
+    });
+
+    const hmsOnlyClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: recordingPsp().adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now,
+        ucp: {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" }],
+              activeKid: "merchant-p256"
+            }
+          }
+        }
+      }).handler
+    );
+    await expect(
+      hmsOnlyClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-bearer-disabled", {
+        authorization: "Bearer good"
+      })
+    ).resolves.toMatchObject({
+      status: 401,
+      body: { code: "auth_method_not_supported", content: expect.stringContaining("bearer") }
+    });
+  });
+
   it("maps policy denials before route side effects", async () => {
     const psp = recordingPsp();
     const policy = recordingPolicy({ status: "denied", reason: "blocked" });
@@ -573,31 +1301,35 @@ async function listen(handler: RequestListener): Promise<TestClient> {
   if (!address || typeof address === "string") throw new Error("server did not bind a TCP port");
   const baseUrl = `http://127.0.0.1:${address.port}`;
   return {
-    get: (path) => request(baseUrl, path, { method: "GET" }),
-    post: (path, body, key) => request(baseUrl, path, { method: "POST", body, key }),
-    patch: (path, body, key) => request(baseUrl, path, { method: "PATCH", body, key }),
-    raw: (path, raw, key) => request(baseUrl, path, { method: "POST", raw, key })
+    baseUrl,
+    get: (path, headers) => request(baseUrl, path, { method: "GET", headers }),
+    post: (path, body, key, headers) => request(baseUrl, path, { method: "POST", body, key, headers }),
+    patch: (path, body, key, headers) => request(baseUrl, path, { method: "PATCH", body, key, headers }),
+    raw: (path, raw, key, headers) => request(baseUrl, path, { method: "POST", raw, key, headers })
   };
 }
 
 interface TestClient {
-  get(path: string): Promise<TestResponse>;
-  post(path: string, body: unknown, key?: string): Promise<TestResponse>;
-  patch(path: string, body: unknown, key?: string): Promise<TestResponse>;
-  raw(path: string, raw: string, key?: string): Promise<TestResponse>;
+  baseUrl: string;
+  get(path: string, headers?: Record<string, string>): Promise<TestResponse>;
+  post(path: string, body: unknown, key?: string, headers?: Record<string, string>): Promise<TestResponse>;
+  patch(path: string, body: unknown, key?: string, headers?: Record<string, string>): Promise<TestResponse>;
+  raw(path: string, raw: string, key?: string, headers?: Record<string, string>): Promise<TestResponse>;
 }
 
 interface TestResponse {
   status: number;
+  headers: Record<string, string>;
+  rawBody: string;
   body: Record<string, unknown>;
 }
 
 async function request(
   baseUrl: string,
   path: string,
-  opts: { method: string; body?: unknown; raw?: string; key?: string }
+  opts: { method: string; body?: unknown; raw?: string; key?: string; headers?: Record<string, string> }
 ): Promise<TestResponse> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...(opts.headers ?? {}) };
   if (opts.key) headers["idempotency-key"] = opts.key;
   if (opts.body !== undefined || opts.raw !== undefined) headers["content-type"] = "application/json";
   const response = await fetch(`${baseUrl}${path}`, {
@@ -606,11 +1338,87 @@ async function request(
     body: opts.raw ?? (opts.body === undefined ? undefined : JSON.stringify(opts.body))
   });
   const text = await response.text();
-  return { status: response.status, body: text ? (JSON.parse(text) as Record<string, unknown>) : {} };
+  return {
+    status: response.status,
+    headers: Object.fromEntries(response.headers.entries()),
+    rawBody: text,
+    body: text ? (JSON.parse(text) as Record<string, unknown>) : {}
+  };
+}
+
+async function startBuyerProfile(signingKeys: EcJwk[], opts: { ap2?: boolean } = {}): Promise<string> {
+  const server = createServer((req, res) => {
+    if (req.method !== "GET") {
+      res.writeHead(405);
+      res.end();
+      return;
+    }
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({
+      ucp: {
+        version: "2026-04-17",
+        ...(opts.ap2
+          ? {
+              capabilities: {
+                [UCP_AP2_CAPABILITY]: [
+                  {
+                    version: "2026-04-17",
+                    spec: "https://ucp.dev/2026-04-17/specification/ap2-mandates",
+                    schema: "https://ucp.dev/2026-04-17/schemas/shopping/ap2_mandate.json",
+                    extends: "dev.ucp.shopping.checkout",
+                    config: {
+                      vp_formats_supported: {
+                        "dc+sd-jwt": {}
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          : {})
+      },
+      signing_keys: signingKeys
+    }));
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("server did not bind a TCP port");
+  return `http://127.0.0.1:${address.port}/.well-known/ucp`;
+}
+
+async function signedUcpHeaders(
+  client: TestClient,
+  method: "POST" | "PATCH",
+  path: string,
+  body: unknown,
+  idempotencyKey: string,
+  profileUrl: string,
+  kid = "wallet-p256"
+): Promise<Record<string, string>> {
+  const rawBody = Buffer.from(JSON.stringify(body), "utf8");
+  return (await signUcpRequest({
+    method,
+    url: new URL(`${client.baseUrl}${path}`),
+    headers: {
+      "content-type": "application/json",
+      "idempotency-key": idempotencyKey
+    },
+    body: rawBody,
+    signing: { kid, algorithm: "ES256", privateKey: walletP256PrivateKey },
+    ucpAgent: `profile="${profileUrl}"`,
+    now
+  })).headers;
 }
 
 function stringField(value: unknown, key: string): string {
   const field = value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined;
   if (typeof field !== "string") throw new Error(`expected ${key} to be a string`);
   return field;
+}
+
+function recordField(value: unknown, key: string): Record<string, unknown> {
+  const field = value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined;
+  if (!field || typeof field !== "object" || Array.isArray(field)) throw new Error(`expected ${key} to be an object`);
+  return field as Record<string, unknown>;
 }
