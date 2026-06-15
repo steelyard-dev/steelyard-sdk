@@ -10,9 +10,15 @@ import profileSchema from "../../spec/ucp/2026-04-17/schemas/profile.json";
 import reverseDomainNameSchema from "../../spec/ucp/2026-04-17/schemas/common/types/reverse_domain_name.json";
 import serviceSchema from "../../spec/ucp/2026-04-17/schemas/service.json";
 import ucpSchema from "../../spec/ucp/2026-04-17/schemas/ucp.json";
-import { COMMERCE_MANIFEST_PATH, assertValidEcJwk, type EcJwk, type Manifest } from "@steelyard/core";
+import {
+  COMMERCE_MANIFEST_PATH,
+  UCP_AP2_CAPABILITY,
+  assertValidEcJwk,
+  type EcJwk,
+  type Manifest
+} from "@steelyard/core";
 
-export { UCP_AP2_CAPABILITY } from "@steelyard/core";
+export { UCP_AP2_CAPABILITY };
 export const UCP_WELL_KNOWN_PATH = "/.well-known/ucp";
 export const UCP_API_PATH = "/api";
 export const UCP_VERSION = "2026-04-17";
@@ -62,6 +68,10 @@ export interface UcpDiscoveryHmsConfig {
   signingKeys: readonly EcJwk[];
 }
 
+export interface UcpDiscoveryAp2Config {
+  enabled: boolean;
+}
+
 export interface UcpDiscoveryOptions {
   baseUrl: string;
   checkout?: boolean;
@@ -70,6 +80,7 @@ export interface UcpDiscoveryOptions {
     auth?: {
       hms?: UcpDiscoveryHmsConfig;
     };
+    ap2?: UcpDiscoveryAp2Config;
   };
 }
 
@@ -126,6 +137,21 @@ export function buildUcpDiscovery(
         version: UCP_VERSION,
         spec: "https://steelyard.dev/specification/checkout-mandate-v0.1",
         schema: "https://steelyard.dev/schemas/checkout-mandate-v0.1.json"
+      }
+    ];
+  }
+  if (opts.ucp?.ap2?.enabled) {
+    capabilities[UCP_AP2_CAPABILITY] = [
+      {
+        version: UCP_VERSION,
+        spec: `https://ucp.dev/${UCP_VERSION}/specification/ap2-mandates`,
+        schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/ap2_mandate.json`,
+        extends: UCP_CHECKOUT_CAPABILITY,
+        config: {
+          vp_formats_supported: {
+            "dc+sd-jwt": {}
+          }
+        }
       }
     ];
   }

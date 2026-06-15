@@ -7,6 +7,7 @@ import {
   UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,
   UCP_CHECKOUT_CAPABILITY,
+  UCP_AP2_CAPABILITY,
   UCP_SHOPPING_SERVICE,
   UCP_VERSION,
   UCP_WELL_KNOWN_PATH,
@@ -190,6 +191,55 @@ describe("buildUcpDiscovery", () => {
     ]);
     expect(doc.ucp).not.toHaveProperty("signing_keys");
     expect(JSON.stringify(doc)).not.toContain("\"d\":");
+    expect(validateUcpDiscovery(doc).valid).toBe(true);
+  });
+
+  it("advertises AP2 mandate capability without nesting signing keys under ucp", () => {
+    const doc = buildUcpDiscovery(manifest, {
+      baseUrl: "https://shop.example/",
+      checkout: true,
+      ucp: {
+        auth: {
+          hms: {
+            enabled: true,
+            signingKeys: [merchantP256PrivateKey]
+          }
+        },
+        ap2: { enabled: true }
+      }
+    });
+
+    expect(Object.keys(doc.ucp.capabilities)).toEqual([
+      UCP_CHECKOUT_CAPABILITY,
+      UCP_CATALOG_SEARCH_CAPABILITY,
+      UCP_CATALOG_LOOKUP_CAPABILITY,
+      UCP_AP2_CAPABILITY
+    ]);
+    expect(doc.ucp.capabilities[UCP_AP2_CAPABILITY]).toEqual([
+      {
+        version: UCP_VERSION,
+        spec: `https://ucp.dev/${UCP_VERSION}/specification/ap2-mandates`,
+        schema: `https://ucp.dev/${UCP_VERSION}/schemas/shopping/ap2_mandate.json`,
+        extends: UCP_CHECKOUT_CAPABILITY,
+        config: {
+          vp_formats_supported: {
+            "dc+sd-jwt": {}
+          }
+        }
+      }
+    ]);
+    expect(doc.signing_keys).toEqual([
+      {
+        kid: "merchant-p256",
+        kty: "EC",
+        crv: "P-256",
+        x: merchantP256PrivateKey.x,
+        y: merchantP256PrivateKey.y,
+        use: "sig",
+        alg: "ES256"
+      }
+    ]);
+    expect(doc.ucp).not.toHaveProperty("signing_keys");
     expect(validateUcpDiscovery(doc).valid).toBe(true);
   });
 

@@ -37,6 +37,7 @@ export {
 } from "./discovery.js";
 export type {
   UcpDiscoveryDoc,
+  UcpDiscoveryAp2Config,
   UcpDiscoveryHmsConfig,
   UcpDiscoveryOptions,
   UcpEntity,
