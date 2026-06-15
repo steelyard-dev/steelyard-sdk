@@ -651,6 +651,18 @@ describe("createMerchantCheckout", () => {
       status: 400,
       body: { code: "digest_mismatch", content: expect.stringContaining("digest_mismatch") }
     });
+
+    const unknownKid = await client.post(
+      "/ucp/api/checkout",
+      createBody,
+      "ucp-hms-unknown-kid",
+      await signedUcpHeaders(client, "POST", "/ucp/api/checkout", createBody, "ucp-hms-unknown-kid", buyerProfileUrl, "wallet-missing")
+    );
+    expect(unknownKid).toMatchObject({
+      status: 401,
+      body: { code: "key_not_found", content: expect.stringContaining("key_not_found") }
+    });
+    expect(String(unknownKid.body.content)).not.toContain("ucp-hms-unknown-kid");
     expect(policy.calls).toHaveLength(1);
     expect(psp.captures).toHaveLength(0);
   });
@@ -934,7 +946,8 @@ async function signedUcpHeaders(
   path: string,
   body: unknown,
   idempotencyKey: string,
-  profileUrl: string
+  profileUrl: string,
+  kid = "wallet-p256"
 ): Promise<Record<string, string>> {
   const rawBody = Buffer.from(JSON.stringify(body), "utf8");
   return (await signUcpRequest({
@@ -945,7 +958,7 @@ async function signedUcpHeaders(
       "idempotency-key": idempotencyKey
     },
     body: rawBody,
-    signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+    signing: { kid, algorithm: "ES256", privateKey: walletP256PrivateKey },
     ucpAgent: `profile="${profileUrl}"`,
     now
   })).headers;
