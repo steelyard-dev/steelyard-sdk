@@ -155,7 +155,9 @@ describe("Wallet setup and open", () => {
 
       const reopened = await Wallet.open({ project: true });
       await expect(reopened.hasMandateKey()).resolves.toBe(true);
+      await expect(reopened.hasUcpSigningKey()).resolves.toBe(true);
       await expect(reopened.exportMandatePublicKey()).resolves.toEqual(publicKey);
+      await expect(reopened.exportUcpSigningPublicKey()).resolves.toMatchObject({ alg: "ES256" });
       await expect(reopened.isAllowed(intent)).resolves.toBe(true);
       await expect(reopened.decide({ ...intent, merchant: { ...intent.merchant, domain: "blocked.example" } }))
         .resolves.toEqual({ status: "denied", reason: "default deny" });
@@ -167,6 +169,7 @@ describe("Wallet setup and open", () => {
       const wallet = await Wallet.create(createOptions({ mandateKey: false }));
 
       await expect(wallet.hasMandateKey()).resolves.toBe(false);
+      await expect(wallet.hasUcpSigningKey()).resolves.toBe(false);
       await expect(wallet.exportMandatePublicKey()).rejects.toBeInstanceOf(MandateKeyMissing);
 
       const created = await wallet.createMandateKey();

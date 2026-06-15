@@ -58,11 +58,14 @@ nav:
     - Stripe test mode: guides/stripe-test-mode.md
     - Configuring UCP auth: guides/configuring-ucp-auth.md
     - Buyer HMS profile: guides/buyer-hms-profile.md
+    - Migrating from Steelyard mode: guides/migrating-from-steelyard-mode.md
   - Concepts:
     - The unification thesis: concepts/unification.md
     - defineCommerce: concepts/define-commerce.md
     - Idempotency: concepts/idempotency.md
     - Mandates: concepts/mandates.md
+    - Payment mandates: concepts/payment-mandates.md
+    - Trust models: concepts/trust-models.md
     - HTTP Message Signatures: concepts/http-signatures.md
     - UCP auth mechanisms: concepts/auth-mechanisms.md
     - Approval and 3DS: concepts/approval-and-3ds.md
@@ -79,6 +82,7 @@ nav:
     - ACP checkout: protocols/acp-checkout.md
     - UCP: protocols/ucp.md
     - UCP checkout: protocols/ucp-checkout.md
+    - UCP AP2 mandates: protocols/ap2-mandates.md
   - Packages:
     - "Wallet (junior surface)": packages/buyer-wallet.md
     - "Buyer purchase API": packages/buyer-purchase.md

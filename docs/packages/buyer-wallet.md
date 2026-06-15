@@ -112,3 +112,18 @@ details inside `withRawCard()`.
 The UCP signing key is stored in the encrypted vault and used opaquely by the
 buyer driver. Publish only `exportUcpSigningPublicKey()` output in a buyer HMS
 profile; never publish private JWK `d`.
+
+## AP2 Holder Key
+
+The AP2 holder key is the same encrypted-vault UCP signing key used for UCP HMS
+requests. New wallets that use the default `Wallet.create()` mandate setup get
+both the legacy Ed25519 mandate key and an ES256 UCP signing key. Existing
+wallets can add the AP2 holder key with:
+
+```ts
+await wallet.createUcpSigningKey({ algorithm: "ES256" });
+```
+
+To advertise AP2, host a buyer profile with `ap2: { enabled: true }` and pass
+that profile URL in `ucpAuth.signing.profileUrl` when calling
+`Steelyard.connect()`.

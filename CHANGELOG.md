@@ -7,6 +7,23 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-15
+
+### Added
+- UCP AP2 mandate compliance with SD-JWT+KB checkout mandates, detached JWS merchant authorization, AP2 payment mandates, and AP2 envelope validation (CO5, MA5, BV5, SD5, VE5, PM5, SC5).
+- AP2 capability advertisement for merchant and buyer UCP profiles using `dev.ucp.shopping.ap2_mandate` (DI5-4, DI5-5).
+- Digital Payment Credential trust-model hooks for AP2 mandate verification, with OpenID4VP issuer integration left to deployments or a future release (TR5).
+- Single-use AP2 nonce stores and merchant-issued checkout/payment nonces for replay protection (NO5).
+- Coffee-shop AP2 smoke coverage and AP2 conformance cases in the verify harness, with a documented third-party fixture gap (IN5-2, IN5-5).
+
+### Changed
+- UCP buyer and merchant checkout paths session-lock into AP2 when both profiles advertise AP2, and reject Steelyard-mode fallback inside locked sessions (DI5-1, DI5-2, DI5-3).
+- New wallet creation now provisions the ES256 UCP signing key used as the AP2 holder key when default mandate setup is enabled (KE5-1).
+- PSP capture paths verify AP2 payment mandates before accepting payment mandate capture data (PM5-3).
+
+### Deprecated
+- `net.steelyard.checkout_mandate.v0_1` legacy Steelyard mandate mode for AP2-capable partners. v0.5 keeps it only for pre-AP2 sessions; later releases will remove it.
+
 ## [0.4.2] - 2026-06-15
 
 ### Added

@@ -7,7 +7,14 @@ idempotency store, PSP adapter, and optional merchant policy.
 ```ts
 import { createMerchantCheckout, memoryCheckoutSessionStore, memoryIdempotencyStore } from "@steelyard/merchant/checkout";
 import { mockPsp } from "@steelyard/merchant/psp";
-import { mockMandateVerifier } from "@steelyard/merchant/mandate";
+import {
+  ap2MerchantAuthorizationSigner,
+  fileNonceStore,
+  mockMandateVerifier,
+  sdJwtKbVerifier
+} from "@steelyard/merchant/mandate";
+
+const ap2NonceStore = fileNonceStore({ dir: "/var/lib/steelyard/ap2-nonces" });
 
 const checkout = createMerchantCheckout(manifest, {
   protocols: ["acp", "ucp"],
@@ -32,7 +39,26 @@ const checkout = createMerchantCheckout(manifest, {
         verify: async (token) => verifyPartnerToken(token)
       }
     },
-    responseSigningPolicy: "high-value-only"
+    responseSigningPolicy: "high-value-only",
+    ap2: {
+      enabled: true,
+      nonceStore: ap2NonceStore,
+      merchantAuthorizationSigner: ap2MerchantAuthorizationSigner({
+        signingKeys: [
+          { kid: "merchant_2026", privateKeyJwk: merchantPrivateJwk, algorithm: "ES256" }
+        ],
+        activeKid: "merchant_2026"
+      }),
+      mandateVerifier: sdJwtKbVerifier({
+        trustModel: {
+          kind: "digital_payment_credential",
+          resolveIssuerKey: async ({ issuer, kid }) => trustedDpcKey({ issuer, kid })
+        },
+        expectedAudience: () => "https://coffee.example/.well-known/ucp",
+        nonceStore: ap2NonceStore,
+        merchantSigningKeys: [merchantPublicJwk]
+      })
+    }
   }
 });
 
@@ -109,6 +135,21 @@ mandate mode, set `steelyardMandate: true` and pass a `MandateVerifier`. For
 development use `mockMandateVerifier()` with the same explicit guard pattern as
 `mockPsp()`. For real Steelyard mandates use
 `steelyardJwsVerifier({ trustedKeys, mode: "enabled" })`.
+
+## AP2
+
+Set `ucp.ap2.enabled: true` to participate in AP2-locked UCP sessions. AP2 also
+requires UCP HMS signing keys, `ucp.ap2.merchantAuthorizationSigner`,
+`ucp.ap2.mandateVerifier`, and `ucp.ap2.nonceStore`.
+
+When the buyer profile also advertises `dev.ucp.shopping.ap2_mandate`, the
+merchant stores the session as AP2-locked, returns
+`ap2.merchant_authorization`, `ap2.checkout_nonce`, and `ap2.payment_nonce`,
+and rejects completion requests that do not include `ap2.checkout_mandate`.
+
+`sdJwtKbVerifier()` implements the Digital Payment Credential trust hook. Its
+`resolveIssuerKey` callback is where production deployments connect their
+issuer trust registry or OpenID4VP credential verification.
 
 ## Status mapping
 

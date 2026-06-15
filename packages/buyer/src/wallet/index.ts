@@ -278,6 +278,7 @@ export class Wallet {
       if (address.id) await vault.setDefaultAddress(address.id);
       if (opts.mandateKey !== false) {
         await vault.createMandateKey();
+        await vault.createUcpSigningKey({ algorithm: "ES256" });
       }
       if (opts.recovery) {
         await vault.exportKeyToFile({

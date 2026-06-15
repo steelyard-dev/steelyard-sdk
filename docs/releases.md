@@ -1,5 +1,22 @@
 # Release History
 
+## 0.5.0 - 2026-06-15
+
+Steelyard v0.5 closes the UCP AP2 mandate compliance gap. AP2-capable UCP
+sessions now lock on the `dev.ucp.shopping.ap2_mandate` capability
+intersection, return merchant-signed `ap2.merchant_authorization`, require
+buyer SD-JWT+KB `ap2.checkout_mandate` on completion, and carry AP2 payment
+mandates through the selected payment credential token. Merchant verification
+checks issuer trust, holder-key binding, nonce replay, checkout terms, merchant
+authorization, and PSP payment-mandate claims before capture.
+
+The release uses the Digital Payment Credential trust model selected for v0.5:
+deployments provide the trusted issuer resolver, while the local wallet reuses
+its encrypted-vault UCP signing key as the AP2 holder key. Legacy
+`net.steelyard.checkout_mandate.v0_1` remains available only for pre-AP2
+partners, and the docs now include AP2 mandate, payment mandate, trust model,
+and Steelyard-mode migration guidance.
+
 ## 0.4.2 - 2026-06-15
 
 Steelyard v0.4.2 closes the UCP HTTP Message Signatures audit finding. UCP requests can now be signed with RFC 9421 `Signature-Input` and `Signature` headers, RFC 9530 `Content-Digest`, public `signing_keys[]` discovery, bounded profile fetching, and raw fixed-width ECDSA signatures. The release also adds dual UCP auth dispatch so merchants can accept both HTTP Message Signatures and bearer tokens, with UCP signing failures returned as `{ code, content }` envelopes.
