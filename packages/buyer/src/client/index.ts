@@ -28,6 +28,8 @@ import {
 import { acpDriver } from "./acp.js";
 import { ucpDriver, type UcpAuthOptions } from "./ucp.js";
 
+export { createUcpBuyerProfile, createUcpBuyerProfileHandler } from "./profile.js";
+export type { UcpBuyerProfileOptions } from "./profile.js";
 export { UcpAuthMissing } from "./ucp.js";
 export type { UcpAuthOptions, UcpAuthPreference, UcpHmsSigningOptions } from "./ucp.js";
 
