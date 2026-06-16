@@ -276,7 +276,7 @@ async function validateCaptureArgs(args: PspCaptureArgs, clock: () => Date): Pro
   if (!args.session_id) throw new PspConfigError("session_id is required");
   if (!args.merchant_id) throw new PspConfigError("merchant_id is required");
   if (args.payment_mandate) {
-    const verified = await verifyAp2PaymentMandate(args.payment_mandate, clock);
+    const verified = await verifyAp2PaymentMandate(args.payment_mandate, args.handler_id, clock);
     if (!verified.ok) throw new PspConfigError(`payment_mandate invalid: ${verified.reason}`);
     return { paymentMandateClaims: verified.claims };
   }
@@ -300,11 +300,13 @@ type PaymentMandateVerificationResult =
         | "expired"
         | "transaction_mismatch"
         | "amount_mismatch"
-        | "currency_mismatch";
+        | "currency_mismatch"
+        | "handler_mismatch";
     };
 
 async function verifyAp2PaymentMandate(
   mandate: PspPaymentMandate,
+  expectedHandlerId: string | undefined,
   clock: () => Date
 ): Promise<PaymentMandateVerificationResult> {
   if ((mandate as { format?: string }).format !== "ap2-sd-jwt-kb" || !mandate.payload) {
@@ -339,6 +341,20 @@ async function verifyAp2PaymentMandate(
   if (!validNumber(kbJwt.payload.iat) || kbJwt.payload.iat > now) return { ok: false, reason: "iat_in_future" };
   if (!validNumber(claims.exp) || claims.exp <= now) return { ok: false, reason: "expired" };
   if (claims.vct !== "mandate.payment.1") return { ok: false, reason: "claims_invalid" };
+
+  const paymentHandler = stringValue(asRecord(claims.payment).handler, "");
+  const paymentInstrument = asRecord(claims.payment_instrument);
+  const instrumentType = stringValue(paymentInstrument.type, "");
+  if (paymentHandler && expectedHandlerId && paymentHandler !== expectedHandlerId) {
+    return { ok: false, reason: "handler_mismatch" };
+  }
+  if (instrumentType === "shared_payment_token") {
+    if (paymentHandler !== "stripe" || (expectedHandlerId && expectedHandlerId !== "stripe")) {
+      return { ok: false, reason: "handler_mismatch" };
+    }
+    const tokenId = stringValue(paymentInstrument.id, "");
+    if (!tokenId.startsWith(STRIPE_SPT_ID_PREFIX)) return { ok: false, reason: "claims_invalid" };
+  }
 
   const intent = mandate.payment_intent;
   if (!intent?.transaction_id || claims.transaction_id !== intent.transaction_id) {

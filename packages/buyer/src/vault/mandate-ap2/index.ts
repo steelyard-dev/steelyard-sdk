@@ -94,6 +94,10 @@ export interface Ap2PaymentIntent {
   expires_at: string;
 }
 
+export interface Ap2PaymentHandlerBinding {
+  handler: string;
+}
+
 export interface IssueAp2PaymentMandateArgs {
   signer: Ap2CheckoutMandateSigner;
   checkout: Checkout;
@@ -103,6 +107,7 @@ export interface IssueAp2PaymentMandateArgs {
   payment: Ap2PaymentIntent;
   payee: Ap2PaymentMerchant;
   paymentInstrument: Ap2PaymentInstrument;
+  handlerId?: string;
   clock?: () => Date;
   expiresInSeconds?: number;
   saltGenerator?: () => string;
@@ -117,6 +122,7 @@ export interface Ap2PaymentMandateClaims extends Record<string, unknown> {
   vct: "mandate.payment.1";
   transaction_id: string;
   payee: Ap2PaymentMerchant;
+  payment?: Ap2PaymentHandlerBinding;
   payment_amount: Ap2PaymentAmount;
   payment_instrument: Ap2PaymentInstrument;
   execution_date?: string;
@@ -241,6 +247,7 @@ export async function issueAp2PaymentMandate(
     vct: "mandate.payment.1",
     transaction_id,
     payee: validPayee(args.payee),
+    ...(args.handlerId ? { payment: validPaymentHandlerBinding(args.handlerId) } : {}),
     payment_amount: {
       amount: payment.amount,
       currency: payment.currency
@@ -438,6 +445,10 @@ function validPayee(value: Ap2PaymentMerchant): Ap2PaymentMerchant {
   requiredString(payee.name, "payee.name");
   if (payee.website !== undefined) requiredString(payee.website, "payee.website");
   return payee;
+}
+
+function validPaymentHandlerBinding(handlerId: string): Ap2PaymentHandlerBinding {
+  return { handler: requiredString(handlerId, "payment.handler") };
 }
 
 function validPaymentInstrument(value: Ap2PaymentInstrument): Ap2PaymentInstrument {

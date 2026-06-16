@@ -191,6 +191,7 @@ describe("AP2 checkout mandate issuer", () => {
         name: "Demo Merchant",
         website: "https://coffee.example"
       },
+      handlerId: "stripe",
       paymentInstrument: {
         id: "card_1",
         type: "card",
@@ -215,6 +216,7 @@ describe("AP2 checkout mandate issuer", () => {
       vct: "mandate.payment.1",
       transaction_id: issued.transaction_id,
       payee: { id: "merchant_1", name: "Demo Merchant", website: "https://coffee.example" },
+      payment: { handler: "stripe" },
       payment_amount: { amount: 500, currency: "USD" },
       payment_instrument: { id: "card_1", type: "card", description: "Visa 4242" }
     });
@@ -337,6 +339,19 @@ describe("AP2 checkout mandate issuer", () => {
         clock: () => now
       })
     ).rejects.toThrow(/currency/);
+    await expect(
+      issueAp2PaymentMandate({
+        signer: vault,
+        checkout: sampleCheckout(),
+        issuer,
+        audience,
+        nonce: "payment_nonce_bad_expiry",
+        payment: { ...payment, expires_at: "not-a-date" },
+        payee: { id: "merchant_1", name: "Demo Merchant" },
+        paymentInstrument: { id: "card_1", type: "card" },
+        clock: () => now
+      })
+    ).rejects.toThrow(/expires_at/);
   });
 
   it("rejects invalid expiry, unsupported holder keys, and malformed presentations", async () => {

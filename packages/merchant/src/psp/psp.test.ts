@@ -228,6 +228,7 @@ describe("stripePsp", () => {
 
   it("uses an SPT embedded in a verified AP2 payment mandate (AP1, SC1)", async () => {
     const paymentMandate = await issuePaymentMandate({
+      handlerId: "stripe",
       paymentInstrument: {
         id: "spt_123",
         type: "shared_payment_token",
@@ -246,12 +247,37 @@ describe("stripePsp", () => {
       }
     });
 
-    await expect(psp.capture({ ...captureArgs, payment_mandate: paymentMandate })).resolves.toMatchObject({
+    await expect(psp.capture({ ...captureArgs, handler_id: "stripe", payment_mandate: paymentMandate })).resolves.toMatchObject({
       ok: true,
       psp_payment_id: "pi_spt"
     });
     const body = calls[0]!.init.body as URLSearchParams;
     expect(body.get("payment_method_data[shared_payment_granted_token]")).toBe("spt_123");
+  });
+
+  it("rejects SPT AP2 payment mandates whose handler claim is missing or mismatched (UH4)", async () => {
+    await withMockEnv({ STEELYARD_TEST: "1" }, async () => {
+      const psp = mockPsp({ seed: "unit", clock: () => now });
+      const paymentInstrument = {
+        id: "spt_123",
+        type: "shared_payment_token",
+        description: "Stripe Shared Payment Token (test mode)"
+      };
+      const missing = await issuePaymentMandate({ paymentInstrument });
+      const mismatched = await issuePaymentMandate({ handlerId: "other", paymentInstrument });
+
+      await expect(
+        psp.capture({ ...captureArgs, handler_id: "stripe", idempotencyKey: "idem_ap2_spt_missing_handler", payment_mandate: missing })
+      ).rejects.toThrow(/handler_mismatch/);
+      await expect(
+        psp.capture({
+          ...captureArgs,
+          handler_id: "stripe",
+          idempotencyKey: "idem_ap2_spt_mismatched_handler",
+          payment_mandate: mismatched
+        })
+      ).rejects.toThrow(/handler_mismatch/);
+    });
   });
 
   it("verifies AP2 payment mandates before Stripe capture (PM5-3)", async () => {
@@ -374,6 +400,7 @@ function stripeResponse(body: unknown, status = 200): Response {
 }
 
 async function issuePaymentMandate(opts: {
+  handlerId?: string;
   paymentInstrument?: { id: string; type: string; description?: string };
 } = {}): Promise<NonNullable<PspCaptureArgs["payment_mandate"]>> {
   const transaction_id = createHash("sha256").update("merchant-authorization-jws").digest("base64url");
@@ -387,6 +414,7 @@ async function issuePaymentMandate(opts: {
     vct: "mandate.payment.1",
     transaction_id,
     payee: { id: "merchant_1", name: "Demo Merchant", website: "https://coffee.example" },
+    ...(opts.handlerId ? { payment: { handler: opts.handlerId } } : {}),
     payment_amount: { amount: 500, currency: "USD" },
     payment_instrument: opts.paymentInstrument ?? { id: "card_1", type: "card", description: "Visa 4242" }
   };

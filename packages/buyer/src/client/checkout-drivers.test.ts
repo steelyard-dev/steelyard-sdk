@@ -521,6 +521,7 @@ describe("UCP checkout driver", () => {
     expect(credential).toMatchObject({ type: "ap2_payment_mandate" });
     expect(stringValue(credential.token)).toMatch(/~/);
     expect(parsedPayment.issuerPayload).toMatchObject({
+      payment: { handler: "stripe" },
       payment_instrument: {
         id: "spt_123",
         type: "shared_payment_token",

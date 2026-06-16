@@ -192,6 +192,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
       checkout: checkout as Checkout,
       totals,
       audience,
+      handlerId: stringValue(selected.handler.id),
       clock
     });
     vaultTokenId = ap2Mandates.payment_token_id;
@@ -214,6 +215,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
           totals,
           vaultTokenId,
           audience,
+          handlerId: stringValue(selected.handler.id),
           clock
         })
       : undefined;
@@ -279,6 +281,7 @@ async function issueUcpAp2Mandates(args: {
   totals: { amount: number; currency: string };
   vaultTokenId?: string;
   audience: string;
+  handlerId: string;
   clock: () => Date;
 }): Promise<{ checkout_mandate: string; payment_mandate: string; payment_token_id: string }> {
   const ap2 = args.opts.ap2;
@@ -338,6 +341,7 @@ async function issueUcpAp2Mandates(args: {
     payment,
     payee: ap2.payee ?? payeeFromMerchantId(args.opts.merchantId),
     paymentInstrument,
+    handlerId: args.handlerId,
     clock: args.clock,
     expiresInSeconds: ap2.paymentMandateExpiresInSeconds
   });
