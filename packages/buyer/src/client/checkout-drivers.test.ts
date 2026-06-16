@@ -288,7 +288,15 @@ describe("UCP checkout driver", () => {
       status: "completed",
       charged_amount: 0,
       charged_currency: "USD",
-      reference: { ucp: { checkout_id: "checkout_1", vault_token_id: "vt_1" } }
+      reference: {
+        ucp: {
+          checkout_id: "checkout_1",
+          vault_token_id: "vt_1",
+          psp_payment_id: "pi_1",
+          psp_charge_id: "ch_1",
+          psp_charge_status: "succeeded"
+        }
+      }
     });
     expect(receipt.reference.ucp?.mandate_id).toHaveLength(16);
     expect(merchant.requests.map((request) => request.idempotencyKey)).toEqual([
@@ -717,7 +725,10 @@ describe("UCP checkout driver", () => {
 
     expect(receipt.reference.ucp).toEqual({
       checkout_id: "checkout_1",
-      vault_token_id: "vt_1"
+      vault_token_id: "vt_1",
+      psp_payment_id: "pi_1",
+      psp_charge_id: "ch_1",
+      psp_charge_status: "succeeded"
     });
     expect(port.signMandatePayloads).toHaveLength(0);
   });
@@ -942,11 +953,18 @@ async function startUcpMerchant(
       const completed = applyUcpComplete(checkout, body as { payment: { instruments: [] } }, {
         now,
         mandateOk: { subject_id: "subject_1", key_id: "mk_test" },
-        pspResult: { ok: true, psp_payment_id: "pi_1", status: "captured" },
+        pspResult: { ok: true, psp_payment_id: "pi_1", psp_charge_id: "ch_1", psp_charge_status: "succeeded", status: "captured" },
         orderId: "order_checkout_1",
         permalinkUrl: "https://coffee.example/orders/order_checkout_1"
       }).next;
-      await sendMaybeSignedUcpComplete(res, completed, opts);
+      await sendMaybeSignedUcpComplete(res, {
+        ...completed,
+        payment_details: {
+          psp_payment_id: "pi_1",
+          psp_charge_id: "ch_1",
+          psp_charge_status: "succeeded"
+        }
+      }, opts);
       return;
     }
     sendJson(res, 404, { error: "not_found" });

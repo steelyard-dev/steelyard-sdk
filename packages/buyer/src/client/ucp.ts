@@ -370,6 +370,7 @@ function ucpReceipt(
   clock: () => Date
 ): Receipt {
   const order = asRecord(checkout.order);
+  const payment = asRecord(checkout.payment_details);
   return {
     ...receiptBase(intent, "ucp", checkout, clock),
     order_id: stringValue(order.id, stringValue(checkout.id)),
@@ -378,10 +379,23 @@ function ucpReceipt(
       ucp: {
         checkout_id: stringValue(checkout.id),
         vault_token_id: vaultTokenId,
-        ...(jwt ? { mandate_id: mandateId(jwt) } : {})
+        ...(jwt ? { mandate_id: mandateId(jwt) } : {}),
+        ...pspReference(payment)
       }
     },
     ...(order.permalink_url ? { fulfillment: { permalink_url: String(order.permalink_url) } } : {})
+  };
+}
+
+function pspReference(payment: JsonRecord): {
+  psp_payment_id?: string;
+  psp_charge_id?: string;
+  psp_charge_status?: string;
+} {
+  return {
+    ...(payment.psp_payment_id ? { psp_payment_id: String(payment.psp_payment_id) } : {}),
+    ...(payment.psp_charge_id ? { psp_charge_id: String(payment.psp_charge_id) } : {}),
+    ...(payment.psp_charge_status ? { psp_charge_status: String(payment.psp_charge_status) } : {})
   };
 }
 

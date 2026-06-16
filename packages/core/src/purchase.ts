@@ -34,8 +34,21 @@ export interface Receipt {
   charged_currency: string;
   created_at: string;
   reference: {
-    acp?: { checkout_session_id: string; vault_token_id: string; psp_payment_id?: string };
-    ucp?: { checkout_id: string; mandate_id?: string; vault_token_id: string; psp_payment_id?: string };
+    acp?: {
+      checkout_session_id: string;
+      vault_token_id: string;
+      psp_payment_id?: string;
+      psp_charge_id?: string;
+      psp_charge_status?: string;
+    };
+    ucp?: {
+      checkout_id: string;
+      mandate_id?: string;
+      vault_token_id: string;
+      psp_payment_id?: string;
+      psp_charge_id?: string;
+      psp_charge_status?: string;
+    };
   };
   fulfillment?: FulfillmentSummary;
 }

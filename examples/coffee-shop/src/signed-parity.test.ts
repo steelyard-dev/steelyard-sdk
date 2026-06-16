@@ -51,7 +51,11 @@ describe("coffee-shop signed UCP parity", () => {
       const ucpSigning = await wallet.createUcpSigningKey({ algorithm: "ES256" });
       const buyerPublicKey = await wallet.exportUcpSigningPublicKey();
       delegate = await startMockDelegatePaymentServer({ clock });
-      shop = await startCoffeeShopCheckoutServer({ clock, buyerSigningKeys: [buyerPublicKey] });
+      shop = await startCoffeeShopCheckoutServer({
+        clock,
+        buyerSigningKeys: [buyerPublicKey],
+        paymentHandlers: ["stripe"]
+      });
 
       const signed = await buy(wallet, {
         preferred: "hms",

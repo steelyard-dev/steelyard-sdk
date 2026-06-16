@@ -1062,7 +1062,9 @@ function withPspReference(session: Record<string, unknown>, pspResult: PspCaptur
     payment_details: {
       ...asRecord(session.payment_details),
       psp_payment_id: pspResult.psp_payment_id,
-      psp_status: pspResult.status
+      psp_status: pspResult.status,
+      ...(pspResult.psp_charge_id ? { psp_charge_id: pspResult.psp_charge_id } : {}),
+      ...(pspResult.psp_charge_status ? { psp_charge_status: pspResult.psp_charge_status } : {})
     }
   };
 }

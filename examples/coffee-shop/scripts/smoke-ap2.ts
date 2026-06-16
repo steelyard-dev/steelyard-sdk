@@ -41,7 +41,8 @@ try {
       ap2: true,
       ap2Issuer: issuer,
       steelyardMandate: true,
-      buyerSigningKeys: [buyerPublicKey]
+      buyerSigningKeys: [buyerPublicKey],
+      paymentHandlers: ["stripe"]
     });
 
     const discovery = await json(`${shop.baseUrl}/.well-known/ucp`);

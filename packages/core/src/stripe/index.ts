@@ -191,6 +191,7 @@ export async function chargeSharedPaymentToken(args: ChargeSharedPaymentTokenArg
   body.set("currency", args.currency.toLowerCase());
   body.set("payment_method_data[shared_payment_granted_token]", args.sptId);
   body.set("confirm", "true");
+  body.set("expand[]", "latest_charge");
 
   try {
     const response = await fetchImpl(`${apiBase(args.apiBaseUrl)}/v1/payment_intents`, {
@@ -300,6 +301,13 @@ function stripeFailure(payload: unknown): StripePspCaptureResult {
 function latestCharge(record: Record<string, unknown>): { id?: string; status?: string } {
   const latest = record.latest_charge;
   if (typeof latest === "string" && latest) return { id: latest };
+  const latestRecord = asRecord(latest);
+  if (latestRecord.id || latestRecord.status) {
+    return {
+      ...(typeof latestRecord.id === "string" ? { id: latestRecord.id } : {}),
+      ...(typeof latestRecord.status === "string" ? { status: latestRecord.status } : {})
+    };
+  }
   const charges = asRecord(record.charges);
   const data = charges.data;
   const first = Array.isArray(data) ? asRecord(data[0]) : {};

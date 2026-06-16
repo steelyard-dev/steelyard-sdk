@@ -39,7 +39,12 @@ try {
     }
     shop = await startCoffeeShopCheckoutServer({
       clock,
-      ...(protocol === "ucp" ? { buyerSigningKeys: [await wallet.exportUcpSigningPublicKey()] } : {})
+      ...(protocol === "ucp"
+        ? {
+            buyerSigningKeys: [await wallet.exportUcpSigningPublicKey()],
+            paymentHandlers: ["stripe"]
+          }
+        : {})
     });
 
     const merchant = await Steelyard.connect(discoveryUrl(shop.baseUrl, protocol), {

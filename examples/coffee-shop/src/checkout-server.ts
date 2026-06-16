@@ -16,7 +16,7 @@ import {
   mockMandateVerifier,
   sdJwtKbVerifier
 } from "@steelyard/merchant/mandate";
-import { mockPsp, mockVaultToken } from "@steelyard/merchant/psp";
+import { mockPsp, mockVaultToken, type PspAdapter } from "@steelyard/merchant/psp";
 import { coffeeShopManifest } from "./catalog.js";
 import {
   buyerDemoUcpPublicKey,
@@ -50,6 +50,9 @@ export async function startCoffeeShopCheckoutServer(opts: {
   ucpAuthMode?: CoffeeShopUcpAuthMode;
   ap2?: boolean;
   ap2Issuer?: string;
+  psp?: PspAdapter;
+  paymentHandlers?: string[];
+  acpBearerToken?: string;
 } = {}): Promise<RunningCoffeeShopCheckout> {
   let baseUrl = "";
   let checkout: ReturnType<typeof createMerchantCheckout> | undefined;
@@ -79,7 +82,7 @@ export async function startCoffeeShopCheckoutServer(opts: {
         baseUrl,
         checkout: true,
         steelyardMandate,
-        ucp: discoveryUcpConfig(ucpAuthMode, ap2Enabled)
+        ucp: discoveryUcpConfig(ucpAuthMode, ap2Enabled, opts.paymentHandlers)
       }));
       return;
     }
@@ -91,7 +94,7 @@ export async function startCoffeeShopCheckoutServer(opts: {
       checkout.handler(req, res);
       return;
     }
-    if (path.startsWith("/acp/") || path.startsWith("/ucp/")) {
+    if (path === "/.well-known/acp.json" || path.startsWith("/acp/") || path.startsWith("/ucp/")) {
       checkout.handler(req, res);
       return;
     }
@@ -109,7 +112,7 @@ export async function startCoffeeShopCheckoutServer(opts: {
     protocols: ["acp", "ucp"],
     store: memoryCheckoutSessionStore(),
     idempotency: memoryIdempotencyStore(),
-    psp: mockPsp({ allowInProduction: true, clock: opts.clock }),
+    psp: opts.psp ?? mockPsp({ allowInProduction: true, clock: opts.clock }),
     ...(mandateVerifier ? { mandateVerifier } : {}),
     steelyardMandate,
     clock: opts.clock,
@@ -122,7 +125,22 @@ export async function startCoffeeShopCheckoutServer(opts: {
       nonceStore: ap2NonceStore,
       audience: `${baseUrl}/.well-known/ucp`,
       clock: opts.clock
-    })
+    }, opts.paymentHandlers),
+    ...(opts.acpBearerToken
+      ? {
+          acp: {
+            auth: {
+              bearer: {
+                enabled: true,
+                verify: (token: string) =>
+                  token === opts.acpBearerToken
+                    ? { ok: true as const, subject: "buyer_example" }
+                    : { ok: false as const, reason: "invalid bearer token" }
+              }
+            }
+          }
+        }
+      : {})
   });
 
   return {
@@ -168,7 +186,11 @@ function checkoutAcpFeed(): Record<string, unknown> {
   };
 }
 
-function discoveryUcpConfig(mode: CoffeeShopUcpAuthMode, ap2Enabled: boolean) {
+function discoveryUcpConfig(
+  mode: CoffeeShopUcpAuthMode,
+  ap2Enabled: boolean,
+  paymentHandlers: readonly string[] | undefined
+) {
   if (mode !== "hms" && mode !== "hms-and-bearer") return undefined;
   return {
     auth: {
@@ -177,7 +199,8 @@ function discoveryUcpConfig(mode: CoffeeShopUcpAuthMode, ap2Enabled: boolean) {
         signingKeys: [merchantDemoUcpPrivateKey]
       }
     },
-    ...(ap2Enabled ? { ap2: { enabled: true } } : {})
+    ...(ap2Enabled ? { ap2: { enabled: true } } : {}),
+    ...(paymentHandlers?.length ? { paymentHandlers } : {})
   };
 }
 
@@ -191,7 +214,8 @@ function checkoutUcpConfig(
     nonceStore: ReturnType<typeof memoryNonceStore> | undefined;
     audience: string;
     clock?: () => Date;
-  }
+  },
+  paymentHandlers: string[] | undefined
 ): MerchantCheckoutOpts["ucp"] | undefined {
   if (mode === "none") return undefined;
   const hmsEnabled = mode === "hms" || mode === "hms-and-bearer";
@@ -228,6 +252,7 @@ function checkoutUcpConfig(
           }
         : {})
     },
+    ...(paymentHandlers?.length ? { paymentHandlers } : {}),
     ...(ap2.enabled && ap2.nonceStore
       ? {
           ap2: {

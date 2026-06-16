@@ -180,7 +180,6 @@ function inspectAcpStatus(session: JsonRecord): JsonRecord {
 
 function acpReceipt(intent: PurchaseIntent, session: JsonRecord, vaultTokenId: string, clock: () => Date): Receipt {
   const order = asRecord(session.order);
-  const payment = asRecord(session.payment_details);
   return {
     ...receiptBase(intent, "acp", session, clock),
     order_id: stringValue(order.id, stringValue(session.id)),
@@ -188,8 +187,7 @@ function acpReceipt(intent: PurchaseIntent, session: JsonRecord, vaultTokenId: s
     reference: {
       acp: {
         checkout_session_id: stringValue(session.id),
-        vault_token_id: vaultTokenId,
-        ...(payment.psp_payment_id ? { psp_payment_id: String(payment.psp_payment_id) } : {})
+        vault_token_id: vaultTokenId
       }
     }
   };

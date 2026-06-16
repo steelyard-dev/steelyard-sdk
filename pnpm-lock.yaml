@@ -56,6 +56,9 @@ importers:
       '@steelyard/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@steelyard/stripe':
+        specifier: workspace:*
+        version: link:../../packages/stripe
 
   packages/agent:
     dependencies:

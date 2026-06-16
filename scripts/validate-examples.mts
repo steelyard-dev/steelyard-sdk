@@ -28,24 +28,35 @@ async function main(): Promise<void> {
     const server = createServer(example.handler);
     try {
       const baseUrl = await listen(server);
-    const manifestUrl = `${baseUrl}${COMMERCE_MANIFEST_PATH}`;
-    console.log(`validating ${example.name}: ${manifestUrl}`);
-    await run("node", [
-      STEELYARD_BIN,
-      "validate",
-      manifestUrl,
-      "--allow-private-network",
+      const manifestUrl = `${baseUrl}${COMMERCE_MANIFEST_PATH}`;
+      console.log(`validating ${example.name}: ${manifestUrl}`);
+      await run("node", [
+        STEELYARD_BIN,
+        "validate",
+        manifestUrl,
+        "--allow-private-network",
         "--strict"
       ]);
     } finally {
       await closeServer(server);
     }
   }
+
+  await run("pnpm", ["--filter", "@steelyard/example-coffee-shop", "smoke:stripe:ucp"], {
+    ...process.env,
+    STEELYARD_MOCK_STRIPE: "1",
+    STRIPE_TEST_SECRET_KEY: "sk_test_mock"
+  });
+  await run("pnpm", ["--filter", "@steelyard/example-coffee-shop", "smoke:stripe:acp"], {
+    ...process.env,
+    STEELYARD_MOCK_STRIPE: "1",
+    STRIPE_TEST_SECRET_KEY: "sk_test_mock"
+  });
 }
 
-async function run(command: string, args: string[]): Promise<void> {
+async function run(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(command, args, { stdio: "inherit" });
+    const child = spawn(command, args, { env, stdio: "inherit" });
     child.on("error", reject);
     child.on("close", (code, signal) => {
       if (code === 0) {

@@ -16,7 +16,11 @@ if (process.env.STEELYARD_ALLOW_MOCK_PSP !== "1") {
 
 const clock = () => new Date("2026-06-14T12:00:00.000Z");
 const delegate = await startMockDelegatePaymentServer({ clock });
-const shop = await startCoffeeShopCheckoutServer({ clock, steelyardMandate: false });
+const shop = await startCoffeeShopCheckoutServer({
+  clock,
+  steelyardMandate: false,
+  paymentHandlers: ["stripe"]
+});
 const root = await mkdtemp(join(tmpdir(), "steelyard-bearer-smoke-"));
 const cwd = process.cwd();
 
