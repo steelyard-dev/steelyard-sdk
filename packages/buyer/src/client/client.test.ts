@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { buildAcpFeed } from "@steelyard/protocol/acp";
-import { defineCommerce, type EcJwk, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
+import { buildAcpDiscovery, buildAcpFeed } from "@steelyard/protocol/acp";
+import { defineCommerce, type EcJwk, type PaymentIssuerMandateDraft, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
 import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
 import {
   STEELYARD_CHECKOUT_MANDATE_V01,
@@ -90,6 +90,7 @@ let server: NodeServer | undefined;
 interface CapturedRequest {
   path: string;
   idempotencyKey?: string;
+  headers?: Record<string, string>;
   body: unknown;
 }
 
@@ -392,6 +393,20 @@ describe("Steelyard.connect", () => {
     expect(isMerchant(mixedMerchant) && mixedMerchant.supports("checkout:steelyard")).toBe(true);
     await closeServer();
 
+    const handlerBase = await startUcpDiscoveryServer({ checkout: true, steelyardMandate: false, paymentHandlers: true });
+    const handlerMerchant = await connect(handlerBase, { allowPrivateNetwork: true });
+    expect(isMerchant(handlerMerchant) && handlerMerchant.paymentHandlers).toEqual([
+      {
+        namespace: "net.steelyard",
+        id: "stripe",
+        available_instruments: [
+          { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
+          { type: "shared_payment_token" }
+        ]
+      }
+    ]);
+    await closeServer();
+
     const absentBase = await startUcpDiscoveryServer({ checkout: false, steelyardMandate: false });
     const absentMerchant = await connect(absentBase, { allowPrivateNetwork: true });
     expect(isMerchant(absentMerchant) && absentMerchant.supports("checkout")).toBe(false);
@@ -400,28 +415,62 @@ describe("Steelyard.connect", () => {
 
   it("routes ACP merchant.purchase through the checkout driver", async () => {
     const { base, requests } = await startAcpCheckoutServer();
-    const merchant = await connect(`${base}/acp/feed`, { delegatePaymentUrl: `${base}/delegate-override` });
+    const minted: PaymentIssuerMandateDraft[] = [];
+    const port = {
+      ...testPort(),
+      paymentIssuer: {
+        instrumentType: "shared_payment_token" as const,
+        async mintForMandate(mandate: PaymentIssuerMandateDraft) {
+          minted.push(mandate);
+          return {
+            id: "spt_123",
+            expires_at: Math.floor(Date.parse(mandate.payment.expires_at) / 1000),
+            max_amount: mandate.payment.amount,
+            currency: mandate.payment.currency,
+            scope_proof: { type: "stripe_spt_usage_limits" as const, idempotency_key: "spt_idem_1" }
+          };
+        }
+      }
+    };
+    const merchant = await connect(`${base}/.well-known/acp.json`, { acpAuth: { bearerToken: "acp_token" } });
 
     expect(isMerchant(merchant) && merchant.supports("checkout")).toBe(true);
     if (!isMerchant(merchant)) throw new Error("Expected merchant");
     const receipt = await merchant.purchase(purchaseIntent("acp", `${base}/acp/feed`), {
-      port: testPort(),
+      port,
       idempotencyKey: "purchase_acp",
       clock: () => now
     });
+    const canceled = await merchant.cancel?.("cs_1", { idempotencyKey: "purchase_acp:cancel" });
 
     const checkoutRequests = requests.filter((request) => request.idempotencyKey);
     expect(receipt.reference.acp?.checkout_session_id).toBe("cs_1");
+    expect(receipt.reference.acp?.vault_token_id).toBe("spt_123");
+    expect(canceled).toMatchObject({ status: "canceled" });
     expect(checkoutRequests.map((request) => request.path)).toEqual([
       "/acp/checkout_sessions",
-      "/delegate-override",
-      "/acp/checkout_sessions/cs_1/complete"
+      "/acp/checkout_sessions/cs_1/complete",
+      "/acp/checkout_sessions/cs_1/cancel"
     ]);
     expect(checkoutRequests.map((request) => request.idempotencyKey)).toEqual([
       "purchase_acp:create",
-      "purchase_acp:delegate",
-      "purchase_acp:complete"
+      "purchase_acp:complete",
+      "purchase_acp:cancel"
     ]);
+    expect(checkoutRequests[0]?.headers).toMatchObject({
+      "api-version": "2026-04-17",
+      authorization: "Bearer acp_token"
+    });
+    expect(minted[0]).toMatchObject({
+      nonce: "acp:cs_1:purchase_acp",
+      payment: { amount: 450, currency: "USD", checkout_id: "cs_1" }
+    });
+    expect(checkoutRequests[1]?.body).toMatchObject({
+      payment_data: {
+        handler_id: "stripe",
+        instrument: { type: "card", credential: { type: "spt", token: "spt_123" } }
+      }
+    });
   });
 
   it("routes UCP merchant.purchase with Steelyard-mode support", async () => {
@@ -543,7 +592,14 @@ async function startMerchantServer(): Promise<string> {
 
 async function startAcpCapabilityServer(services: string[]): Promise<string> {
   server = createServer((req, res) => {
-    if (req.method === "GET" && (req.url?.startsWith("/acp/feed") || req.url?.startsWith("/.well-known/acp.json"))) {
+    if (req.method === "GET" && req.url?.startsWith("/.well-known/acp.json")) {
+      sendJson(res, buildAcpDiscovery({
+        apiBaseUrl: `http://${req.headers.host}/acp`,
+        services: services.includes("checkout") ? ["checkout"] : []
+      }));
+      return;
+    }
+    if (req.method === "GET" && req.url?.startsWith("/acp/feed")) {
       sendJson(res, {
         ...buildAcpFeed(manifest),
         merchant: { domain: "coffee.example" },
@@ -696,13 +752,14 @@ function ucpVariantProduct(): Record<string, unknown> {
   };
 }
 
-async function startUcpDiscoveryServer(opts: { checkout: boolean; steelyardMandate: boolean; ap2?: boolean }): Promise<string> {
+async function startUcpDiscoveryServer(opts: { checkout: boolean; steelyardMandate: boolean; ap2?: boolean; paymentHandlers?: boolean }): Promise<string> {
   server = createServer((req, res) => {
     if (req.method === "GET" && req.url?.startsWith("/.well-known/ucp")) {
       sendJson(res, buildUcpDiscovery(manifest, {
         baseUrl: `http://${req.headers.host}`,
         checkout: opts.checkout,
         steelyardMandate: opts.steelyardMandate,
+        ...(opts.paymentHandlers ? { ucp: { paymentHandlers: ["stripe"] } } : {}),
         ...(opts.ap2 ? { ucp: { ap2: { enabled: true } } } : {})
       }));
       return;
@@ -740,6 +797,14 @@ async function startAcpCheckoutServer(): Promise<{ base: string; requests: Captu
   const requests: CapturedRequest[] = [];
   let session: CheckoutSession | undefined;
   server = createServer(async (req, res) => {
+    if (req.method === "GET" && req.url?.startsWith("/.well-known/acp.json")) {
+      sendJson(res, buildAcpDiscovery({
+        apiBaseUrl: `http://${req.headers.host}/acp`,
+        services: ["checkout"],
+        supportedCurrencies: ["USD"]
+      }));
+      return;
+    }
     if (req.method === "GET" && req.url?.startsWith("/acp/feed")) {
       sendJson(res, {
         ...buildAcpFeed(manifest),
@@ -750,14 +815,10 @@ async function startAcpCheckoutServer(): Promise<{ base: string; requests: Captu
     }
 
     const body = await readJsonBody(req);
-    requests.push({ path: req.url ?? "/", idempotencyKey: idempotencyKey(req), body });
+    requests.push({ path: req.url ?? "/", idempotencyKey: idempotencyKey(req), headers: capturedHeaders(req), body });
     if (req.method === "POST" && req.url === "/acp/checkout_sessions") {
       session = withAcpHandler(applyAcpCreate(body as Record<string, unknown>, { manifest, now, sessionId: "cs_1" }).next);
       sendJson(res, session);
-      return;
-    }
-    if (req.method === "POST" && req.url === "/delegate-override") {
-      sendJson(res, { id: "vt_1", created: now.toISOString(), metadata: {} });
       return;
     }
     if (req.method === "POST" && req.url === "/acp/checkout_sessions/cs_1/complete" && session) {
@@ -765,6 +826,10 @@ async function startAcpCheckoutServer(): Promise<{ base: string; requests: Captu
         now,
         pspResult: { ok: true, psp_payment_id: "pi_1", status: "captured" }
       }).next);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/acp/checkout_sessions/cs_1/cancel" && session) {
+      sendJson(res, { ...session, status: "canceled", updated_at: now.toISOString() });
       return;
     }
     sendJson(res, { error: "not_found" }, 404);
@@ -833,16 +898,16 @@ function withAcpHandler(session: CheckoutSession): CheckoutSession {
         handlers: [
           {
             id: "stripe",
-            name: "dev.steelyard.vault_token",
-            display_name: "Vault token",
+            name: "net.steelyard.stripe_spt",
+            display_name: "Stripe Shared Payment Token",
             version: "2026-04-17",
-            spec: "https://steelyard.dev/specs/payment/vault-token",
-            requires_delegate_payment: true,
+            spec: "https://steelyard.dev/specs/payment/stripe-spt",
+            requires_delegate_payment: false,
             requires_pci_compliance: false,
             psp: "stripe",
-            config_schema: "https://steelyard.dev/schemas/payment-handler-config.json",
-            instrument_schemas: ["https://steelyard.dev/schemas/vault-token-instrument.json"],
-            config: {}
+            config_schema: "https://steelyard.dev/schemas/payment/stripe-spt-config.json",
+            instrument_schemas: ["https://steelyard.dev/schemas/payment/card-spt-instrument.json"],
+            config: { instrument_types: ["card"], credential_types: ["spt"] }
           }
         ]
       }
@@ -949,6 +1014,14 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 function idempotencyKey(req: IncomingMessage): string | undefined {
   const value = req.headers["idempotency-key"];
   return Array.isArray(value) ? value[0] : value;
+}
+
+function capturedHeaders(req: IncomingMessage): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    headers[key.toLowerCase()] = Array.isArray(value) ? value.join(", ") : String(value ?? "");
+  }
+  return headers;
 }
 
 async function listen(target: NodeServer): Promise<void> {

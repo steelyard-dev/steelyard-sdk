@@ -6,12 +6,14 @@ import {
   jcsCanonicalize,
   signDetachedJws,
   type EcJwk,
+  type PaymentIssuerMandateDraft,
   type PurchaseIntent,
   type WalletDriverPort
 } from "@steelyard/core";
 import {
   applyCompleteRequest,
   applyCreateRequest,
+  signAcpWebhook,
   type CheckoutSession
 } from "@steelyard/protocol/acp/checkout";
 import {
@@ -25,9 +27,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AcpCanceled,
   AcpExpired,
-  AcpNoPspEndpoint,
+  AcpNoCompatibleHandler,
+  AcpPaymentIssuerMissing,
   AcpProtocolViolation,
-  acpDriver
+  acpDriver,
+  verifyAcpWebhook
 } from "./acp.js";
 import {
   asRecord,
@@ -106,14 +110,31 @@ afterEach(async () => {
 });
 
 describe("ACP checkout driver", () => {
-  it("purchases through direct delegate_payment and builds an ACP receipt", async () => {
+  it("purchases through direct Stripe SPT payment_data and builds an ACP receipt", async () => {
     const merchant = await startAcpMerchant();
     const totals: Array<{ amount: number; currency: string }> = [];
+    const minted: unknown[] = [];
+    const port = {
+      ...testPort(),
+      paymentIssuer: {
+        instrumentType: "shared_payment_token" as const,
+        async mintForMandate(mandate: PaymentIssuerMandateDraft) {
+          minted.push(mandate);
+          return {
+            id: "spt_123",
+            expires_at: Math.floor(Date.parse(mandate.payment.expires_at) / 1000),
+            max_amount: mandate.payment.amount,
+            currency: mandate.payment.currency,
+            scope_proof: { type: "stripe_spt_usage_limits" as const, idempotency_key: "spt_idem_1" }
+          };
+        }
+      }
+    };
     const receipt = await acpDriver.purchase(intent, {
       merchantUrl: merchant.baseUrl,
       merchantId: "coffee.example",
-      delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
-      port: testPort(),
+      acpAuth: { bearerToken: "acp_token" },
+      port,
       idempotencyKey: "purchase_1",
       clock: () => now,
       onTotalsKnown: (amount, currency) => {
@@ -127,56 +148,49 @@ describe("ACP checkout driver", () => {
       status: "captured",
       charged_amount: 500,
       charged_currency: "USD",
-      reference: { acp: { checkout_session_id: "cs_1", vault_token_id: "vt_1" } }
+      reference: { acp: { checkout_session_id: "cs_1", vault_token_id: "spt_123" } }
     });
     expect(totals).toEqual([{ amount: 500, currency: "USD" }]);
     expect(merchant.requests.map((request) => request.idempotencyKey)).toEqual([
       "purchase_1:create",
-      "purchase_1:delegate",
       "purchase_1:complete"
     ]);
-    expect(merchant.requests[1]!.body).toMatchObject({
-      allowance: { merchant_id: "coffee.example", max_amount: 500, currency: "usd", checkout_session_id: "cs_1" },
-      payment_method: {
-        type: "card",
-        number: "4242424242424242",
-        display_last4: "4242",
-        metadata: { source: "steelyard" }
-      },
-      risk_signals: []
+    expect(merchant.requests.map((request) => request.path)).toEqual([
+      "/checkout_sessions",
+      "/checkout_sessions/cs_1/complete"
+    ]);
+    expect(merchant.requests[0]!.headers).toMatchObject({
+      "api-version": "2026-04-17",
+      authorization: "Bearer acp_token"
     });
-    expect(merchant.requests[2]!.body).toMatchObject({
+    expect(minted).toHaveLength(1);
+    expect(minted[0]).toMatchObject({
+      nonce: "acp:cs_1:purchase_1",
+      payment: { amount: 500, currency: "USD", checkout_id: "cs_1" }
+    });
+    expect(merchant.requests[1]!.body).toMatchObject({
       payment_data: {
         handler_id: "stripe",
-        instrument: { credential: { token: "vt_1" } }
+        instrument: {
+          type: "card",
+          credential: { type: "spt", token: "spt_123" }
+        }
       }
     });
   });
 
-  it("redacts PAN and CVC from delegate_payment failures", async () => {
-    const merchant = await startAcpMerchant({ delegateStatus: 500 });
+  it("requires a wallet payment issuer for ACP direct SPT checkout", async () => {
+    const merchant = await startAcpMerchant();
 
-    const error = await acpDriver.purchase(
-      intent,
-      {
+    await expect(
+      acpDriver.purchase(intent, {
         merchantUrl: merchant.baseUrl,
         merchantId: "coffee.example",
-        delegatePaymentUrl: `${merchant.baseUrl}/delegate`,
         port: testPort(),
         idempotencyKey: "purchase_2",
         clock: () => now
-      }
-    ).then(
-      () => {
-        throw new Error("expected delegate_payment failure");
-      },
-      (cause: unknown) => cause
-    );
-    const message = error instanceof Error ? error.message : String(error);
-    expect(message).toContain("[REDACTED_PAN]");
-    expect(message).toContain("cvc=[REDACTED_CVC]");
-    expect(message).not.toContain("4242424242424242");
-    expect(message).not.toContain("cvc=123");
+      })
+    ).rejects.toBeInstanceOf(AcpPaymentIssuerMissing);
   });
 
   it("maps non-payable ACP statuses to terminal driver errors", async () => {
@@ -184,7 +198,6 @@ describe("ACP checkout driver", () => {
       acpDriver.purchase(intent, {
         merchantUrl: (await startAcpMerchant({ createStatus: "canceled" })).baseUrl,
         merchantId: "coffee.example",
-        delegatePaymentUrl: "https://psp.example/delegate",
         port: testPort(),
         idempotencyKey: "purchase_canceled",
         clock: () => now
@@ -195,7 +208,6 @@ describe("ACP checkout driver", () => {
       acpDriver.purchase(intent, {
         merchantUrl: (await startAcpMerchant({ createStatus: "expired" })).baseUrl,
         merchantId: "coffee.example",
-        delegatePaymentUrl: "https://psp.example/delegate",
         port: testPort(),
         idempotencyKey: "purchase_expired",
         clock: () => now
@@ -206,7 +218,6 @@ describe("ACP checkout driver", () => {
       acpDriver.purchase(intent, {
         merchantUrl: (await startAcpMerchant({ createStatus: "pending_approval" })).baseUrl,
         merchantId: "coffee.example",
-        delegatePaymentUrl: "https://psp.example/delegate",
         port: testPort(),
         idempotencyKey: "purchase_pending",
         clock: () => now
@@ -214,7 +225,7 @@ describe("ACP checkout driver", () => {
     ).rejects.toBeInstanceOf(AcpProtocolViolation);
   });
 
-  it("fails when ACP checkout does not advertise a PSP endpoint", async () => {
+  it("fails when ACP checkout does not advertise a compatible Stripe SPT handler", async () => {
     const merchant = await startAcpMerchant({ handlerConfig: false });
 
     await expect(
@@ -225,7 +236,33 @@ describe("ACP checkout driver", () => {
         idempotencyKey: "purchase_no_psp",
         clock: () => now
       })
-    ).rejects.toBeInstanceOf(AcpNoPspEndpoint);
+    ).rejects.toBeInstanceOf(AcpNoCompatibleHandler);
+  });
+
+  it("cancels ACP sessions and verifies ACP webhooks through the buyer helper", async () => {
+    const merchant = await startAcpMerchant();
+    const canceled = await acpDriver.cancel("cs_1", {
+      merchantUrl: merchant.baseUrl,
+      acpAuth: { bearerToken: "acp_token" },
+      idempotencyKey: "purchase_1:cancel"
+    });
+    const rawBody = JSON.stringify({ type: "checkout_session.completed" });
+    const signature = await signAcpWebhook({ rawBody, secret: "whsec_test", timestamp: now });
+
+    expect(canceled).toMatchObject({ status: "canceled" });
+    expect(merchant.requests[0]!.path).toBe("/checkout_sessions/cs_1/cancel");
+    expect(merchant.requests[0]!.headers).toMatchObject({
+      "api-version": "2026-04-17",
+      authorization: "Bearer acp_token"
+    });
+    await expect(
+      verifyAcpWebhook({
+        rawBody,
+        secret: "whsec_test",
+        headers: { "merchant-signature": signature },
+        now
+      })
+    ).resolves.toMatchObject({ ok: true });
   });
 });
 
@@ -778,7 +815,6 @@ interface CapturedRequest {
 
 async function startAcpMerchant(opts: {
   createStatus?: string;
-  delegateStatus?: number;
   handlerConfig?: boolean;
 } = {}): Promise<{
   baseUrl: string;
@@ -807,16 +843,16 @@ async function startAcpMerchant(opts: {
               handlers: [
                 {
                   id: "stripe",
-                  name: "dev.steelyard.vault_token",
-                  display_name: "Vault token",
+                  name: "net.steelyard.stripe_spt",
+                  display_name: "Stripe Shared Payment Token",
                   version: "2026-04-17",
-                  spec: "https://steelyard.dev/specs/payment/vault-token",
+                  spec: "https://steelyard.dev/specs/payment/stripe-spt",
                   requires_delegate_payment: true,
                   requires_pci_compliance: false,
                   psp: "stripe",
                   config_schema: "https://steelyard.dev/schemas/payment-handler-config.json",
-                  instrument_schemas: ["https://steelyard.dev/schemas/vault-token-instrument.json"],
-                  config: {}
+                  instrument_schemas: ["https://steelyard.dev/schemas/stripe-spt-instrument.json"],
+                  config: { instrument_type: "card", credential_type: "spt" }
                 }
               ]
             }
@@ -826,20 +862,21 @@ async function startAcpMerchant(opts: {
       sendJson(res, 200, session);
       return;
     }
-    if (req.method === "POST" && req.url === "/delegate") {
-      if (opts.delegateStatus) {
-        sendJson(res, opts.delegateStatus, { error: "bad card 4242424242424242 cvc=123" });
-        return;
-      }
-      sendJson(res, 200, { id: "vt_1", created: now.toISOString(), metadata: {} });
-      return;
-    }
     if (req.method === "POST" && req.url === "/checkout_sessions/cs_1/complete" && session) {
       const completed = applyCompleteRequest(session, body, {
         now,
         pspResult: { ok: true, psp_payment_id: "pi_1", status: "captured" }
       }).next;
       sendJson(res, 200, completed);
+      return;
+    }
+    if (req.method === "POST" && req.url === "/checkout_sessions/cs_1/cancel") {
+      const current = session ?? withAcpHandler(applyCreateRequest({
+        line_items: [{ id: intent.offer.id, name: intent.offer.title, unit_amount: intent.amount }],
+        currency: intent.currency,
+        capabilities: {}
+      }, { manifest, now, sessionId: "cs_1" }).next) as CheckoutSession;
+      sendJson(res, 200, { ...current, status: "canceled", updated_at: now.toISOString() });
       return;
     }
     sendJson(res, 404, { error: "not_found" });
@@ -990,16 +1027,16 @@ function withAcpHandler(session: Record<string, unknown>): Record<string, unknow
         handlers: [
           {
             id: "stripe",
-            name: "dev.steelyard.vault_token",
-            display_name: "Vault token",
+            name: "net.steelyard.stripe_spt",
+            display_name: "Stripe Shared Payment Token",
             version: "2026-04-17",
-            spec: "https://steelyard.dev/specs/payment/vault-token",
-            requires_delegate_payment: true,
+            spec: "https://steelyard.dev/specs/payment/stripe-spt",
+            requires_delegate_payment: false,
             requires_pci_compliance: false,
             psp: "stripe",
             config_schema: "https://steelyard.dev/schemas/payment-handler-config.json",
-            instrument_schemas: ["https://steelyard.dev/schemas/vault-token-instrument.json"],
-            config: {}
+            instrument_schemas: ["https://steelyard.dev/schemas/stripe-spt-instrument.json"],
+            config: { instrument_type: "card", credential_type: "spt" }
           }
         ]
       }

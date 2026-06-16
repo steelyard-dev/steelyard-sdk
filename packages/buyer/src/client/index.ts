@@ -16,6 +16,10 @@ import {
   type WalletDriverPort
 } from "@steelyard/core";
 import {
+  assertValidAcpDiscovery,
+  type AcpDiscoveryResponse
+} from "@steelyard/protocol/acp";
+import {
   STEELYARD_CHECKOUT_MANDATE_V01,
   UCP_AP2_CAPABILITY,
   UCP_CATALOG_LOOKUP_CAPABILITY,
@@ -28,16 +32,24 @@ import {
   resolveSigningKey,
   type UcpProfileDoc
 } from "@steelyard/protocol/ucp";
-import { acpDriver } from "./acp.js";
+import { acpDriver, type AcpAuthOptions } from "./acp.js";
 import { ucpDriver, type UcpAp2MandateOptions, type UcpAuthOptions } from "./ucp.js";
 
 export { createUcpBuyerProfile, createUcpBuyerProfileHandler } from "./profile.js";
 export type { UcpBuyerProfileOptions } from "./profile.js";
+export { AcpNoCompatibleHandler, AcpPaymentIssuerMissing, verifyAcpWebhook } from "./acp.js";
+export type { AcpAuthOptions, AcpWebhookVerifyArgs } from "./acp.js";
 export { Ap2MerchantAuthorizationInvalid, Ap2SessionInconsistent, UcpAuthMissing, UcpResponseSignatureInvalid } from "./ucp.js";
 export type { UcpAp2MandateOptions, UcpAuthOptions, UcpAuthPreference, UcpHmsSigningOptions } from "./ucp.js";
 
 export type Protocol = "mcp" | "acp" | "ucp";
 export type MerchantCapability = "read" | "checkout" | "checkout:steelyard" | "checkout:ap2" | "discounts";
+
+export interface MerchantPaymentHandler {
+  namespace: string;
+  id: string;
+  available_instruments?: Record<string, unknown>[];
+}
 
 export interface SteelyardError {
   error: ErrorCode;
@@ -49,6 +61,7 @@ export interface ConnectOptions {
   delegatePaymentUrl?: string;
   ucpProfileCache?: UcpProfileCache;
   ucpAuth?: UcpAuthOptions;
+  acpAuth?: AcpAuthOptions;
   ap2?: UcpAp2MandateOptions;
 }
 
@@ -66,6 +79,7 @@ export interface Merchant {
   id: string;
   protocol: Protocol;
   url: string;
+  paymentHandlers?: MerchantPaymentHandler[];
   supports(capability: MerchantCapability): boolean;
   search(query: string): Promise<Offer[] | SteelyardError>;
   lookup(id: string): Promise<Offer | SteelyardError>;
@@ -73,6 +87,7 @@ export interface Merchant {
   getManifest(): Promise<Manifest | SteelyardError>;
   getPolicies(): Promise<Policies | SteelyardError>;
   purchase(intent: PurchaseIntent, opts: PurchaseOpts): Promise<Receipt>;
+  cancel?(sessionId: string, opts?: { idempotencyKey?: string }): Promise<unknown | SteelyardError>;
   close?(): Promise<void>;
 }
 
@@ -102,6 +117,22 @@ export class BuyerAp2ProfileMissing extends Error {
   }
 }
 
+export class NoCompatiblePaymentHandlerError extends Error {
+  readonly protocol: Protocol;
+  readonly instrumentType?: string;
+
+  constructor(opts: { protocol: Protocol; instrumentType?: string }) {
+    super(
+      opts.instrumentType
+        ? `${opts.protocol.toUpperCase()} checkout has no compatible payment handler for ${opts.instrumentType}`
+        : `${opts.protocol.toUpperCase()} checkout requires a compatible payment issuer`
+    );
+    this.name = "NoCompatiblePaymentHandlerError";
+    this.protocol = opts.protocol;
+    this.instrumentType = opts.instrumentType;
+  }
+}
+
 type DetectionResult = Merchant | SteelyardError | undefined;
 
 export const UCP_LEGACY_CAPABILITY_ALIASES: Record<string, { bucket: string; id: string }> = {
@@ -116,6 +147,7 @@ export const Steelyard = {
 };
 
 const defaultUcpProfileCache = new UcpProfileCache();
+const ACP_WELL_KNOWN_PATH = "/.well-known/acp.json";
 
 export async function connect(url: string, opts: ConnectOptions = {}): Promise<Merchant | SteelyardError> {
   assertConnectUcpAuth(opts);
@@ -165,6 +197,18 @@ async function detectMcp(url: URL): Promise<DetectionResult> {
 }
 
 async function detectAcp(url: URL, opts: ConnectOptions): Promise<DetectionResult> {
+  const explicitDiscoveryUrl = url.pathname.endsWith(ACP_WELL_KNOWN_PATH);
+  const discoveryUrl = explicitDiscoveryUrl ? url : new URL(ACP_WELL_KNOWN_PATH, url);
+  const discovery = await fetchJson(discoveryUrl);
+  if (isError(discovery)) {
+    if (discovery.error === "network_error") return discovery;
+    if (explicitDiscoveryUrl) return undefined;
+  } else if (isAcpDiscovery(discovery)) {
+    return acpMerchant(discoveryUrl, discovery, opts);
+  } else if (explicitDiscoveryUrl) {
+    return undefined;
+  }
+
   const feed = await fetchJson(url);
   if (isError(feed)) return feed.error === "network_error" ? feed : undefined;
   if (!isAcpFeed(feed)) return undefined;
@@ -199,6 +243,7 @@ function mcpMerchant(client: Client, url: URL): Merchant {
     id: url.host,
     protocol: "mcp",
     url: url.toString(),
+    paymentHandlers: [],
     supports(capability) {
       return capability === "read";
     },
@@ -245,14 +290,18 @@ function mcpMerchant(client: Client, url: URL): Merchant {
 }
 
 function acpMerchant(url: URL, initialFeed: unknown, config: ConnectOptions): Merchant {
-  const loadOffers = async () => acpOffersFromFeed(isAcpFeed(initialFeed) ? initialFeed : await fetchJson(url), url);
-  const loadPolicies = async () => acpPoliciesFromFeed(isAcpFeed(initialFeed) ? initialFeed : await fetchJson(url));
-  const checkoutUrl = acpCheckoutBaseUrl(url).toString();
+  const discovery = isAcpDiscovery(initialFeed) ? initialFeed : undefined;
+  const checkoutUrl = discovery?.api_base_url ?? acpCheckoutBaseUrl(url).toString();
+  const feedUrl = discovery ? new URL(`${checkoutUrl.replace(/\/$/, "")}/feed`) : url;
+  const loadFeed = async () => isAcpFeed(initialFeed) ? initialFeed : await fetchJson(feedUrl);
+  const loadOffers = async () => acpOffersFromFeed(await loadFeed(), feedUrl);
+  const loadPolicies = async () => acpPoliciesFromFeed(await loadFeed());
   const checkoutSupported = acpSupportsService(initialFeed, "checkout");
   const merchant: Merchant = {
     id: acpMerchantId(initialFeed, url),
     protocol: "acp",
     url: checkoutUrl,
+    paymentHandlers: [],
     supports(capability) {
       if (capability === "read") return true;
       if (capability === "checkout") return checkoutSupported;
@@ -267,13 +316,14 @@ function acpMerchant(url: URL, initialFeed: unknown, config: ConnectOptions): Me
       return mapCall(async () => findOffer(await loadOffers(), id));
     },
     async getManifest() {
-      return mapCall(async () =>
-        defineCommerce({
-          identity: merchantIdentityFromAcp(isAcpFeed(initialFeed) ? initialFeed : await fetchJson(url), url),
-          offers: await loadOffers(),
-          policies: await loadPolicies()
-        })
-      );
+      return mapCall(async () => {
+        const feed = await loadFeed();
+        return defineCommerce({
+          identity: merchantIdentityFromAcp(feed, feedUrl),
+          offers: acpOffersFromFeed(feed, feedUrl),
+          policies: acpPoliciesFromFeed(feed)
+        });
+      });
     },
     async getPolicies() {
       return mapCall(loadPolicies);
@@ -291,12 +341,21 @@ function acpMerchant(url: URL, initialFeed: unknown, config: ConnectOptions): Me
       return acpDriver.purchase(intent, {
         merchantId: merchant.id,
         merchantUrl: checkoutUrl,
-        delegatePaymentUrl: config.delegatePaymentUrl,
+        acpAuth: config.acpAuth,
         port: opts.port,
         idempotencyKey: opts.idempotencyKey,
         clock: opts.clock,
         onTotalsKnown: opts.onTotalsKnown
       });
+    },
+    async cancel(sessionId, opts = {}) {
+      return mapCall(() =>
+        acpDriver.cancel(sessionId, {
+          merchantUrl: checkoutUrl,
+          acpAuth: config.acpAuth,
+          idempotencyKey: opts.idempotencyKey
+        })
+      );
     }
   };
   return merchant;
@@ -315,6 +374,7 @@ function ucpMerchant(
     protocol: "ucp",
     discoveryUrl: discoveryUrl.toString()
   });
+  const paymentHandlers = flattenedPaymentHandlers(doc.ucp.payment_handlers);
   const checkoutSupported = ucpHasCapability(doc, UCP_CHECKOUT_CAPABILITY);
   const ap2Locked = checkoutSupported && buyerSupportsAp2(config, buyerProfile) && ucpHasCapability(doc, UCP_AP2_CAPABILITY);
   const post = (path: string, body: unknown) => fetchJson(new URL(`${endpoint.replace(/\/$/, "")}${path}`), {
@@ -327,6 +387,7 @@ function ucpMerchant(
     id,
     protocol: "ucp",
     url: endpoint,
+    paymentHandlers,
     supports(capability) {
       if (capability === "read") return true;
       if (capability === "checkout") return checkoutSupported;
@@ -376,6 +437,7 @@ function ucpMerchant(
           reason: "UCP discovery did not advertise checkout"
         });
       }
+      assertCompatiblePaymentHandler("ucp", paymentHandlers, config, opts.port);
       return ucpDriver.purchase(intent, {
         merchantId: merchant.id,
         merchantUrl: endpoint,
@@ -586,6 +648,7 @@ function acpMerchantId(feed: unknown, url: URL): string {
 }
 
 function acpSupportsService(feed: unknown, service: string): boolean {
+  if (isAcpDiscovery(feed)) return (feed.capabilities.services as readonly string[]).includes(service);
   const services = objectRecord(objectRecord(feed).capabilities).services;
   return Array.isArray(services) && services.includes(service);
 }
@@ -641,12 +704,57 @@ function isAcpFeed(value: unknown): value is AcpFeed {
   return !!value && typeof value === "object" && Array.isArray((value as { products?: unknown }).products);
 }
 
+function isAcpDiscovery(value: unknown): value is AcpDiscoveryResponse {
+  try {
+    assertValidAcpDiscovery(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function isUcpDiscovery(value: unknown): value is UcpDiscovery {
   const doc = value as UcpDiscovery;
   return !!doc?.ucp?.services?.[UCP_SHOPPING_SERVICE] && (
     ucpHasCapability(doc, UCP_CATALOG_SEARCH_CAPABILITY)
     || ucpHasCapability(doc, UCP_CHECKOUT_CAPABILITY)
   );
+}
+
+function flattenedPaymentHandlers(catalog: Record<string, unknown> | undefined): MerchantPaymentHandler[] {
+  return Object.entries(catalog ?? {}).flatMap(([namespace, value]) =>
+    Array.isArray(value)
+      ? value.map((handler) => {
+          const record = objectRecord(handler);
+          return {
+            namespace,
+            id: String(record.id ?? ""),
+            available_instruments: Array.isArray(record.available_instruments)
+              ? record.available_instruments.map(objectRecord)
+              : undefined
+          };
+        }).filter((handler) => handler.id)
+      : []
+  );
+}
+
+function assertCompatiblePaymentHandler(
+  protocol: Protocol,
+  handlers: MerchantPaymentHandler[],
+  config: ConnectOptions,
+  port: WalletDriverPort
+): void {
+  if (!handlers.length || config.delegatePaymentUrl) return;
+  const issuer = port.paymentIssuer;
+  if (!issuer || !handlers.some((handler) => handlerSupportsInstrument(handler, issuer.instrumentType))) {
+    throw new NoCompatiblePaymentHandlerError({ protocol, instrumentType: issuer?.instrumentType });
+  }
+}
+
+function handlerSupportsInstrument(handler: MerchantPaymentHandler, instrumentType: string): boolean {
+  const instruments = handler.available_instruments;
+  if (!Array.isArray(instruments)) return handler.id === "stripe" && instrumentType === "shared_payment_token";
+  return instruments.some((instrument) => objectRecord(instrument).type === instrumentType);
 }
 
 function isError(value: unknown): value is SteelyardError {

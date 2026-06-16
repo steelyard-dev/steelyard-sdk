@@ -3,7 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defineCommerce, type Manifest, type PurchaseIntent } from "@steelyard/core";
+import { defineCommerce, type Manifest, type PurchaseIntent, type WalletPaymentIssuer } from "@steelyard/core";
 import { buildAcpFeed } from "@steelyard/protocol/acp";
 import { buildUcpDiscovery } from "@steelyard/protocol/ucp";
 import {
@@ -54,13 +54,12 @@ describe("wallet checkout across ACP and UCP", () => {
           address: { line1: "1 Market St", city: "San Francisco", postal_code: "94105", country: "US" }
         },
         limits: { daily: { USD: 100 } },
-        allowedMerchants: ["coffee.example"]
+        allowedMerchants: ["coffee.example"],
+        paymentIssuer: mockPaymentIssuer()
       });
 
       try {
-        const acpMerchant = await Steelyard.connect(`${merchant.baseUrl}/acp/feed`, {
-          delegatePaymentUrl: delegate.delegatePaymentUrl
-        });
+        const acpMerchant = await Steelyard.connect(`${merchant.baseUrl}/acp/feed`);
         if ("error" in acpMerchant) throw new Error(acpMerchant.error_detail ?? acpMerchant.error);
         const ucpMerchant = await Steelyard.connect(`${merchant.baseUrl}/.well-known/ucp`, {
           allowPrivateNetwork: true,
@@ -174,14 +173,33 @@ async function startMerchantCheckout(
     protocols: ["acp", "ucp"],
     store: memoryCheckoutSessionStore(),
     idempotency: memoryIdempotencyStore(),
-    psp: mockPsp(),
+    psp: { ...mockPsp({ handlerIds: ["stripe"] }), name: "stripe" },
     mandateVerifier: verifier,
     steelyardMandate: true,
+    ucp: { paymentHandlers: ["stripe"] },
     clock,
     baseUrl,
     merchantAudience: `${baseUrl}/.well-known/ucp`
   });
   return { baseUrl, mandateLog };
+}
+
+function mockPaymentIssuer(): WalletPaymentIssuer {
+  return {
+    instrumentType: "shared_payment_token",
+    async mintForMandate(mandate) {
+      return {
+        id: "spt_cross_protocol",
+        expires_at: Math.floor(Date.parse(mandate.payment.expires_at) / 1000),
+        max_amount: mandate.payment.amount,
+        currency: mandate.payment.currency,
+        scope_proof: {
+          type: "stripe_spt_usage_limits",
+          idempotency_key: `spt_${mandate.nonce.replace(/[^a-zA-Z0-9]/g, "").slice(0, 24)}`
+        }
+      };
+    }
+  };
 }
 
 async function startDelegatePaymentServer(clock: () => Date): Promise<{ delegatePaymentUrl: string }> {
