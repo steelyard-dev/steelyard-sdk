@@ -24,6 +24,9 @@ pnpm --filter @steelyard/example-coffee-shop smoke:stripe
 
 The script is not part of CI and should use Stripe test-mode credentials only.
 
+For v0.6 Stripe Shared Payment Token setup and the UCP/ACP coffee-shop smokes,
+see [Stripe test-mode setup](stripe-test-mode-setup.md).
+
 ## Notes
 
 - Keep `STEELYARD_ALLOW_MOCK_PSP` unset when testing Stripe paths.

@@ -1,5 +1,25 @@
 # Release History
 
+## 0.6.0 - 2026-06-16
+
+Steelyard v0.6 makes agentic payment real across both UCP and ACP. Buyers can
+mint Stripe Shared Payment Tokens in Test mode, bind those tokens to AP2 payment
+mandates on UCP, and complete checkout through a Steelyard merchant that charges
+the SPT via Stripe. Merchants now advertise Stripe through the UCP
+`ucp.payment_handlers["net.steelyard"]` registry, and buyers select compatible
+handlers before checkout completion.
+
+The release also ships the minimum ACP checkout surface: discovery at
+`/.well-known/acp.json`, checkout-session create/update/complete/cancel routes,
+bearer auth, direct SPT `payment_data`, and `Merchant-Signature` webhook
+verification helpers. ACP does not use AP2 in v0.6; its trust boundary is bearer
+auth plus webhook HMAC, while UCP keeps AP2 as the signed user-consent artifact.
+
+Coffee-shop now has UCP+Stripe and ACP+Stripe smoke scripts that run against
+Stripe Test API when `STRIPE_TEST_SECRET_KEY` is set, plus offline mock Stripe
+mode for `pnpm validate-examples`. The docs now cover the v0.6 payment loop,
+Stripe SPT error mapping, UCP payment handlers, and Test mode setup.
+
 ## 0.5.0 - 2026-06-15
 
 Steelyard v0.5 closes the UCP AP2 mandate compliance gap. AP2-capable UCP

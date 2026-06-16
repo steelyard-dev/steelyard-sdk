@@ -193,6 +193,7 @@ function addBehavioralCases(cases: VerifyCase[]): void {
   addV041ConformanceCases(cases);
   addV042SignatureConformanceCases(cases);
   addV05Ap2ConformanceCases(cases);
+  addV06StripeConformanceCases(cases);
   cases.push({
     id: "docs:migration",
     suite: "docs",
@@ -201,6 +202,75 @@ function addBehavioralCases(cases: VerifyCase[]): void {
     evidence: ["docs/guides/migrating-from-v0.2.md", "README.md"],
     run: assertMigrationDocs
   });
+}
+
+function addV06StripeConformanceCases(cases: VerifyCase[]): void {
+  const entries: Array<[string, string, string[], (ctx: VerifyContext) => Promise<void>]> = [
+    [
+      "VSPT-01",
+      "Stripe SPT primitives mint, charge, normalize errors, and reject live keys",
+      ["packages/core/src/stripe/index.test.ts", "SP1", "SP2", "SP3", "SP4"],
+      (ctx) => runFocusedVitest(ctx, "v06-core-stripe", "@steelyard/core", "src/stripe/index.test.ts")
+    ],
+    [
+      "VSI-01",
+      "Buyer Stripe SPT issuer binds AP2 mandate scope and refuses widening",
+      ["packages/stripe/src/buyer.test.ts", "SI1", "SI2", "SI3", "SI4"],
+      (ctx) => runFocusedVitest(ctx, "v06-stripe-buyer", "@steelyard/stripe", "src/buyer.test.ts")
+    ],
+    [
+      "VSC-01",
+      "Merchant PSP discriminates SPTs and verifies AP2 payment mandates before Stripe capture",
+      ["packages/merchant/src/psp/psp.test.ts", "SC1", "SC2", "SC3", "SC4", "AP1", "AP2", "AP3", "AP4"],
+      (ctx) => runFocusedVitest(ctx, "v06-merchant-psp", "@steelyard/merchant", "src/psp/psp.test.ts")
+    ],
+    [
+      "VUH-01",
+      "UCP payment_handlers advertise Stripe and buyer checkout selects compatible handlers",
+      ["packages/protocol/src/ucp/ucp.test.ts", "packages/buyer/src/client/checkout-drivers.test.ts", "UH1", "UH2", "UH3", "UH4"],
+      async (ctx) => {
+        await runFocusedVitest(ctx, "v06-protocol-ucp", "@steelyard/protocol", "src/ucp/ucp.test.ts");
+        await runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard/buyer", "src/client/checkout-drivers.test.ts");
+      }
+    ],
+    [
+      "VACP-01",
+      "ACP checkout REST accepts direct SPT payment_data and buyer emits exact request shapes",
+      ["packages/protocol/src/acp/checkout.test.ts", "packages/buyer/src/client/checkout-drivers.test.ts", "AC1", "AC2", "AC3", "AC4", "AC5", "AC6", "AB1", "AB2", "AB3", "AB4", "AB5", "AP5"],
+      async (ctx) => {
+        await runFocusedVitest(ctx, "v06-protocol-acp-checkout", "@steelyard/protocol", "src/acp/checkout.test.ts");
+        await runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard/buyer", "src/client/checkout-drivers.test.ts");
+      }
+    ],
+    [
+      "VEX-01",
+      "Coffee-shop mock Stripe smokes and vanilla ACP interop stay offline-safe",
+      ["examples/coffee-shop/scripts/smoke-stripe-ucp.ts", "examples/coffee-shop/scripts/smoke-stripe-acp.ts", "examples/coffee-shop/src/acp-interop.test.ts", "EX1", "EX2", "EX4", "EX5"],
+      async (ctx) => {
+        await runCommandOnce(ctx, "v06-coffee-shop-stripe-ucp-mock", "pnpm", [
+          "--filter",
+          "@steelyard/example-coffee-shop",
+          "smoke:stripe:ucp"
+        ], { STEELYARD_MOCK_STRIPE: "1", STRIPE_TEST_SECRET_KEY: "sk_test_mock" });
+        await runCommandOnce(ctx, "v06-coffee-shop-stripe-acp-mock", "pnpm", [
+          "--filter",
+          "@steelyard/example-coffee-shop",
+          "smoke:stripe:acp"
+        ], { STEELYARD_MOCK_STRIPE: "1", STRIPE_TEST_SECRET_KEY: "sk_test_mock" });
+        await runFocusedVitest(ctx, "v06-coffee-shop-tests", "@steelyard/example-coffee-shop", "src/acp-interop.test.ts");
+      }
+    ]
+  ];
+  for (const [id, title, evidence, run] of entries) {
+    cases.push({
+      id,
+      suite: "V06",
+      title,
+      verifies: [],
+      evidence,
+      run
+    });
+  }
 }
 
 function addV05Ap2ConformanceCases(cases: VerifyCase[]): void {

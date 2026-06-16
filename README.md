@@ -1,18 +1,17 @@
 # Steelyard
 
-Steelyard is a TypeScript SDK for defining a commerce catalog once, serving it
-as static `commerce.json`, plain HTTP, MCP, ACP, and UCP, and letting buyers
-gate purchases through a local encrypted Wallet.
+Steelyard is a TypeScript SDK for defining commerce once, serving it as static
+`commerce.json`, plain HTTP, MCP, ACP, and UCP, and letting buyers complete
+agentic purchases through a local encrypted Wallet.
 
-The current surface is read-side across `commerce.json`, `/commerce`, MCP, ACP,
-and UCP, plus checkout for ACP and UCP. UCP checkout can use RFC 9421 HTTP
-Message Signatures or bearer auth. MCP checkout remains out of scope for this
-release.
+v0.6 adds end-to-end Stripe Shared Payment Token payment over UCP and ACP. UCP
+uses AP2-signed checkout and payment mandates; ACP uses direct SPT
+`payment_data`. MCP checkout remains out of scope for this release.
 
 ## Install
 
 ```sh
-npm install @steelyard/core @steelyard/protocol @steelyard/buyer @steelyard/merchant @steelyard/cli
+npm install @steelyard/core @steelyard/protocol @steelyard/buyer @steelyard/merchant @steelyard/stripe @steelyard/cli
 ```
 
 For local development:
@@ -44,6 +43,32 @@ export const manifest = defineCommerce({
 Pass that manifest to `@steelyard/protocol/mcp`, `@steelyard/protocol/acp`, and `@steelyard/protocol/ucp` to expose one catalog through all three protocols.
 Pass the same manifest to `@steelyard/merchant/checkout` to mount ACP and UCP
 checkout routes.
+
+## What's New in v0.6
+
+Stripe SPTs are now the executable payment primitive for both agentic checkout
+surfaces:
+
+```mermaid
+sequenceDiagram
+  Buyer->>Merchant: UCP or ACP checkout
+  Buyer->>Stripe: Mint spt_* scoped to amount/currency/expiry
+  Buyer->>Merchant: AP2 payment mandate (UCP) or payment_data (ACP)
+  Merchant->>Stripe: Confirm PaymentIntent with SPT
+  Merchant-->>Buyer: Receipt
+```
+
+```ts
+const wallet = await Wallet.open({ paymentIssuer: createStripeSptIssuer({ apiKey }) });
+const merchant = await Steelyard.connect("https://shop.example/.well-known/ucp", opts);
+const offer = await merchant.getOffer("single");
+const receipt = await wallet.pay(intentFromOffer(offer), { merchant });
+console.log(receipt.reference.ucp?.psp_payment_id);
+```
+
+See `docs/concepts/agentic-payment.md` and
+`docs/guides/stripe-test-mode-setup.md` for the full UCP/ACP flow and local
+Stripe Test mode smokes.
 
 ## Signed UCP Checkout
 

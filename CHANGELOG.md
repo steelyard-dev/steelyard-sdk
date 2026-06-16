@@ -7,6 +7,27 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-16
+
+### Added
+- Stripe Shared Payment Token primitives for minting and charging through the Stripe Test API, including preview API-version pinning, live-key refusal, SPT error normalization, and shared constants (SP1, SP2, SP3, SP4, SC3).
+- Buyer-side Stripe SPT issuer that scopes SPT minting to AP2 payment mandate drafts, refuses incomplete or widened scopes, and keeps Stripe keys in process memory only (SI1, SI2, SI3, SI4).
+- Merchant Stripe PSP support for `spt_*` tokens behind `acceptSharedPaymentTokens`, while preserving the existing `pm_*` PaymentMethod path (SC1, SC2, SC4).
+- UCP `ucp.payment_handlers["net.steelyard"]` Stripe advertisement, buyer handler discovery, compatible-handler selection, and AP2 handler binding (UH1, UH2, UH3, UH4).
+- ACP checkout discovery, REST checkout-session routes, direct SPT `payment_data` completion, bearer auth, webhook HMAC helpers, and ACP-shaped error handling (AC1, AC2, AC3, AC4, AC5, AC6, AB1, AB2, AB3, AB4, AB5, AP5).
+- Coffee-shop UCP+Stripe and ACP+Stripe smokes, offline mock Stripe validation, and vanilla ACP buyer interop coverage (EX1, EX2, EX4, EX5).
+- Public docs for agentic payment, Stripe SPT errors, Stripe Test mode setup, and UCP payment handlers (IN3, IN4, IN5, IN6).
+
+### Changed
+- UCP AP2 payment mandates now embed Stripe SPTs in the existing `payment_instrument` claim without replacing the AP2 credential token slot (AP1, AP2, AP3, AP4).
+- Buyer receipts can carry PSP PaymentIntent and charge references for UCP completions when the merchant checkout response includes open `payment_details` metadata (EX1).
+- ACP and buyer code now imports ACP wire types from generated OpenAPI output, and UCP code adopts upstream SDK types only where they match the vendored schema (CP4, CP5).
+- README and release notes describe v0.6 agentic payment as the current public surface (IN1, IN2, IN7).
+
+### Fixed
+- `pnpm verify` now includes explicit v0.6 Stripe SPT conformance cases for primitives, issuer scope binding, PSP discrimination, UCP handler selection, ACP request shapes, and coffee-shop interop (IN8).
+- `pnpm validate-examples` now exercises coffee-shop Stripe SPT UCP and ACP smokes in offline mock mode (EX4, IN9).
+
 ## [0.5.0] - 2026-06-15
 
 ### Added

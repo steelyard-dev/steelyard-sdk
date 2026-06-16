@@ -56,6 +56,7 @@ nav:
     - Migrating from v0.4: guides/migrating-from-v0.4.md
     - Release history: releases.md
     - Stripe test mode: guides/stripe-test-mode.md
+    - Stripe SPT setup: guides/stripe-test-mode-setup.md
     - Configuring UCP auth: guides/configuring-ucp-auth.md
     - Buyer HMS profile: guides/buyer-hms-profile.md
     - Migrating from Steelyard mode: guides/migrating-from-steelyard-mode.md
@@ -65,6 +66,9 @@ nav:
     - Idempotency: concepts/idempotency.md
     - Mandates: concepts/mandates.md
     - Payment mandates: concepts/payment-mandates.md
+    - Agentic payment: concepts/agentic-payment.md
+    - Payment handlers: concepts/payment-handlers.md
+    - Stripe SPT errors: concepts/stripe-spt-errors.md
     - Trust models: concepts/trust-models.md
     - HTTP Message Signatures: concepts/http-signatures.md
     - UCP auth mechanisms: concepts/auth-mechanisms.md
