@@ -329,11 +329,7 @@ describe("createMerchantCheckout", () => {
     const client = await listen(app.handler);
     await expect(client.post("/agentic_commerce/delegate_payment", {}, "delegate")).resolves.toMatchObject({
       status: 404,
-      body: {
-        type: "invalid_request",
-        code: "acp_not_implemented",
-        message: "ACP delegate_payment is not implemented in v0.6"
-      }
+      body: { error: "not_found" }
     });
     await expect(client.post("/acp/checkout_sessions", acpCreateBody, undefined)).resolves.toMatchObject({
       status: 400,

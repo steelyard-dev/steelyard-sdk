@@ -281,9 +281,9 @@ export function assertValidAcpDiscovery(value: unknown): asserts value is AcpDis
 export async function signAcpWebhook(args: {
   rawBody: string | Uint8Array;
   secret: string;
-  timestamp?: number | Date;
+  timestamp: number | Date;
 }): Promise<string> {
-  const timestamp = acpSignatureTimestamp(args.timestamp ?? new Date());
+  const timestamp = acpSignatureTimestamp(args.timestamp);
   const digest = await acpHmacHex(args.secret, signedWebhookPayload(timestamp, rawBodyBytes(args.rawBody)));
   return `t=${timestamp},v1=${digest}`;
 }
@@ -292,7 +292,7 @@ export async function verifyAcpWebhookSignature(args: {
   rawBody: string | Uint8Array;
   secret: string;
   header: string | undefined;
-  now?: Date;
+  now: Date;
   toleranceSeconds?: number;
 }): Promise<AcpWebhookSignatureVerificationResult> {
   if (!args.header) {
@@ -309,7 +309,7 @@ export async function verifyAcpWebhookSignature(args: {
 
   const timestamp = Number(parsed[1]);
   const signature = parsed[2]!.toLowerCase();
-  const now = Math.floor((args.now ?? new Date()).getTime() / 1000);
+  const now = Math.floor(args.now.getTime() / 1000);
   const tolerance = args.toleranceSeconds ?? ACP_WEBHOOK_SIGNATURE_TOLERANCE_SECONDS;
   if (!Number.isSafeInteger(timestamp) || Math.abs(now - timestamp) > tolerance) {
     return { ok: false, code: "acp_webhook_signature_stale", message: "Merchant-Signature timestamp is outside tolerance." };

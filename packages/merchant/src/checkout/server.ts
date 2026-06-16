@@ -489,13 +489,6 @@ async function dispatch(
       return await routes.acp.cancelSession(req, res);
     }
     if (req.method === "POST" && path === "/acp/discounts") return await routes.acp.discounts(req, res);
-    if (
-      req.method === "POST"
-      && (path === "/agentic_commerce/delegate_payment" || path === "/acp/agentic_commerce/delegate_payment")
-    ) {
-      sendAcpError(res, 404, "acp_not_implemented", "ACP delegate_payment is not implemented in v0.6");
-      return;
-    }
   }
 
   if (routes.ucp) {

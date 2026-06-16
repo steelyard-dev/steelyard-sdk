@@ -49,7 +49,7 @@ export interface AcpWebhookVerifyArgs {
   rawBody: string | Uint8Array;
   headers: Headers | Record<string, string | string[] | undefined>;
   secret: string;
-  now?: Date;
+  now: Date;
   toleranceSeconds?: number;
 }
 
