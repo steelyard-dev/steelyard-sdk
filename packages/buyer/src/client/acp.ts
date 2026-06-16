@@ -7,6 +7,11 @@ import {
   assertValidCheckoutSession,
   assertValidCheckoutSessionWithOrder,
   verifyAcpWebhookSignature,
+  type AcpCancelSessionRequest,
+  type AcpCheckoutSessionCompleteRequest,
+  type AcpCheckoutSessionCreateRequest,
+  type AcpPaymentData,
+  type AcpPaymentHandler,
   type AcpWebhookSignatureVerificationResult
 } from "@steelyard/protocol/acp/checkout";
 import {
@@ -20,8 +25,7 @@ import {
   stringValue,
   type DriverBaseOpts,
   type JsonRecord,
-  type JsonRequestHeaderPreparer,
-  type PaymentHandlerLike
+  type JsonRequestHeaderPreparer
 } from "./driver-common.js";
 
 export interface AcpDriverOpts extends DriverBaseOpts {
@@ -90,7 +94,7 @@ export async function purchase(intent: PurchaseIntent, opts: AcpDriverOpts): Pro
   const key = purchaseKey(opts, intent);
   const clock = driverClock(opts);
   const prepareHeaders = acpHeaderPreparer(opts.acpAuth);
-  const createBody = {
+  const createBody: AcpCheckoutSessionCreateRequest = {
     line_items: [{ id: intent.offer.id, name: intent.offer.title, unit_amount: intent.amount }],
     currency: intent.currency,
     capabilities: {}
@@ -121,14 +125,15 @@ export async function purchase(intent: PurchaseIntent, opts: AcpDriverOpts): Pro
       expires_at: expiresAt
     }
   });
-  const completeBody = {
-    payment_data: {
-      handler_id: selected.id,
-      instrument: {
-        type: "card",
-        credential: { type: "spt", token: spt.id }
-      }
+  const paymentData: AcpPaymentData = {
+    handler_id: selected.id,
+    instrument: {
+      type: "card",
+      credential: { type: "spt", token: spt.id }
     }
+  };
+  const completeBody: AcpCheckoutSessionCompleteRequest = {
+    payment_data: paymentData
   };
   const completed = asRecord(
     await postJson(joinUrl(opts.merchantUrl, `/checkout_sessions/${encodeURIComponent(checkoutId)}/complete`), completeBody, {
@@ -142,8 +147,9 @@ export async function purchase(intent: PurchaseIntent, opts: AcpDriverOpts): Pro
 }
 
 export async function cancel(sessionId: string, opts: AcpCancelOpts): Promise<JsonRecord> {
+  const cancelBody: AcpCancelSessionRequest = {};
   const canceled = asRecord(
-    await postJson(joinUrl(opts.merchantUrl, `/checkout_sessions/${encodeURIComponent(sessionId)}/cancel`), {}, {
+    await postJson(joinUrl(opts.merchantUrl, `/checkout_sessions/${encodeURIComponent(sessionId)}/cancel`), cancelBody, {
       idempotencyKey: opts.idempotencyKey ?? `acp:${sessionId}:cancel`,
       fetch: opts.fetch,
       prepareHeaders: acpHeaderPreparer(opts.acpAuth)
@@ -189,14 +195,14 @@ function acpReceipt(intent: PurchaseIntent, session: JsonRecord, vaultTokenId: s
   };
 }
 
-function acpHandlers(session: JsonRecord): PaymentHandlerLike[] {
+function acpHandlers(session: JsonRecord): AcpPaymentHandler[] {
   const capabilities = asRecord(session.capabilities);
   const payment = asRecord(capabilities.payment);
   const handlers = payment.handlers;
-  return Array.isArray(handlers) ? handlers.map((handler) => asRecord(handler) as PaymentHandlerLike) : [];
+  return Array.isArray(handlers) ? handlers.map((handler) => asRecord(handler) as AcpPaymentHandler) : [];
 }
 
-function selectedAcpHandler(handlers: PaymentHandlerLike[]): PaymentHandlerLike | undefined {
+function selectedAcpHandler(handlers: AcpPaymentHandler[]): AcpPaymentHandler | undefined {
   return handlers.find((handler) =>
     stringValue(handler.id) === "stripe"
     && asRecord(handler).requires_delegate_payment !== true

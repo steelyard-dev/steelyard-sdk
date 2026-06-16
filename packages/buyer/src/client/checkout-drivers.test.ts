@@ -14,6 +14,8 @@ import {
   applyCompleteRequest,
   applyCreateRequest,
   signAcpWebhook,
+  type CheckoutSessionCompleteRequest,
+  type CheckoutSessionCreateRequest,
   type CheckoutSession
 } from "@steelyard/protocol/acp/checkout";
 import {
@@ -834,7 +836,7 @@ async function startAcpMerchant(opts: {
       body
     });
     if (req.method === "POST" && req.url === "/checkout_sessions") {
-      session = withAcpHandler(applyCreateRequest(body, { manifest, now, sessionId: "cs_1" }).next) as CheckoutSession;
+      session = withAcpHandler(applyCreateRequest(body as CheckoutSessionCreateRequest, { manifest, now, sessionId: "cs_1" }).next) as CheckoutSession;
       if (opts.createStatus) session = { ...session, status: opts.createStatus as CheckoutSession["status"] };
       if (opts.handlerConfig === false) {
         session = {
@@ -864,7 +866,7 @@ async function startAcpMerchant(opts: {
       return;
     }
     if (req.method === "POST" && req.url === "/checkout_sessions/cs_1/complete" && session) {
-      const completed = applyCompleteRequest(session, body, {
+      const completed = applyCompleteRequest(session, body as CheckoutSessionCompleteRequest, {
         now,
         pspResult: { ok: true, psp_payment_id: "pi_1", status: "captured" }
       }).next;

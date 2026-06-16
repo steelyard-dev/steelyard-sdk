@@ -22,6 +22,10 @@ import {
   applyDiscountsRequest,
   applyUpdateRequest,
   buildAcpDiscovery,
+  type CheckoutSessionCompleteRequest,
+  type CheckoutSessionCreateRequest,
+  type CheckoutSessionUpdateRequest,
+  type AcpPaymentData,
   type CheckoutSession
 } from "@steelyard/protocol/acp/checkout";
 import {
@@ -242,7 +246,7 @@ function createAcpRoutes(ctx: MerchantCheckoutContext): AcpRoutes {
         const policy = await ctx.evaluatePolicy("acp", body);
         if (policy) return policy;
         const now = ctx.clock();
-        const result = applyCreateRequest(body as Record<string, unknown>, {
+        const result = applyCreateRequest(body as CheckoutSessionCreateRequest, {
           manifest: ctx.manifest,
           now,
           sessionId: `cs_${randomUUID()}`
@@ -267,7 +271,7 @@ function createAcpRoutes(ctx: MerchantCheckoutContext): AcpRoutes {
         const current = await requireSession(ctx.opts.store, id);
         const policy = await ctx.evaluatePolicy("acp", body);
         if (policy) return policy;
-        const result = applyUpdateRequest(current as CheckoutSession, body as Record<string, unknown>, {
+        const result = applyUpdateRequest(current as CheckoutSession, body as CheckoutSessionUpdateRequest, {
           now: ctx.clock()
         });
         await ctx.opts.store.put(result.next as StoredCheckout);
@@ -301,7 +305,7 @@ function createAcpRoutes(ctx: MerchantCheckoutContext): AcpRoutes {
               next: checkoutCanceled(claimed, pspFailureCode(pspResult), pspFailureMessage(pspResult), ctx.clock())
             };
           }
-          const completed = applyCompleteRequest(claimed as CheckoutSession, body as Record<string, unknown>, {
+          const completed = applyCompleteRequest(claimed as CheckoutSession, body as CheckoutSessionCompleteRequest, {
             now: ctx.clock(),
             pspResult
           });
@@ -920,7 +924,7 @@ function ucpCheckoutId(req: IncomingMessage, suffix = ""): string {
 }
 
 function acpPaymentData(body: unknown): { vault_token: string; handler_id: string } {
-  const paymentData = asRecord(asRecord(body).payment_data);
+  const paymentData = asRecord(asRecord(body).payment_data) as Record<string, unknown> & AcpPaymentData;
   const instrument = asRecord(paymentData.instrument);
   const credential = asRecord(instrument.credential);
   const token = stringValue(credential.token, "");

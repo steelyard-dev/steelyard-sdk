@@ -18,6 +18,8 @@ import {
 import {
   applyCompleteRequest as applyAcpComplete,
   applyCreateRequest as applyAcpCreate,
+  type CheckoutSessionCompleteRequest,
+  type CheckoutSessionCreateRequest,
   type CheckoutSession
 } from "@steelyard/protocol/acp/checkout";
 import {
@@ -817,12 +819,12 @@ async function startAcpCheckoutServer(): Promise<{ base: string; requests: Captu
     const body = await readJsonBody(req);
     requests.push({ path: req.url ?? "/", idempotencyKey: idempotencyKey(req), headers: capturedHeaders(req), body });
     if (req.method === "POST" && req.url === "/acp/checkout_sessions") {
-      session = withAcpHandler(applyAcpCreate(body as Record<string, unknown>, { manifest, now, sessionId: "cs_1" }).next);
+      session = withAcpHandler(applyAcpCreate(body as CheckoutSessionCreateRequest, { manifest, now, sessionId: "cs_1" }).next);
       sendJson(res, session);
       return;
     }
     if (req.method === "POST" && req.url === "/acp/checkout_sessions/cs_1/complete" && session) {
-      sendJson(res, applyAcpComplete(session, body as Record<string, unknown>, {
+      sendJson(res, applyAcpComplete(session, body as CheckoutSessionCompleteRequest, {
         now,
         pspResult: { ok: true, psp_payment_id: "pi_1", status: "captured" }
       }).next);

@@ -5,56 +5,25 @@ import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.
 import addFormats from "ajv-formats";
 import acpFeedSchema from "../../spec/acp/2026-04-17/json-schema/schema.feed.json";
 import type { Manifest, Offer, Price } from "@steelyard/core";
+import type {
+  AcpAvailability,
+  AcpDescription,
+  AcpFeed,
+  AcpMedia,
+  AcpPrice,
+  AcpSeller
+} from "./types.generated.js";
 
-export interface AcpPrice {
-  amount: number;
-  currency: string;
-}
-
-export interface AcpAvailability {
-  available: boolean;
-  status: Offer["availability"];
-}
-
-export interface AcpMedia {
-  type: "image";
-  url: string;
-  alt_text?: string;
-}
-
-export interface AcpDescription {
-  plain: string;
-}
-
-export interface AcpVariant {
-  id: string;
-  title: string;
-  description?: AcpDescription;
-  url?: string;
-  price?: AcpPrice;
-  availability: AcpAvailability;
-  categories?: { value: string; taxonomy: "merchant" }[];
-  media?: AcpMedia[];
-  seller?: AcpSeller;
-}
-
-export interface AcpProduct {
-  id: string;
-  title?: string;
-  description?: AcpDescription;
-  url?: string;
-  media?: AcpMedia[];
-  variants: AcpVariant[];
-}
-
-export interface AcpFeed {
-  products: AcpProduct[];
-}
-
-export interface AcpSeller {
-  name?: string;
-  links?: { type: string; title?: string; url: string }[];
-}
+export type {
+  AcpAvailability,
+  AcpDescription,
+  AcpFeed,
+  AcpMedia,
+  AcpPrice,
+  AcpProduct,
+  AcpSeller,
+  AcpVariant
+} from "./types.generated.js";
 
 export interface AcpValidationResult {
   valid: boolean;

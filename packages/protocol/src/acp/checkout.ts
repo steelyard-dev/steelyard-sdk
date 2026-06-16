@@ -3,33 +3,40 @@ import type { Manifest } from "@steelyard/core";
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import acpCheckoutSchema from "../../spec/acp/2026-04-17/json-schema/schema.agentic_checkout.json";
+import type {
+  AcpCancelSessionRequest,
+  AcpCheckoutSession,
+  AcpCheckoutSessionCompleteRequest,
+  AcpCheckoutSessionCreateRequest,
+  AcpCheckoutSessionUpdateRequest,
+  AcpCheckoutSessionWithOrder,
+  AcpDiscoveryResponse as GeneratedAcpDiscoveryResponse,
+  AcpDiscountsRequest,
+  AcpDiscountsResponse
+} from "./types.generated.js";
 
 export type JsonObject = Record<string, unknown>;
-export type CheckoutSessionCreateRequest = JsonObject;
-export type CheckoutSessionUpdateRequest = JsonObject;
-export type CheckoutSessionCompleteRequest = JsonObject;
-export type CancelSessionRequest = JsonObject;
-export type DiscountsRequest = { codes?: string[] };
-export type DiscountsResponse = { codes: string[]; applied: unknown[]; rejected: unknown[] };
-export type CheckoutSession = JsonObject;
-export type CheckoutSessionWithOrder = JsonObject;
-export interface AcpDiscoveryResponse {
-  protocol: {
-    name: "acp";
-    version: string;
-    supported_versions: string[];
-    documentation_url?: string;
-  };
-  api_base_url: string;
-  transports: ("rest" | "mcp")[];
-  capabilities: {
-    services: ("checkout" | "orders" | "delegate_payment" | "carts")[];
-    extensions?: { name: string; spec?: string; schema?: string }[];
-    intervention_types?: ("3ds" | "biometric" | "address_verification")[];
-    supported_currencies?: string[];
-    supported_locales?: string[];
-  };
-}
+export type CheckoutSessionCreateRequest = AcpCheckoutSessionCreateRequest;
+export type CheckoutSessionUpdateRequest = AcpCheckoutSessionUpdateRequest;
+export type CheckoutSessionCompleteRequest = AcpCheckoutSessionCompleteRequest;
+export type CancelSessionRequest = AcpCancelSessionRequest;
+export type DiscountsRequest = AcpDiscountsRequest;
+export type DiscountsResponse = AcpDiscountsResponse;
+export type CheckoutSession = AcpCheckoutSession;
+export type CheckoutSessionWithOrder = AcpCheckoutSessionWithOrder;
+export type AcpDiscoveryResponse = GeneratedAcpDiscoveryResponse;
+export type {
+  AcpCancelSessionRequest,
+  AcpCheckoutSession,
+  AcpCheckoutSessionCompleteRequest,
+  AcpCheckoutSessionCreateRequest,
+  AcpCheckoutSessionUpdateRequest,
+  AcpCheckoutSessionWithOrder,
+  AcpDiscountsRequest,
+  AcpDiscountsResponse,
+  AcpPaymentData,
+  AcpPaymentHandler
+} from "./types.generated.js";
 
 export interface AcpDiscoveryOptions {
   apiBaseUrl: string;
@@ -317,10 +324,10 @@ export async function verifyAcpWebhookSignature(args: {
 
 function checkoutSession(opts: {
   id: string;
-  status: string;
+  status: CheckoutSession["status"];
   currency: string;
-  line_items: unknown;
-  totals: unknown[];
+  line_items: CheckoutSession["line_items"];
+  totals: CheckoutSession["totals"];
   now: Date;
 }): CheckoutSession {
   return {
@@ -339,22 +346,23 @@ function checkoutSession(opts: {
   };
 }
 
-function totalsFromLineItems(lineItems: unknown): unknown[] {
+function totalsFromLineItems(lineItems: unknown): CheckoutSession["totals"] {
   const total = Array.isArray(lineItems)
     ? lineItems.reduce((sum, item) => sum + totalFromLineItem(item), 0)
     : 0;
   return [{ type: "total", display_text: "Total", amount: total }];
 }
 
-function responseLineItems(items: unknown): unknown[] {
+function responseLineItems(items: unknown): CheckoutSession["line_items"] {
   if (!Array.isArray(items)) return [];
   return items.map((value, index) => {
     const item = asRecord(value);
     const itemId = stringValue(item.id, `item_${index + 1}`);
+    const normalizedItem = { ...item, id: itemId };
     const amount = integerValue(item.unit_amount, 0);
     return {
       id: itemId,
-      item,
+      item: normalizedItem,
       quantity: 1,
       totals: [{ type: "total", display_text: "Total", amount }]
     };

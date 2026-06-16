@@ -17,7 +17,9 @@ import {
 } from "@steelyard/core";
 import {
   assertValidAcpDiscovery,
-  type AcpDiscoveryResponse
+  type AcpDiscoveryResponse,
+  type AcpFeed,
+  type AcpProduct
 } from "@steelyard/protocol/acp";
 import {
   STEELYARD_CHECKOUT_MANDATE_V01,
@@ -556,7 +558,7 @@ function acpProductToOffer(product: AcpProduct, url: URL): Offer {
     kind: "product",
     categories: (variant.categories ?? []).map((category) => category.value),
     attributes: {},
-    availability: variant.availability?.status ?? "unknown",
+    availability: acpAvailabilityStatus(variant.availability?.status),
     pricing: variant.price ? [{ kind: "one_time", amount: variant.price.amount, currency: variant.price.currency }] : []
   };
 }
@@ -704,6 +706,10 @@ function isAcpFeed(value: unknown): value is AcpFeed {
   return !!value && typeof value === "object" && Array.isArray((value as { products?: unknown }).products);
 }
 
+function acpAvailabilityStatus(value: unknown): Offer["availability"] {
+  return value === "in_stock" || value === "out_of_stock" || value === "preorder" ? value : "unknown";
+}
+
 function isAcpDiscovery(value: unknown): value is AcpDiscoveryResponse {
   try {
     assertValidAcpDiscovery(value);
@@ -788,31 +794,6 @@ function ucpProfileFetchFailure(error: unknown, explicitDiscoveryUrl: boolean): 
     return fail("network_error", error.message);
   }
   return fail("protocol_mismatch", error.message);
-}
-
-interface AcpFeed {
-  products: AcpProduct[];
-  capabilities?: { services?: string[] };
-  merchant?: { id?: string; domain?: string };
-}
-
-interface AcpProduct {
-  id: string;
-  title?: string;
-  description?: { plain?: string };
-  url?: string;
-  media?: { url: string }[];
-  variants: {
-    id: string;
-    title: string;
-    description?: { plain?: string };
-    url?: string;
-    price?: { amount: number; currency: string };
-    availability?: { status?: Offer["availability"] };
-    categories?: { value: string }[];
-    media?: { url: string }[];
-    seller?: { name?: string; links?: { type: string; title?: string; url: string }[] };
-  }[];
 }
 
 interface UcpDiscovery {

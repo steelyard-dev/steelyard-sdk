@@ -46,6 +46,7 @@
   },
   "scripts": {
     "build": "tsup && node scripts/copy-specs.mjs",
+    "regen:acp-types": "node scripts/generate-acp-types.mjs",
     "test": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
@@ -54,5 +55,8 @@
     "@steelyard/core": "workspace:^",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0"
   }
 }

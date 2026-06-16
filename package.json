@@ -13,7 +13,7 @@
     "test": "turbo run test --concurrency=1",
     "typecheck": "turbo run typecheck",
     "validate-examples": "tsx scripts/validate-examples.mts",
-    "verify": "tsx packages/verify/src/cli.ts",
+    "verify": "pnpm --filter @steelyard/protocol regen:acp-types && git diff --exit-code -- packages/protocol/src/acp/types.generated.ts && tsx packages/verify/src/cli.ts",
     "lint": "biome lint --files-ignore-unknown=true .",
     "clean": "turbo run clean && rm -rf node_modules"
   },
