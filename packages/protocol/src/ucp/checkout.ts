@@ -8,6 +8,7 @@ import {
   CHECKOUT_SCHEMA_ID,
   PAYMENT_INSTRUMENT_SCHEMA_ID
 } from "./spec-schemas.js";
+import type { OrderConfirmation } from "@ucp-js/sdk";
 
 export type JsonSchema = Record<string, unknown> & {
   $id?: string;
@@ -15,9 +16,16 @@ export type JsonSchema = Record<string, unknown> & {
   required?: string[];
 };
 export type UcpRequestOperation = "create" | "update" | "complete";
+// TODO: upstream issue link: https://github.com/Universal-Commerce-Protocol/js-sdk/issues
+// @ucp-js/sdk@0.1.0 CheckoutResponse is a response-specific object; the
+// vendored 2026-04-17 checkout helpers need a generic mutable checkout shape
+// while deriving create/update/complete request schemas from local JSON Schema.
 export type Checkout = Record<string, unknown>;
-export type OrderConfirmation = { id: string; label?: string; permalink_url: string };
 export type CompletedUcpCheckout = Checkout & { status: "completed"; order: OrderConfirmation };
+// TODO: upstream issue link: https://github.com/Universal-Commerce-Protocol/js-sdk/issues
+// @ucp-js/sdk@0.1.0 PaymentInstrument is card-specific and requires card
+// display fields; the vendored selected_payment_instrument schema is generic
+// and carries v0.6 shared_payment_token instruments.
 export type SelectedPaymentInstrument = {
   id: string;
   handler_id: string;

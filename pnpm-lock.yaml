@@ -184,6 +184,9 @@ importers:
       '@steelyard/core':
         specifier: workspace:^
         version: link:../core
+      '@ucp-js/sdk':
+        specifier: ^0.1.0
+        version: 0.1.0
       ajv:
         specifier: ^8.17.1
         version: 8.20.0
@@ -1199,6 +1202,9 @@ packages:
 
   '@types/retry@0.12.5':
     resolution: {integrity: sha512-3xSjTp3v03X/lSQLkczaN9UIEwJMoMCA1+Nb5HfbJEQWogdeQIyVtTvxPXDQjZ5zws8rFQfVfRdz03ARihPJgw==}
+
+  '@ucp-js/sdk@0.1.0':
+    resolution: {integrity: sha512-Elgaxj5mhHobebeUjwpg6dh+b5uE01/efJo6Xq2UDk7P/rvXgPwi74aTMYL3XgAqWIeijerI5Hid1c6I549yoQ==}
 
   '@vitest/coverage-v8@2.1.9':
     resolution: {integrity: sha512-Z2cOr0ksM00MpEfyVE8KXIYPEcBFxdbLSs56L8PO0QQMxt/6bDj45uQfxoc96v05KW3clk7vvgP0qfDit9DmfQ==}
@@ -3230,6 +3236,10 @@ snapshots:
       '@types/retry': 0.12.5
 
   '@types/retry@0.12.5': {}
+
+  '@ucp-js/sdk@0.1.0':
+    dependencies:
+      zod: 3.25.76
 
   '@vitest/coverage-v8@2.1.9(vitest@2.1.9(@types/node@22.19.21))':
     dependencies:

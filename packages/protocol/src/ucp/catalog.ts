@@ -14,6 +14,11 @@ import {
   CATALOG_SEARCH_SCHEMA_ID
 } from "./spec-schemas.js";
 
+// TODO: upstream issue link: https://github.com/Universal-Commerce-Protocol/js-sdk/issues
+// @ucp-js/sdk@0.1.0 does not export catalog Product/Variant/Search/Lookup
+// aliases matching the vendored 2026-04-17 catalog schemas. Keep these local
+// response builders tied to the vendored AJV validators until upstream exposes
+// matching generated types.
 export interface UcpPrice {
   amount: number;
   currency: string;

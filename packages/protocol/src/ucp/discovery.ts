@@ -30,6 +30,11 @@ export const STEELYARD_CHECKOUT_MANDATE_V01 = "net.steelyard.checkout_mandate.v0
 export const STEELYARD_PAYMENT_HANDLER_NAMESPACE = "net.steelyard";
 export const STRIPE_PAYMENT_HANDLER_ID = "stripe";
 
+// TODO: upstream issue link: https://github.com/Universal-Commerce-Protocol/js-sdk/issues
+// @ucp-js/sdk@0.1.0 UcpDiscoveryProfile models capabilities as an array and
+// payment handlers as top-level payment.handlers. The vendored 2026-04-17
+// schema uses object-keyed ucp.capabilities and ucp.payment_handlers registries,
+// so profile/discovery shapes stay local until upstream matches that schema.
 export interface UcpEntity {
   id?: string;
   version: string;
