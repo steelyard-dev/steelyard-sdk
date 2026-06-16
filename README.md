@@ -4,9 +4,11 @@ Steelyard is a TypeScript SDK for defining commerce once, serving it as static
 `commerce.json`, plain HTTP, MCP, ACP, and UCP, and letting buyers complete
 agentic purchases through a local encrypted Wallet.
 
-v0.6 adds end-to-end Stripe Shared Payment Token payment over UCP and ACP. UCP
-uses AP2-signed checkout and payment mandates; ACP uses direct SPT
-`payment_data`. MCP checkout remains out of scope for this release.
+v0.6 adds the SDK wiring for Stripe Shared Payment Token payment over UCP and
+ACP. UCP uses AP2-signed checkout and payment mandates; ACP uses direct SPT
+`payment_data`. The release validates that flow with offline Stripe smokes;
+real Stripe payment execution remains opt-in and requires account-level Stripe
+SPT/business-profile access. MCP checkout remains out of scope for this release.
 
 ## Install
 
@@ -46,7 +48,7 @@ checkout routes.
 
 ## What's New in v0.6
 
-Stripe SPTs are now the executable payment primitive for both agentic checkout
+Stripe SPTs are now the payment adapter primitive for both agentic checkout
 surfaces:
 
 ```mermaid
@@ -67,8 +69,8 @@ console.log(receipt.reference.ucp?.psp_payment_id);
 ```
 
 See `docs/concepts/agentic-payment.md` and
-`docs/guides/stripe-test-mode-setup.md` for the full UCP/ACP flow and local
-Stripe Test mode smokes.
+`docs/guides/stripe-test-mode-setup.md` for the full UCP/ACP flow, offline
+validation, and the current Stripe Test mode account-access requirements.
 
 ## Signed UCP Checkout
 

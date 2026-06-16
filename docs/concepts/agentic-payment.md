@@ -1,7 +1,10 @@
 # Agentic Payment
 
-Steelyard v0.6 makes the checkout loop executable across UCP and ACP by using
-Stripe Shared Payment Tokens (SPTs) as the payment instrument.
+Steelyard v0.6 makes the checkout loop explicit across UCP and ACP by using
+Stripe Shared Payment Tokens (SPTs) as the payment instrument. The SDK path is
+validated with offline Stripe smokes in this release; real Stripe SPT minting
+and PaymentIntent capture are opt-in diagnostics until the operator's Stripe
+account has business-profile/SPT access.
 
 On UCP, the buyer signs AP2 checkout and payment mandates. The raw SPT is not
 placed directly in `payment.instruments[*].credential.token`; that field still
@@ -17,7 +20,7 @@ the ACP webhook `Merchant-Signature` verifier.
 sequenceDiagram
   participant Buyer as Buyer wallet
   participant Merchant as Steelyard merchant
-  participant Stripe as Stripe Test API
+  participant Stripe as Stripe SPT API
 
   Buyer->>Merchant: Discover UCP payment_handlers or ACP checkout
   Buyer->>Merchant: Create checkout session
@@ -36,8 +39,9 @@ sequenceDiagram
 ```
 
 The practical result is the public promise in the README: define commerce once,
-then expose it everywhere with a real payment path rather than a read-only
-protocol demo.
+then expose it everywhere, with UCP and ACP sharing one payment-shaped adapter
+path. Real Stripe payment completion requires a Stripe account that can mint
+SPTs for a network business profile.
 
 See also:
 

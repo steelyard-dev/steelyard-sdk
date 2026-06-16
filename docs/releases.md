@@ -2,10 +2,11 @@
 
 ## 0.6.0 - 2026-06-16
 
-Steelyard v0.6 makes agentic payment real across both UCP and ACP. Buyers can
-mint Stripe Shared Payment Tokens in Test mode, bind those tokens to AP2 payment
-mandates on UCP, and complete checkout through a Steelyard merchant that charges
-the SPT via Stripe. Merchants now advertise Stripe through the UCP
+Steelyard v0.6 completes the SDK surface for exposing one commerce definition
+through MCP, UCP, and ACP, then wires UCP and ACP checkout to the same Stripe SPT
+adapter path. Buyers can prepare Stripe Shared Payment Tokens in Test mode, bind
+those tokens to AP2 payment mandates on UCP, and send direct SPT
+`payment_data` on ACP. Merchants now advertise Stripe through the UCP
 `ucp.payment_handlers["net.steelyard"]` registry, and buyers select compatible
 handlers before checkout completion.
 
@@ -15,10 +16,12 @@ bearer auth, direct SPT `payment_data`, and `Merchant-Signature` webhook
 verification helpers. ACP does not use AP2 in v0.6; its trust boundary is bearer
 auth plus webhook HMAC, while UCP keeps AP2 as the signed user-consent artifact.
 
-Coffee-shop now has UCP+Stripe and ACP+Stripe smoke scripts that run against
-Stripe Test API when `STRIPE_TEST_SECRET_KEY` is set, plus offline mock Stripe
-mode for `pnpm validate-examples`. The docs now cover the v0.6 payment loop,
-Stripe SPT error mapping, UCP payment handlers, and Test mode setup.
+Coffee-shop now has UCP+Stripe and ACP+Stripe smoke scripts validated in offline
+mock Stripe mode by `pnpm validate-examples`. The same scripts can be pointed at
+Stripe Test API with `STRIPE_TEST_SECRET_KEY`, but real Stripe SPT minting and
+PaymentIntent capture require account-level business-profile/SPT access and are
+not certified by this release. The docs now cover the v0.6 payment flow, Stripe
+SPT error mapping, UCP payment handlers, and Test mode setup.
 
 ## 0.5.0 - 2026-06-15
 

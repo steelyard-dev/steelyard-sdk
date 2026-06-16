@@ -19,9 +19,10 @@ STEELYARD_ALLOW_MOCK_PSP=1 pnpm --filter @steelyard/example-coffee-shop smoke:va
 
 ## Stripe SPT Smokes
 
-v0.6 adds end-to-end Stripe Shared Payment Token smokes for both protocol
-surfaces. These use Stripe Test mode only. Do not use `sk_live_*`; the runtime
-rejects live keys in this release.
+v0.6 adds Stripe Shared Payment Token smokes for both protocol surfaces. Release
+validation uses offline mock Stripe mode; real Stripe Test API runs are opt-in
+and require a Stripe account with business-profile/SPT access. Do not use
+`sk_live_*`; the runtime rejects live keys in this release.
 
 Get an unrestricted Test mode secret key from the Stripe Dashboard, then run:
 
@@ -34,12 +35,14 @@ pnpm --filter @steelyard/example-coffee-shop smoke:stripe:acp
 ```
 
 The UCP smoke signs AP2 mandates, mints an SPT scoped to the checkout, embeds
-that SPT in the AP2 payment mandate, and charges through Stripe Test API. The
+that SPT in the AP2 payment mandate, and charges through the Stripe adapter. The
 ACP smoke discovers `/.well-known/acp.json`, creates a checkout session, skips
 `delegate_payment`, completes with direct SPT `payment_data`, and verifies the
-ACP webhook signature helper.
+ACP webhook signature helper. Against real Stripe, a `Stripe business profile
+not found` response means the key is valid but the account is not enabled for
+the SPT business-profile flow.
 
-For offline validation and CI:
+For release validation and CI:
 
 ```sh
 STEELYARD_MOCK_STRIPE=1 STRIPE_TEST_SECRET_KEY=sk_test_mock \

@@ -4,6 +4,10 @@ Steelyard v0.6 is test-mode only for Stripe SPTs. Use an unrestricted
 `sk_test_*` secret key. `sk_live_*` is rejected at runtime with
 `STRIPE_LIVE_DISABLED_v0_6`.
 
+The release validates the UCP and ACP SPT wiring with offline mock Stripe
+smokes. Running the same smokes against `api.stripe.com` is opt-in and requires
+the Stripe account behind the key to have business-profile/SPT access.
+
 ## 1. Get a Test Secret Key
 
 In the Stripe Dashboard, switch to Test mode and copy the unrestricted secret
@@ -18,8 +22,8 @@ be shared.
 
 ## 2. Seller Profile
 
-Stripe's Test API accepts the documented placeholder network business profile
-used by the coffee-shop example:
+The coffee-shop example defaults to the documented placeholder network business
+profile:
 
 ```text
 profile_test_61TU90nIeGjU7NNVXA6TU90m7ISQWsBxpcx9lASWWXTk
@@ -27,6 +31,9 @@ profile_test_61TU90nIeGjU7NNVXA6TU90m7ISQWsBxpcx9lASWWXTk
 
 For your own integration, create or select a network business profile in the
 Stripe Dashboard and pass it as `sellerProfile` to `createStripeSptIssuer()`.
+If Stripe returns `Stripe business profile not found`, the key is valid but the
+account is not enabled for the SPT business-profile flow; use
+`STEELYARD_MOCK_STRIPE=1` for SDK validation until Stripe enables that access.
 
 ## 3. Run the Coffee-Shop Smokes
 
@@ -45,7 +52,8 @@ pnpm --filter @steelyard/example-coffee-shop smoke:stripe:acp
 ```
 
 CI and local offline validation use the same scripts with `STEELYARD_MOCK_STRIPE=1`.
-That mode exercises the Steelyard SPT wiring without contacting Stripe.
+That mode exercises the Steelyard SPT wiring without contacting Stripe and is
+the v0.6 release gate.
 
 ## Notes
 
