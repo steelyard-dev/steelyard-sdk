@@ -17,7 +17,10 @@
     "verify": "tsx src/cli.ts"
   },
   "dependencies": {
+    "@steelyard/buyer": "workspace:^",
     "@steelyard/core": "workspace:^",
+    "@steelyard/merchant": "workspace:^",
+    "@steelyard/psp": "workspace:^",
     "@steelyard/protocol": "workspace:^"
   },
   "devDependencies": {}

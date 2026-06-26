@@ -1,5 +1,22 @@
 # Release History
 
+## 0.10.0 - 2026-06-26
+
+Steelyard v0.10 turns PSP adapters into a public, contributable contract. The new
+`@steelyard/psp` package owns the protocol-neutral merchant interfaces and
+re-exports the buyer-side issuer contract types from `@steelyard/core`, so adapter
+authors can depend on one thin package instead of the full merchant checkout
+server. Existing `@steelyard/merchant/psp` imports continue to work through
+compatibility re-exports, and the first-party Stripe, reference, and mock adapters
+remain in-repo as reference implementations.
+
+The release also adds a framework-agnostic conformance kit at
+`@steelyard/psp/conformance`, plus a standalone-shaped
+`examples/psp-adapter-template/` package that external authors can copy into their
+own repos. The docs now describe the scoped trust boundary, the additive-only
+contract stability policy, and the `steelyard-psp-*` / `steelyard-psp`
+discoverability convention for third-party adapters.
+
 ## 0.9.0 - 2026-06-26
 
 Steelyard v0.9 makes the SDK easy to start with. A new `steelyard` umbrella package

@@ -7,6 +7,17 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-06-26
+
+### Added
+- New thin `@steelyard/psp` package exposing the public PSP adapter contract, re-exporting buyer-side contract types from `@steelyard/core`, and reserving `@steelyard/psp/conformance` as the adapter conformance entry point (PC1, PC2, PC3, PC4).
+- Framework-agnostic conformance runners for merchant PSP adapters and buyer issuers, plus an in-repo dogfood test proving the first-party mock, Stripe, and reference implementations pass the kit (CF1, CF2, CF3, CF4).
+- Standalone-shaped `examples/psp-adapter-template/` package showing a third-party adapter, issuer, and conformance test with only `@steelyard/psp` as a runtime dependency (TPL1).
+- Public adapter-authoring documentation and `@steelyard/psp` README covering the contract surface, conformance kit, trust model, discoverability convention, and scoped stability policy (TPL2, TPL3, IN2).
+
+### Changed
+- Moved the protocol-neutral merchant PSP interfaces out of `@steelyard/merchant` and into `@steelyard/psp`, while preserving `@steelyard/merchant/psp` compatibility re-exports and leaving Stripe/reference/mock adapter behavior unchanged (RW1, RW2, RW3, RW4).
+
 ## [0.9.0] - 2026-06-26
 
 ### Added
