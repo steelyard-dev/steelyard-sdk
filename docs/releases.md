@@ -1,5 +1,22 @@
 # Release History
 
+## 0.9.0 - 2026-06-26
+
+Steelyard v0.9 makes the SDK easy to start with. A new `steelyard` umbrella package
+replaces the six-package install and the 500-plus-symbol surface with one install and
+a curated front door: the ~15 symbols most integrators actually need, re-exported from
+the existing packages. Nothing is hidden — the underlying `@steelyard/*` packages are
+unchanged and still importable directly for the full surface.
+
+The headline is `serveCommerce(manifest)`: one call serves your catalog over every
+read surface — `commerce.json`, the plain HTTP API, MCP, ACP, and UCP — from a single
+manifest, read-only by default with no PSP or keys required. It composes the existing
+protocol handlers behind one path router (a generalization of the coffee-shop example),
+so behavior is identical to wiring each surface by hand. The getting-started guide now
+leads with a build-your-own quickstart: install one package, write eight lines, and
+curl a live multi-protocol endpoint of your own catalog in under two minutes. This
+release is purely additive; every existing import keeps working.
+
 ## 0.8.0 - 2026-06-26
 
 Steelyard v0.8 is a behavior-preserving navigation cleanup. The AP2 mandate and

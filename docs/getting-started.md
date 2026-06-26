@@ -1,39 +1,72 @@
 # Quickstart
 
-The 60-second demo: spin up an example coffee shop that exposes its catalog
-as `commerce.json`, plain HTTP, and all three agentic protocols, then have an
-LLM-driven agent CLI explore it.
+Under 2 minutes: install one package, define your catalog, serve it over every
+read surface from one call.
 
-## Prerequisites
+## Build your own (under 2 minutes)
 
-- Node ≥ 20
-- pnpm ≥ 9
-- *(optional)* `ANTHROPIC_API_KEY` to use the LLM path of `@steelyard/agent`.
-  Without it the agent uses a naive regex parser and still reaches an answer.
+```bash
+npm install steelyard
+```
 
-## Clone and install
+```ts title="server.ts"
+import { defineCommerce, serveCommerce } from "steelyard";
+
+const manifest = defineCommerce({
+  identity: { name: "My Shop", domain: "shop.example", currencies: ["USD"] },
+  offers: [
+    {
+      id: "single",
+      title: "Single Espresso",
+      availability: "in_stock",
+      pricing: [{ kind: "one_time", amount: 300, currency: "USD" }]
+    }
+  ]
+});
+
+serveCommerce(manifest).listen(3000);
+```
+
+```bash
+node server.ts   # or run via tsx / your bundler
+curl localhost:3000/.well-known/commerce.json
+```
+
+That one `serveCommerce` call exposes your catalog over **five live read surfaces**
+from a single manifest:
+
+| Surface | Path |
+|---------|------|
+| Commerce manifest | `/.well-known/commerce.json` |
+| Plain HTTP API | `/commerce/products` |
+| MCP | `/mcp` |
+| ACP | `/acp/feed` |
+| UCP | `/.well-known/ucp` + `/api/catalog/*` |
+
+Read-only by default — no PSP or keys required. Add checkout later with
+`createMerchantCheckout` + a PSP adapter (`stripePsp` / `referencePsp`).
+
+!!! tip "Same config, every surface"
+    `curl localhost:3000/acp/feed` and `POST localhost:3000/api/catalog/search`
+    return the same offers as the HTTP API — emitted from the one `defineCommerce`
+    config. That's the unification.
+
+---
+
+## Or: clone the example demo
+
+Prefer to poke at a working multi-protocol shop with an LLM agent first?
+
+**Prerequisites:** Node ≥ 20, pnpm ≥ 9, *(optional)* `ANTHROPIC_API_KEY` for the
+LLM path of `@steelyard/agent` (without it, a naive parser still answers).
 
 ```bash
 git clone https://github.com/riccardoio/steelyard-sdk.git steelyard
 cd steelyard
 pnpm install
 pnpm -r build
+pnpm --filter @steelyard/example-coffee-shop start   # → http://127.0.0.1:3000
 ```
-
-## Boot the example merchant
-
-```bash
-pnpm --filter @steelyard/example-coffee-shop start
-```
-
-You should see something like:
-
-```
-Steelyard coffee shop listening on http://127.0.0.1:3000
-```
-
-**Same `defineCommerce({...})` config, static JSON plus four live read
-surfaces.** This is the unification.
 
 ## Send the buyer agent to explore
 

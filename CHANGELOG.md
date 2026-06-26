@@ -7,6 +7,16 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-26
+
+### Added
+- New `steelyard` umbrella package: one install (`npm install steelyard`) and one import expose the ~15 symbols most integrators need — `defineCommerce`, the per-protocol handlers, `createMerchantCheckout`, `stripePsp`/`referencePsp`, `createStripeSptIssuer`/`createReferencePaymentIssuer`, `Wallet`, and `Steelyard`/`connect` (UP1, UP2, UP3, UP4).
+- `serveCommerce(manifest)` / `createCommerceHandler(manifest)`: serve a commerce manifest over all five read surfaces (`commerce.json`, `/commerce` HTTP API, `/mcp`, `/acp/feed`, `/.well-known/ucp` + `/api/catalog/*`) from one call, read-only by default with no PSP required, composing the existing protocol handlers behind one path router (SV1, SV2, SV3).
+- Build-your-own quickstart: README and `docs/getting-started.md` now lead with `npm install steelyard` + an eight-line define-and-serve example reaching a live multi-protocol endpoint in under two minutes; the clone-the-demo path is kept as a secondary section (QS1, QS2, QS3).
+
+### Changed
+- The existing `@steelyard/*` packages, exports, and import paths are unchanged; the umbrella is purely additive (BC1, BC2, BC3).
+
 ## [0.8.0] - 2026-06-26
 
 ### Changed

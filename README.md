@@ -11,27 +11,17 @@ Stripe-backed and reference-backed UCP checkout configs. ACP remains
 intentionally direct Stripe SPT-only in this release. MCP checkout remains out
 of scope.
 
-## Install
+## Quickstart (under 2 minutes)
 
 ```sh
-npm install @steelyard/core @steelyard/protocol @steelyard/buyer @steelyard/merchant @steelyard/stripe @steelyard/cli
+npm install steelyard
 ```
-
-For local development:
-
-```sh
-pnpm install --frozen-lockfile
-pnpm -r build
-pnpm -r test
-```
-
-## Define Once
 
 ```ts
-import { defineCommerce } from "@steelyard/core";
+import { defineCommerce, serveCommerce } from "steelyard";
 
-export const manifest = defineCommerce({
-  identity: { name: "Steelyard Coffee", domain: "coffee.example", currencies: ["USD"] },
+const manifest = defineCommerce({
+  identity: { name: "My Shop", domain: "shop.example", currencies: ["USD"] },
   offers: [
     {
       id: "single",
@@ -41,11 +31,41 @@ export const manifest = defineCommerce({
     }
   ]
 });
+
+serveCommerce(manifest).listen(3000);
 ```
 
-Pass that manifest to `@steelyard/protocol/mcp`, `@steelyard/protocol/acp`, and `@steelyard/protocol/ucp` to expose one catalog through all three protocols.
-Pass the same manifest to `@steelyard/merchant/checkout` to mount ACP and UCP
-checkout routes.
+```sh
+curl localhost:3000/.well-known/commerce.json
+```
+
+That one `serveCommerce` call exposes your catalog over **all five read surfaces**
+from a single manifest: `/.well-known/commerce.json`, the `/commerce` HTTP API,
+`/mcp`, `/acp/feed`, and `/.well-known/ucp` + `/api/catalog/*`. Read-only by default,
+no PSP required. The single `steelyard` package re-exports the ~15 symbols most
+integrators need (`defineCommerce`, the protocol handlers, `Wallet`, `Steelyard.connect`,
+`stripePsp`, `createStripeSptIssuer`, …); see [`packages/steelyard`](packages/steelyard/README.md).
+
+## Advanced: individual packages
+
+The umbrella is a front door, not a wall. Import any specific package directly when
+you need the full surface:
+
+```sh
+npm install @steelyard/core @steelyard/protocol @steelyard/buyer @steelyard/merchant @steelyard/stripe @steelyard/cli
+```
+
+For local development of this monorepo:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm -r build
+pnpm -r test
+```
+
+`defineCommerce(...)` builds the manifest; pass it to `@steelyard/protocol/mcp`,
+`/acp`, and `/ucp` for per-protocol control, or to `@steelyard/merchant/checkout`
+to mount ACP and UCP checkout routes.
 
 ## What's New in v0.7
 
