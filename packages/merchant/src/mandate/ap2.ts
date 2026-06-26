@@ -1,11 +1,16 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import {
   assertValidEcJwk,
-  jcsCanonicalize,
-  signDetachedJws,
+  ecdsaSignRaw,
   type EcJwk,
   type HmsAlgorithm
 } from "@steelyard/core";
+import {
+  Ap2MerchantAuthorizationSignerConfigError,
+  ap2MerchantAuthorizationSigner as ap2MerchantAuthorizationSignerForUcpSigner,
+  checkoutWithoutAp2
+} from "@steelyard/ucp-signing";
+import type { UcpSigner } from "@steelyard/ucp-signing";
 import type { Checkout } from "@steelyard/protocol/ucp/checkout";
 import type { HmsSigningKey } from "../checkout/index.js";
 
@@ -18,34 +23,16 @@ export interface Ap2MerchantAuthorizationSignerOptions {
   activeKid: string;
 }
 
-export class Ap2MerchantAuthorizationSignerConfigError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "Ap2MerchantAuthorizationSignerConfigError";
-  }
-}
+export { Ap2MerchantAuthorizationSignerConfigError, checkoutWithoutAp2 };
 
 export function ap2MerchantAuthorizationSigner(
   opts: Ap2MerchantAuthorizationSignerOptions
 ): MerchantAuthorizationSigner {
   const signingKey = activeSigningKey(opts);
   const privateKey = validPrivateSigningKey(signingKey);
-  const { algorithm, kid } = signingKey;
-
-  return {
-    async sign(checkout) {
-      return await signDetachedJws({
-        payload: jcsCanonicalize(checkoutWithoutAp2(checkout)),
-        header: { alg: algorithm, kid },
-        privateKey
-      });
-    }
-  };
-}
-
-export function checkoutWithoutAp2(checkout: Checkout): Checkout {
-  const { ap2: _ap2, ...payload } = checkout;
-  return payload;
+  return ap2MerchantAuthorizationSignerForUcpSigner({
+    signer: signerFromPrivateKey(signingKey, privateKey)
+  }) as MerchantAuthorizationSigner;
 }
 
 function activeSigningKey(opts: Ap2MerchantAuthorizationSignerOptions): HmsSigningKey {
@@ -90,6 +77,25 @@ function validPrivateSigningKey(signingKey: HmsSigningKey): EcJwk {
     );
   }
   return jwk;
+}
+
+function signerFromPrivateKey(signingKey: HmsSigningKey, privateKey: EcJwk): UcpSigner {
+  return {
+    async publicJwk() {
+      const { d: _private, ...publicKey } = privateKey as EcJwk & { d?: string };
+      return JSON.parse(JSON.stringify(publicKey)) as EcJwk;
+    },
+    async sign(data, alg) {
+      if (alg !== signingKey.algorithm) {
+        throw new Error(`AP2 merchant authorization signer ${signingKey.kid} uses ${signingKey.algorithm}, not ${alg}`);
+      }
+      return await ecdsaSignRaw({
+        algorithm: alg,
+        privateKeyJwk: privateKey,
+        data
+      });
+    }
+  };
 }
 
 function algorithmForCurve(curve: EcJwk["crv"]): HmsAlgorithm {

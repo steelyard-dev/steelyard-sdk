@@ -391,9 +391,17 @@ export class BuyerVault {
     return ucpSigningPublicKey(await this.requireUcpSigningKey());
   }
 
+  async publicJwk(): Promise<EcJwk> {
+    return await this.exportUcpSigningPublicKey();
+  }
+
   async signWithUcpKey(args: { data: Uint8Array; algorithm: HmsAlgorithm }): Promise<Uint8Array> {
     this.assertOpen();
     return await signWithStoredUcpKey(await this.requireUcpSigningKey(), args);
+  }
+
+  async sign(data: Uint8Array, alg: HmsAlgorithm): Promise<Uint8Array> {
+    return await this.signWithUcpKey({ data, algorithm: alg });
   }
 
   async recordSpend(receipt: SpendReceipt): Promise<void> {

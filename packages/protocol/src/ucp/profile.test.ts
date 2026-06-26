@@ -39,6 +39,14 @@ describe("fetchUcpProfile", () => {
       fetch,
       allowPrivateNetwork: false
     })).rejects.toMatchObject({ code: "Ucp.ProfileScheme" });
+    await expect(fetchUcpProfile("ftp://profile.example/.well-known/ucp", {
+      fetch,
+      lookup: publicLookup
+    })).rejects.toMatchObject({ code: "Ucp.ProfileScheme" });
+    await expect(fetchUcpProfile("not a url", {
+      fetch,
+      lookup: publicLookup
+    })).rejects.toMatchObject({ code: "Ucp.ProfileScheme" });
   });
 
   it("rejects private-network HTTPS profiles unless private-network access is explicit", async () => {
@@ -53,6 +61,10 @@ describe("fetchUcpProfile", () => {
       lookup: async () => [{ address: "10.0.0.1" }],
       allowPrivateNetwork: true
     })).resolves.toMatchObject({ signing_keys: [expect.objectContaining({ kid: "merchant-p256" })] });
+    await expect(fetchUcpProfile("https://93.184.216.34/.well-known/ucp", {
+      fetch,
+      lookup: publicLookup
+    })).resolves.toMatchObject({ signing_keys: [expect.objectContaining({ kid: "merchant-p256" })] });
   });
 
   it("rejects redirects, oversized bodies, and timeouts", async () => {
@@ -60,6 +72,35 @@ describe("fetchUcpProfile", () => {
       fetch: vi.fn(async () => new Response("", { status: 302, headers: { location: "https://elsewhere.example" } })),
       lookup: publicLookup
     })).rejects.toMatchObject({ code: "Ucp.ProfileRedirect" });
+
+    await expect(fetchUcpProfile("https://profile.example/.well-known/ucp", {
+      fetch: vi.fn(async () => new Response("", { status: 500 })),
+      lookup: publicLookup
+    })).rejects.toMatchObject({ code: "Ucp.ProfileHttp" });
+
+    await expect(fetchUcpProfile("https://profile.example/.well-known/ucp", {
+      fetch: vi.fn(async () => new Response("{")),
+      lookup: publicLookup
+    })).rejects.toMatchObject({ code: "Ucp.ProfileInvalid" });
+
+    await expect(fetchUcpProfile("https://profile.example/.well-known/ucp", {
+      fetch: vi.fn(async () => new Response(null)),
+      lookup: publicLookup
+    })).rejects.toMatchObject({ code: "Ucp.ProfileInvalid" });
+
+    await expect(fetchUcpProfile("https://profile.example/.well-known/ucp", {
+      fetch: vi.fn(async () => {
+        throw new Error("network down");
+      }),
+      lookup: publicLookup
+    })).rejects.toMatchObject({ code: "Ucp.ProfileUnreachable" });
+
+    await expect(fetchUcpProfile("https://profile.example/.well-known/ucp", {
+      fetch: vi.fn(async () => jsonResponse(profile([merchantP256PublicKey]))),
+      lookup: async () => {
+        throw new Error("dns failed");
+      }
+    })).rejects.toMatchObject({ code: "Ucp.ProfileUnreachable" });
 
     await expect(fetchUcpProfile("https://profile.example/.well-known/ucp", {
       fetch: vi.fn(async () => new Response("x".repeat(UCP_PROFILE_MAX_BYTES + 1))),
@@ -136,6 +177,11 @@ describe("UcpProfileCache", () => {
     });
 
     expect(key?.kid).toBe("merchant-p384");
+    await expect(cache.resolveSigningKey("https://profile.example/.well-known/ucp", "merchant-p384", {
+      fetch,
+      lookup: publicLookup,
+      now: () => new Date("2026-06-15T00:00:30.000Z")
+    })).resolves.toMatchObject({ kid: "merchant-p384" });
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
