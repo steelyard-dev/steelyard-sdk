@@ -95,4 +95,4 @@ v0.7.0. MIT. Pinned to the published versions of each protocol spec (ACP
 2026-04-17, UCP 2026-04-17, MCP per `@modelcontextprotocol/sdk` >= 1.29).
 
 [Get started →](getting-started.md){ .md-button .md-button--primary }
-[View on GitHub :material-github:](https://github.com/interfacelabs/steelyard-sdk){ .md-button }
+[View on GitHub :material-github:](https://github.com/riccardoio/steelyard-sdk){ .md-button }

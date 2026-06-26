@@ -14,7 +14,7 @@ LLM-driven agent CLI explore it.
 ## Clone and install
 
 ```bash
-git clone https://github.com/interfacelabs/steelyard-sdk.git steelyard
+git clone https://github.com/riccardoio/steelyard-sdk.git steelyard
 cd steelyard
 pnpm install
 pnpm -r build

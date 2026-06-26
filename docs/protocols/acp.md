@@ -90,7 +90,7 @@ receipt state mapping.
 
 ## Verification
 
-[`packages/protocol/src/acp/feed.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/protocol/src/acp/feed.test.ts)
+[`packages/protocol/src/acp/feed.test.ts`](https://github.com/riccardoio/steelyard-sdk/blob/main/packages/protocol/src/acp/feed.test.ts)
 exercises the full `Manifest → AcpFeed` pipeline against the pinned spec
 schema, including adversarial cases (a tampered feed must throw the spec
 violation).

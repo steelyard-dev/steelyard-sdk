@@ -31,7 +31,7 @@ resources wired. You attach it to any transport.
 ### `createMcpHttpHandler(manifest)` → `RequestListener`
 
 A streamable-HTTP `RequestListener` you pass to Node's `http.createServer`.
-This is what the [coffee-shop example](https://github.com/interfacelabs/steelyard-sdk/tree/main/examples/coffee-shop)
+This is what the [coffee-shop example](https://github.com/riccardoio/steelyard-sdk/tree/main/examples/coffee-shop)
 mounts at `/mcp`.
 
 ### `runMcpStdio(server)`

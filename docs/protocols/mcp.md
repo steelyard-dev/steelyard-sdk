@@ -76,7 +76,7 @@ from any `@modelcontextprotocol/sdk` client.
 Steelyard's MCP tests run a real `@modelcontextprotocol/sdk` client against
 the emitted server, assert the capability shape, exercise `list_offers` and
 `get_offer`, and read both resources end-to-end. See
-[`packages/protocol/src/mcp/mcp.test.ts`](https://github.com/interfacelabs/steelyard-sdk/blob/main/packages/protocol/src/mcp/mcp.test.ts).
+[`packages/protocol/src/mcp/mcp.test.ts`](https://github.com/riccardoio/steelyard-sdk/blob/main/packages/protocol/src/mcp/mcp.test.ts).
 
 ## What's not on the wire
 
