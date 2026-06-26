@@ -7,6 +7,13 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-26
+
+### Changed
+- Extracted AP2 mandate and UCP HTTP Message Signature algorithms into `@steelyard/ucp-signing`, while preserving existing buyer, merchant, and protocol import paths through compatibility re-exports and adapters (US1, US2, US3, US4, US5, KS1, KS2, BD1, BD2).
+- Deduplicated `PspCaptureResult` into `@steelyard/core` and re-exported it from the merchant, UCP, and ACP surfaces so PSP result shape has one canonical definition (DD1, DD2, DD3).
+- Kept checkout behavior unchanged: AP2 remains opt-in through capability negotiation, the vault still owns UCP signing keys, and the legacy `net.steelyard.checkout_mandate.v0_1` mandate mode is retained (KS3, MM1, MM2, MM3).
+
 ## [0.7.0] - 2026-06-26
 
 ### Added

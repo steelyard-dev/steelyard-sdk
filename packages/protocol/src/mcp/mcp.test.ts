@@ -7,7 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
-import { defineCommerce, type EcJwk, type Manifest } from "@steelyard/core";
+import { defineCommerce, ecdsaSignRaw, type EcJwk, type HmsAlgorithm, type Manifest } from "@steelyard/core";
 import { signUcpRequest, verifyUcpResponse } from "../ucp/index.js";
 import {
   COMMERCE_CAPABILITY,
@@ -207,7 +207,7 @@ describe("transports", () => {
       },
       responseSigning: {
         enabled: true,
-        signing: { kid: "merchant-p256", algorithm: "ES256", privateKey: merchantP256PrivateKey }
+        signing: signingMaterial("merchant-p256", "ES256", merchantP256PrivateKey)
       },
       clock: () => now
     });
@@ -225,7 +225,7 @@ describe("transports", () => {
         "idempotency-key": "mcp-init-1"
       },
       body: Buffer.from(rawBody, "utf8"),
-      signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+      signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
       ucpAgent: walletUcpAgent,
       now
     });
@@ -298,7 +298,7 @@ describe("transports", () => {
         "idempotency-key": "mcp-init-2"
       },
       body: Buffer.from(signedBody, "utf8"),
-      signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+      signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
       ucpAgent: walletUcpAgent,
       now
     });
@@ -446,6 +446,14 @@ function responseHeaders(headers: IncomingMessage["headers"]): Record<string, st
     else if (value !== undefined) out[name] = value;
   }
   return out;
+}
+
+function signingMaterial(kid: string, algorithm: HmsAlgorithm, privateKey: EcJwk) {
+  return {
+    kid,
+    algorithm,
+    sign: (data: Uint8Array) => ecdsaSignRaw({ algorithm, privateKeyJwk: privateKey, data })
+  };
 }
 
 function b64urlHex(value: string): string {

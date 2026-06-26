@@ -15,6 +15,7 @@ import {
 import type { UcpSigner } from "./signer.js";
 
 export type Checkout = Record<string, unknown>;
+const PRIVATE_JWK_MEMBER = "d";
 
 export interface Ap2CheckoutMandateSigner {
   exportUcpSigningPublicKey(): Promise<EcJwk>;
@@ -860,8 +861,11 @@ function randomSalt(): string {
 }
 
 function publicHolderKey(key: EcJwk): EcJwk {
-  const { d: _private, ...publicKey } = key as EcJwk & { d?: string };
-  return cloneJson(publicKey) as EcJwk;
+  const publicKey = cloneJson(key) as Record<string, unknown>;
+  if (Object.hasOwn(publicKey, PRIVATE_JWK_MEMBER)) {
+    throw new Error("AP2 holder public key must not include private d");
+  }
+  return publicKey as EcJwk;
 }
 
 function algorithmForKey(key: EcJwk): HmsAlgorithm {

@@ -4,6 +4,7 @@ import type { IncomingMessage, RequestListener, ServerResponse } from "node:http
 import {
   assertValidEcJwk,
   canonicalMerchantAudience,
+  ecdsaSignRaw,
   systemClock,
   totalAmount,
   type EcJwk,
@@ -48,7 +49,8 @@ import {
   signUcpResponse,
   verifyUcpRequest,
   type UcpProfileDoc,
-  type UcpRequestVerificationFailureReason
+  type UcpRequestVerificationFailureReason,
+  type UcpSigningMaterial
 } from "@steelyard/protocol/ucp";
 import type {
   MandateVerificationResult,
@@ -605,7 +607,7 @@ function shouldSignUcpResponse(ctx: MerchantCheckoutContext, kind: UcpResponseKi
   return kind === "high-value";
 }
 
-function activeUcpSigningKey(ctx: MerchantCheckoutContext): { kid: string; algorithm: HmsAlgorithm; privateKey: EcJwk } | undefined {
+function activeUcpSigningKey(ctx: MerchantCheckoutContext): UcpSigningMaterial | undefined {
   const hms = ctx.opts.ucp?.auth?.hms;
   if (hms?.enabled !== true) return undefined;
   const active = hms.signingKeys.find((key) => key.kid === hms.activeKid);
@@ -613,7 +615,12 @@ function activeUcpSigningKey(ctx: MerchantCheckoutContext): { kid: string; algor
   return {
     kid: active.kid,
     algorithm: active.algorithm,
-    privateKey: active.privateKeyJwk
+    sign: (data) =>
+      ecdsaSignRaw({
+        algorithm: active.algorithm,
+        privateKeyJwk: active.privateKeyJwk,
+        data
+      })
   };
 }
 

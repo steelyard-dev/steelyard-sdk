@@ -12,7 +12,6 @@ export type {
   SignUcpRequestArgs,
   SignUcpResponseArgs,
   UcpOpaqueSigningMaterial,
-  UcpPrivateSigningMaterial,
   UcpRequestVerificationFailureReason,
   UcpRequestVerificationResult,
   UcpResponseVerificationResult,

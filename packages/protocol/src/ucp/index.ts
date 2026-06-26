@@ -90,7 +90,6 @@ export type {
   UcpRequestVerificationFailureReason,
   UcpRequestVerificationResult,
   UcpOpaqueSigningMaterial,
-  UcpPrivateSigningMaterial,
   UcpResponseVerificationResult,
   UcpSigningMaterial,
   VerifyUcpRequestArgs,

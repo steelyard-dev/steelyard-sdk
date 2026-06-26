@@ -6,7 +6,8 @@ import {
   verifyDetachedJws,
   type EcJwk,
   type HmsAlgorithm,
-  type PaymentCapability
+  type PaymentCapability,
+  type PspCaptureResult
 } from "@steelyard/core";
 import {
   STRIPE_LIVE_KEY_PREFIX,
@@ -17,6 +18,7 @@ import {
   redactSecret
 } from "@steelyard/core/stripe";
 import { verifyAp2PaymentMandate } from "@steelyard/ucp-signing";
+export type { PspCaptureResult } from "@steelyard/core";
 
 export interface PspPaymentIntent {
   amount: number;
@@ -45,31 +47,6 @@ export interface PspCaptureArgs {
   instrument_type?: string;
   payment_mandate?: PspPaymentMandate;
 }
-
-export type PspCaptureResult =
-  | {
-      ok: true;
-      psp_payment_id: string;
-      psp_charge_id?: string;
-      psp_charge_status?: string;
-      status: "captured" | "authorized";
-    }
-  | {
-      ok: false;
-      reason:
-        | "declined"
-        | "fraud"
-        | "insufficient_funds"
-        | "expired_card"
-        | "expired"
-        | "limit_exceeded"
-        | "revoked"
-        | "seller_mismatch"
-        | "other";
-      message: string;
-      detail?: string;
-    }
-  | { ok: false; requires_authentication: true; continue_url: string };
 
 export interface PspAdapter {
   name: string;
@@ -604,10 +581,6 @@ function cloneResult<T extends PspCaptureResult>(value: T): T {
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
 function stringValue(value: unknown, fallback: string): string {

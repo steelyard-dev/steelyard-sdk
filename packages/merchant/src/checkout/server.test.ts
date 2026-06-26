@@ -3,10 +3,12 @@ import { createHash } from "node:crypto";
 import { createServer, type RequestListener, type Server } from "node:http";
 import {
   defineCommerce,
+  ecdsaSignRaw,
   jcsCanonicalize,
   verifyDetachedJws,
   type Decision,
   type EcJwk,
+  type HmsAlgorithm,
   type PurchaseIntent
 } from "@steelyard/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -1710,7 +1712,7 @@ async function signedUcpHeaders(
       "idempotency-key": idempotencyKey
     },
     body: rawBody,
-    signing: { kid, algorithm: "ES256", privateKey: walletP256PrivateKey },
+    signing: signingMaterial(kid, "ES256", walletP256PrivateKey),
     ucpAgent: `profile="${profileUrl}"`,
     now
   })).headers;
@@ -1720,6 +1722,14 @@ function stringField(value: unknown, key: string): string {
   const field = value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined;
   if (typeof field !== "string") throw new Error(`expected ${key} to be a string`);
   return field;
+}
+
+function signingMaterial(kid: string, algorithm: HmsAlgorithm, privateKey: EcJwk) {
+  return {
+    kid,
+    algorithm,
+    sign: (data: Uint8Array) => ecdsaSignRaw({ algorithm, privateKeyJwk: privateKey, data })
+  };
 }
 
 function recordField(value: unknown, key: string): Record<string, unknown> {

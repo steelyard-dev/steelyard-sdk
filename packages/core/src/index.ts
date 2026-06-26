@@ -93,6 +93,7 @@ export type {
   UcpCheckoutStatus,
   UnknownAcpOrderStatusWarning
 } from "./order-state.js";
+export type { PspCaptureResult } from "./psp.js";
 export type { UcpErrorEnvelope, V04ErrorEnvelope } from "./errors.js";
 export type { Ap2ErrorCode, DisclosureClaim, DisclosureTree } from "./ap2.js";
 export type {

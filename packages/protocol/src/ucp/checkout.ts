@@ -1,4 +1,5 @@
 // Copyright (c) Steelyard contributors. MIT License.
+import type { PspCaptureResult } from "@steelyard/core";
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import checkoutBaseSchema from "../../spec/ucp/2026-04-17/schemas/shopping/checkout.json";
@@ -9,6 +10,7 @@ import {
   PAYMENT_INSTRUMENT_SCHEMA_ID
 } from "./spec-schemas.js";
 import type { OrderConfirmation } from "@ucp-js/sdk";
+export type { PspCaptureResult } from "@steelyard/core";
 
 export type JsonSchema = Record<string, unknown> & {
   $id?: string;
@@ -37,25 +39,6 @@ export type UcpValidationResult = {
   valid: boolean;
   errors: ErrorObject[] | null | undefined;
 };
-
-export type PspCaptureResult =
-  | { ok: true; psp_payment_id: string; psp_charge_id?: string; psp_charge_status?: string; status: "captured" | "authorized" }
-  | {
-      ok: false;
-      reason:
-        | "declined"
-        | "fraud"
-        | "insufficient_funds"
-        | "expired_card"
-        | "expired"
-        | "limit_exceeded"
-        | "revoked"
-        | "seller_mismatch"
-        | "other";
-      message: string;
-      detail?: string;
-    }
-  | { ok: false; requires_authentication: true; continue_url: string };
 
 const UCP_VERSION = "2026-04-17";
 

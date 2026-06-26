@@ -1,5 +1,5 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import type { Manifest } from "@steelyard/core";
+import type { Manifest, PspCaptureResult } from "@steelyard/core";
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import acpCheckoutSchema from "../../spec/acp/2026-04-17/json-schema/schema.agentic_checkout.json";
@@ -25,6 +25,7 @@ export type DiscountsResponse = AcpDiscountsResponse;
 export type CheckoutSession = AcpCheckoutSession;
 export type CheckoutSessionWithOrder = AcpCheckoutSessionWithOrder;
 export type AcpDiscoveryResponse = GeneratedAcpDiscoveryResponse;
+export type { PspCaptureResult } from "@steelyard/core";
 export type {
   AcpCancelSessionRequest,
   AcpCheckoutSession,
@@ -56,11 +57,6 @@ export type AcpWebhookSignatureErrorCode =
 export type AcpWebhookSignatureVerificationResult =
   | { ok: true; timestamp: number; signature: string }
   | { ok: false; code: AcpWebhookSignatureErrorCode; message: string };
-
-export type PspCaptureResult =
-  | { ok: true; psp_payment_id: string; psp_charge_id?: string; psp_charge_status?: string; status: "captured" | "authorized" }
-  | { ok: false; reason: "declined" | "fraud" | "insufficient_funds" | "expired_card" | "other"; message: string }
-  | { ok: false; requires_authentication: true; continue_url: string };
 
 export interface AcpValidationResult {
   valid: boolean;

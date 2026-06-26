@@ -6,6 +6,7 @@ import {
   jcsCanonicalize,
   signDetachedJws,
   type EcJwk,
+  type HmsAlgorithm,
   type PaymentIssuerMandateDraft,
   type PurchaseIntent,
   type WalletDriverPort
@@ -1301,11 +1302,7 @@ async function sendMaybeSignedUcpComplete(
     status: 200,
     headers: { "content-type": "application/json" },
     body: rawBody,
-    signing: {
-      kid: "merchant-p256",
-      algorithm: "ES256",
-      privateKey: merchantP256PrivateKey
-    },
+    signing: signingMaterial("merchant-p256", "ES256", merchantP256PrivateKey),
     now
   });
   const responseBody = opts.tamperSignedCompleteResponse ? { ...body, status: "canceled" } : body;
@@ -1319,6 +1316,14 @@ function response(text: string, status: number): Response {
     status,
     text: async () => text
   } as Response;
+}
+
+function signingMaterial(kid: string, algorithm: HmsAlgorithm, privateKey: EcJwk) {
+  return {
+    kid,
+    algorithm,
+    sign: (data: Uint8Array) => ecdsaSignRaw({ algorithm, privateKeyJwk: privateKey, data })
+  };
 }
 
 async function listen(server: Server): Promise<string> {

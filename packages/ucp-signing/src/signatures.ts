@@ -4,7 +4,6 @@ import {
   assertValidEcJwk,
   buildSignatureBase,
   contentDigestHeader,
-  ecdsaSignRaw,
   ecdsaVerifyRaw,
   normalizeAuthority,
   parseSf941Dict,
@@ -16,19 +15,13 @@ import {
 } from "@steelyard/core";
 import type { UcpSigner } from "./signer.js";
 
-export interface UcpPrivateSigningMaterial {
-  kid: string;
-  algorithm: HmsAlgorithm;
-  privateKey: EcJwk;
-}
-
 export interface UcpOpaqueSigningMaterial {
   kid: string;
   algorithm: HmsAlgorithm;
   sign: (data: Uint8Array) => Promise<Uint8Array>;
 }
 
-export type UcpSigningMaterial = UcpPrivateSigningMaterial | UcpOpaqueSigningMaterial;
+export type UcpSigningMaterial = UcpOpaqueSigningMaterial;
 
 export interface SignUcpRequestArgs {
   method: string;
@@ -422,13 +415,7 @@ function algorithmForKey(key: EcJwk): HmsAlgorithm {
 }
 
 async function signRaw(signing: UcpSigningMaterial, signatureBase: Uint8Array): Promise<Uint8Array> {
-  const signature = "privateKey" in signing
-    ? await ecdsaSignRaw({
-        algorithm: signing.algorithm,
-        privateKeyJwk: signing.privateKey,
-        data: signatureBase
-      })
-    : await signing.sign(signatureBase);
+  const signature = await signing.sign(signatureBase);
   const expectedLength = signing.algorithm === "ES256" ? 64 : 96;
   if (signature.byteLength !== expectedLength) {
     throw new Error(`UCP ${signing.algorithm} signer returned ${signature.byteLength} bytes, expected ${expectedLength}`);

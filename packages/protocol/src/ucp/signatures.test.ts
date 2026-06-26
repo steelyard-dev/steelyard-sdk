@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it } from "vitest";
-import { contentDigestHeader, ecdsaSignRaw, parseSf941Dict, type EcJwk } from "@steelyard/core";
+import { contentDigestHeader, ecdsaSignRaw, parseSf941Dict, type EcJwk, type HmsAlgorithm } from "@steelyard/core";
 import {
   UcpSignerMissingHeader,
   signUcpRequest,
@@ -53,7 +53,7 @@ describe("signUcpRequest", () => {
         url: new URL("https://merchant.example/ucp/api/checkout"),
         headers: { "content-type": "application/json" },
         body,
-        signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+        signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
         ucpAgent,
         now
       })
@@ -65,7 +65,7 @@ describe("signUcpRequest", () => {
         url: new URL("https://merchant.example/ucp/api/checkout"),
         headers: { "idempotency-key": "create-1" },
         body,
-        signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+        signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
         ucpAgent,
         now
       })
@@ -126,7 +126,7 @@ describe("signUcpRequest", () => {
       method: "GET",
       url: new URL("https://merchant.example/ucp/api/checkout/checkout_1"),
       headers: {},
-      signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+      signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
       ucpAgent,
       now
     });
@@ -263,7 +263,7 @@ describe("signUcpResponse and verifyUcpResponse", () => {
       status: 200,
       headers: { "content-type": "application/json" },
       body,
-      signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+      signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
       now
     });
 
@@ -287,7 +287,7 @@ describe("signUcpResponse and verifyUcpResponse", () => {
     const signed = await signUcpResponse({
       status: 204,
       headers: {},
-      signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+      signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
       now
     });
 
@@ -308,7 +308,7 @@ describe("signUcpResponse and verifyUcpResponse", () => {
         status: 200,
         headers: {},
         body: jsonBytes({ checkout: {} }),
-        signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+        signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
         now
       })
     ).rejects.toMatchObject(new UcpSignerMissingHeader("content-type"));
@@ -320,7 +320,7 @@ describe("signUcpResponse and verifyUcpResponse", () => {
       status: 200,
       headers: { "content-type": "application/json" },
       body,
-      signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+      signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
       now
     });
     const signatureInput = signed.headers["signature-input"]!;
@@ -376,7 +376,7 @@ async function signPost(body: Uint8Array): Promise<{ headers: Record<string, str
       "idempotency-key": "create-1"
     },
     body,
-    signing: { kid: "wallet-p256", algorithm: "ES256", privateKey: walletP256PrivateKey },
+    signing: signingMaterial("wallet-p256", "ES256", walletP256PrivateKey),
     ucpAgent,
     now
   });
@@ -411,6 +411,14 @@ async function verifyResponse(
     resolveKey,
     now
   });
+}
+
+function signingMaterial(kid: string, algorithm: HmsAlgorithm, privateKey: EcJwk) {
+  return {
+    kid,
+    algorithm,
+    sign: (data: Uint8Array) => ecdsaSignRaw({ algorithm, privateKeyJwk: privateKey, data })
+  };
 }
 
 function jsonBytes(value: unknown): Uint8Array {

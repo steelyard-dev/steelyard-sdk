@@ -1,5 +1,21 @@
 # Release History
 
+## 0.8.0 - 2026-06-26
+
+Steelyard v0.8 is a behavior-preserving navigation cleanup. The AP2 mandate and
+UCP HTTP Message Signature algorithms now live in the optional
+`@steelyard/ucp-signing` package, with the existing buyer, merchant, and
+protocol import paths preserved through compatibility re-exports and adapters.
+The wallet vault remains the UCP signing-key custodian; `ucp-signing` operates
+through the public `UcpSigner` seam and does not take ownership of private key
+storage.
+
+The release also collapses the duplicate PSP capture-result unions into one
+canonical `PspCaptureResult` exported by `@steelyard/core`. AP2 remains opt-in
+through UCP capability negotiation, the legacy
+`net.steelyard.checkout_mandate.v0_1` mandate mode is retained, and the refactor
+does not change protocol or checkout behavior.
+
 ## 0.7.0 - 2026-06-26
 
 Steelyard v0.7 generalizes UCP payment wiring beyond Stripe-specific Shared

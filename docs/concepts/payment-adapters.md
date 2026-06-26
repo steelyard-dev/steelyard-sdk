@@ -17,6 +17,21 @@ PSP adapter declares capabilities:
 `available_instruments`. There is no implicit Stripe fallback when a UCP merchant
 omits instrument advertisement.
 
+## AP2 and HMS Crypto
+
+AP2 mandate issuance and verification, AP2 envelope checks, merchant
+authorization signing, AP2 payment-mandate verification, and UCP HTTP Message
+Signature request/response operations live in `@steelyard/ucp-signing`.
+Applications normally reach those functions through the existing buyer,
+merchant, and protocol package exports, but the implementation has one home.
+
+AP2 is still opt-in. A UCP session uses AP2 only when buyer and merchant profiles
+negotiate the `dev.ucp.shopping.ap2_mandate` capability; otherwise Steelyard's
+legacy `net.steelyard.checkout_mandate.v0_1` mandate mode remains available for
+compatible partners. The buyer vault keeps UCP signing keys and exposes signing
+through the `UcpSigner` interface, so the crypto package does not own key
+storage.
+
 ## Stripe SPT
 
 Stripe remains the production-oriented adapter in this release. `stripePsp()`
