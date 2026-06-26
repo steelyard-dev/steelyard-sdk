@@ -43,6 +43,7 @@
     "@sd-jwt/core": "^0.19.0",
     "@sd-jwt/sd-jwt-vc": "^0.19.0",
     "@steelyard/core": "workspace:^",
+    "@steelyard/psp": "workspace:^",
     "@steelyard/protocol": "workspace:^",
     "@steelyard/ucp-signing": "workspace:^",
     "proper-lockfile": "^4.1.2"

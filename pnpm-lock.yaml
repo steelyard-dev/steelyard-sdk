@@ -60,6 +60,25 @@ importers:
         specifier: workspace:*
         version: link:../../packages/stripe
 
+  examples/psp-adapter-template:
+    dependencies:
+      '@steelyard/psp':
+        specifier: workspace:^
+        version: link:../../packages/psp
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@22.19.21))
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.5
+        version: 2.1.9(@types/node@22.19.21)
+
   packages/agent:
     dependencies:
       '@anthropic-ai/sdk':
@@ -174,6 +193,9 @@ importers:
       '@steelyard/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@steelyard/psp':
+        specifier: workspace:^
+        version: link:../psp
       '@steelyard/ucp-signing':
         specifier: workspace:^
         version: link:../ucp-signing
@@ -209,6 +231,25 @@ importers:
       openapi-typescript:
         specifier: ^7.13.0
         version: 7.13.0(typescript@5.9.3)
+
+  packages/psp:
+    dependencies:
+      '@steelyard/core':
+        specifier: workspace:^
+        version: link:../core
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@22.19.21))
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(postcss@8.5.15)(tsx@4.22.4)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.5
+        version: 2.1.9(@types/node@22.19.21)
 
   packages/steelyard:
     dependencies:
@@ -281,12 +322,21 @@ importers:
 
   packages/verify:
     dependencies:
+      '@steelyard/buyer':
+        specifier: workspace:^
+        version: link:../buyer
       '@steelyard/core':
         specifier: workspace:^
         version: link:../core
+      '@steelyard/merchant':
+        specifier: workspace:^
+        version: link:../merchant
       '@steelyard/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@steelyard/psp':
+        specifier: workspace:^
+        version: link:../psp
 
 packages:
 

@@ -16,11 +16,13 @@ export { StripeLiveDisabledError } from "@steelyard/core/stripe";
 export type {
   MockPspFailMode,
   MockPspOptions,
+  ReferencePspOptions,
+  StripePspOptions
+} from "./adapters.js";
+export type {
   PspAdapter,
   PspCaptureArgs,
   PspPaymentIntent,
   PspPaymentMandate,
-  PspCaptureResult,
-  ReferencePspOptions,
-  StripePspOptions
-} from "./adapters.js";
+  PspCaptureResult
+} from "@steelyard/psp";
