@@ -15,7 +15,8 @@ import {
   UCP_AP2_CAPABILITY,
   assertValidEcJwk,
   type EcJwk,
-  type Manifest
+  type Manifest,
+  type PaymentCapability
 } from "@steelyard/core";
 
 export { UCP_AP2_CAPABILITY };
@@ -28,7 +29,6 @@ export const UCP_CATALOG_SEARCH_CAPABILITY = "dev.ucp.shopping.catalog.search";
 export const UCP_CATALOG_LOOKUP_CAPABILITY = "dev.ucp.shopping.catalog.lookup";
 export const STEELYARD_CHECKOUT_MANDATE_V01 = "net.steelyard.checkout_mandate.v0_1";
 export const STEELYARD_PAYMENT_HANDLER_NAMESPACE = "net.steelyard";
-export const STRIPE_PAYMENT_HANDLER_ID = "stripe";
 
 // TODO: upstream issue link: https://github.com/Universal-Commerce-Protocol/js-sdk/issues
 // @ucp-js/sdk@0.1.0 UcpDiscoveryProfile models capabilities as an array and
@@ -98,6 +98,7 @@ export interface UcpDiscoveryOptions {
       hms?: UcpDiscoveryHmsConfig;
     };
     ap2?: UcpDiscoveryAp2Config;
+    paymentCapabilities?: readonly PaymentCapability[];
     paymentHandlers?: readonly string[];
   };
 }
@@ -173,7 +174,7 @@ export function buildUcpDiscovery(
       }
     ];
   }
-  const paymentHandlers = buildUcpPaymentHandlers(opts.ucp?.paymentHandlers);
+  const paymentHandlers = buildUcpPaymentHandlers(opts.ucp?.paymentCapabilities, opts.ucp?.paymentHandlers);
   const doc: UcpDiscoveryDoc = {
     ucp: {
       version: UCP_VERSION,
@@ -216,18 +217,38 @@ export function buildUcpDiscovery(
   return doc;
 }
 
-export function buildUcpPaymentHandlers(paymentHandlers: readonly string[] | undefined): UcpPaymentHandlerEntity[] {
-  return (paymentHandlers ?? []).map((handler) => {
-    if (handler !== STRIPE_PAYMENT_HANDLER_ID) throw new Error(`unknown UCP payment handler: ${handler}`);
-    return {
-      id: STRIPE_PAYMENT_HANDLER_ID,
-      version: UCP_VERSION,
-      available_instruments: [
-        { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
-        { type: "shared_payment_token" }
-      ]
-    };
-  });
+export function buildUcpPaymentHandlers(
+  paymentCapabilities: readonly PaymentCapability[] | undefined,
+  paymentHandlers?: readonly string[]
+): UcpPaymentHandlerEntity[] {
+  const capabilities = paymentHandlers?.length
+    ? capabilitiesForHandlers(paymentCapabilities ?? [], paymentHandlers)
+    : paymentCapabilities ?? [];
+  const grouped = new Map<string, PaymentCapability[]>();
+  for (const capability of capabilities) {
+    if (!capability.handlerId || !capability.instrumentType) continue;
+    const group = grouped.get(capability.handlerId) ?? [];
+    group.push(capability);
+    grouped.set(capability.handlerId, group);
+  }
+  return [...grouped.entries()].map(([handlerId, entries]) => ({
+    id: handlerId,
+    version: UCP_VERSION,
+    available_instruments: entries.map((entry) => ({ type: entry.instrumentType }))
+  }));
+}
+
+function capabilitiesForHandlers(
+  capabilities: readonly PaymentCapability[],
+  paymentHandlers: readonly string[]
+): readonly PaymentCapability[] {
+  const selected: PaymentCapability[] = [];
+  for (const handlerId of paymentHandlers) {
+    const matches = capabilities.filter((capability) => capability.handlerId === handlerId);
+    if (!matches.length) throw new Error(`unknown UCP payment handler: ${handlerId}`);
+    selected.push(...matches);
+  }
+  return selected;
 }
 
 export function validateUcpDiscovery(doc: unknown): UcpValidationResult {

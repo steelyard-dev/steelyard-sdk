@@ -32,6 +32,7 @@ import {
   AcpNoCompatibleHandler,
   AcpPaymentIssuerMissing,
   AcpProtocolViolation,
+  AcpUnsupportedPaymentIssuer,
   acpDriver,
   verifyAcpWebhook
 } from "./acp.js";
@@ -40,6 +41,7 @@ import {
   billingBuyer,
   checkoutTotals,
   delegatePaymentRequest,
+  handlerSupportsInstrument,
   joinUrl,
   notifyTotals,
   patchJson,
@@ -61,6 +63,7 @@ import {
   parseAp2PaymentMandate,
   ucpAp2PaymentTransactionId
 } from "../vault/mandate-ap2/index.js";
+import { createReferencePaymentIssuer } from "../reference-payment.js";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const manifest = defineCommerce({
@@ -193,6 +196,40 @@ describe("ACP checkout driver", () => {
         clock: () => now
       })
     ).rejects.toBeInstanceOf(AcpPaymentIssuerMissing);
+  });
+
+  it("rejects reference delegated-token issuers before ACP minting (AG1)", async () => {
+    const merchant = await startAcpMerchant();
+    const referenceIssuer = createReferencePaymentIssuer({
+      signingKey: walletP256PrivateKey,
+      clock: () => now
+    });
+    let mintCount = 0;
+
+    const failedPurchase = acpDriver.purchase(intent, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "coffee.example",
+      port: {
+        ...testPort(),
+        paymentIssuer: {
+          ...referenceIssuer,
+          async mintForMandate(mandate) {
+            mintCount += 1;
+            return await referenceIssuer.mintForMandate(mandate);
+          }
+        }
+      },
+      idempotencyKey: "purchase_acp_reference",
+      clock: () => now
+    });
+
+    await expect(failedPurchase).rejects.toBeInstanceOf(AcpUnsupportedPaymentIssuer);
+    await expect(failedPurchase).rejects.toMatchObject({
+      name: "AcpUnsupportedPaymentIssuer",
+      instrumentType: "delegated_payment_token"
+    });
+    expect(mintCount).toBe(0);
+    expect(merchant.requests.map((request) => request.path)).toEqual(["/checkout_sessions"]);
   });
 
   it("maps non-payable ACP statuses to terminal driver errors", async () => {
@@ -535,7 +572,66 @@ describe("UCP checkout driver", () => {
       payment_instrument: {
         id: "spt_123",
         type: "shared_payment_token",
-        description: "Stripe Shared Payment Token (test mode)"
+        description: "Issuer payment token"
+      }
+    });
+  });
+
+  it("builds coherent UCP and AP2 instruments for non-SPT issuers (BN3)", async () => {
+    const merchant = await startUcpMerchant({ merchantAuthorization: "valid" });
+    const minted: unknown[] = [];
+    const port = withUcpSigningKey({
+      ...testPort(),
+      paymentIssuer: {
+        instrumentType: "delegated_payment_token",
+        async mintForMandate(mandate) {
+          minted.push(mandate);
+          return {
+            id: "dpt_123",
+            expires_at: Math.floor(Date.parse(mandate.payment.expires_at) / 1000),
+            max_amount: mandate.payment.amount,
+            currency: mandate.payment.currency,
+            scope_proof: {
+              type: "reference_delegated_payment_token",
+              idempotency_key: "dpt_idem_1"
+            }
+          };
+        }
+      }
+    });
+    const receipt = await ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+      merchantUrl: merchant.baseUrl,
+      merchantId: "https://coffee.example/.well-known/ucp",
+      merchantProfile: { ucp: {}, signing_keys: [merchantP256PublicKey] },
+      supportsSteelyardMode: true,
+      port,
+      idempotencyKey: "purchase_ucp_ap2_dpt",
+      clock: () => now,
+      ap2: {
+        enabled: true,
+        issuer: "did:example:bank-dpc-issuer",
+        payee: {
+          id: "merchant_1",
+          name: "Acme Coffee",
+          website: "https://coffee.example"
+        }
+      }
+    });
+
+    const complete = asRecord(merchant.requests[2]!.body);
+    const selected = asRecord((asRecord(complete.payment).instruments as unknown[])[0]);
+    const credential = asRecord(selected.credential);
+    const parsedPayment = parseAp2PaymentMandate(stringValue(credential.token));
+
+    expect(receipt.reference.ucp).toMatchObject({ checkout_id: "checkout_1", vault_token_id: "dpt_123" });
+    expect(selected).toMatchObject({ type: "delegated_payment_token" });
+    expect(minted).toHaveLength(1);
+    expect(parsedPayment.issuerPayload).toMatchObject({
+      payment: { handler: "stripe" },
+      payment_instrument: {
+        id: "dpt_123",
+        type: "delegated_payment_token",
+        description: "Issuer payment token"
       }
     });
   });
@@ -755,6 +851,31 @@ describe("UCP checkout driver", () => {
         clock: () => now
       })
     ).rejects.toBeInstanceOf(UcpNoCompatibleHandler);
+
+    await expect(
+      ucpDriver.purchase({ ...intent, merchant: { ...intent.merchant, protocol: "ucp" } }, {
+        merchantUrl: (await startUcpMerchant({ handlerCatalog: false })).baseUrl,
+        merchantId: "https://coffee.example/.well-known/ucp",
+        supportsSteelyardMode: true,
+        port: {
+          ...testPort(),
+          paymentIssuer: {
+            instrumentType: "shared_payment_token",
+            async mintForMandate(mandate: PaymentIssuerMandateDraft) {
+              return {
+                id: "spt_unadvertised",
+                expires_at: Math.floor(Date.parse(mandate.payment.expires_at) / 1000),
+                max_amount: mandate.payment.amount,
+                currency: mandate.payment.currency,
+                scope_proof: { type: "stripe_spt_usage_limits", idempotency_key: "spt_idem_unadvertised" }
+              };
+            }
+          }
+        },
+        idempotencyKey: "purchase_ucp_no_advertised_instruments",
+        clock: () => now
+      })
+    ).rejects.toBeInstanceOf(UcpNoCompatibleHandler);
   });
 });
 
@@ -781,6 +902,11 @@ describe("checkout driver helpers", () => {
     });
     expect(selectedHandler([{ id: "configured", config: { delegate_payment_url: "https://psp.example/delegate" } }]))
       .toMatchObject({ handler: { id: "configured" }, delegatePaymentUrl: "https://psp.example/delegate" });
+    expect(handlerSupportsInstrument({ id: "stripe", available_instruments: [{ type: "shared_payment_token" }] }, "shared_payment_token"))
+      .toBe(true);
+    expect(handlerSupportsInstrument({ id: "stripe" }, "shared_payment_token")).toBe(false);
+    expect(handlerSupportsInstrument({ id: "stripe", available_instruments: [{ type: "vault_token" }] }, "shared_payment_token"))
+      .toBe(false);
 
     const fetchEmpty = vi.fn(async () => response("", 204));
     await expect(postJson("https://shop.example/empty", {}, { idempotencyKey: "empty", fetch: fetchEmpty }))
@@ -1077,6 +1203,11 @@ function withUcpHandler(checkout: UcpCheckout): UcpCheckout {
             version: "2026-04-17",
             spec: "https://steelyard.dev/specs/payment/vault-token",
             schema: "https://ucp.dev/schemas/payment_handler.json",
+            available_instruments: [
+              { type: "vault_token" },
+              { type: "shared_payment_token" },
+              { type: "delegated_payment_token" }
+            ],
             config: { token_type: "vault_token" }
           }
         ]

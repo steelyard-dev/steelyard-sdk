@@ -25,7 +25,7 @@ export type CompletedUcpCheckout = Checkout & { status: "completed"; order: Orde
 // TODO: upstream issue link: https://github.com/Universal-Commerce-Protocol/js-sdk/issues
 // @ucp-js/sdk@0.1.0 PaymentInstrument is card-specific and requires card
 // display fields; the vendored selected_payment_instrument schema is generic
-// and carries v0.6 shared_payment_token instruments.
+// and carries selected payment instruments for multiple handler-defined rails.
 export type SelectedPaymentInstrument = {
   id: string;
   handler_id: string;
@@ -40,7 +40,21 @@ export type UcpValidationResult = {
 
 export type PspCaptureResult =
   | { ok: true; psp_payment_id: string; psp_charge_id?: string; psp_charge_status?: string; status: "captured" | "authorized" }
-  | { ok: false; reason: "declined" | "fraud" | "insufficient_funds" | "expired_card" | "other"; message: string }
+  | {
+      ok: false;
+      reason:
+        | "declined"
+        | "fraud"
+        | "insufficient_funds"
+        | "expired_card"
+        | "expired"
+        | "limit_exceeded"
+        | "revoked"
+        | "seller_mismatch"
+        | "other";
+      message: string;
+      detail?: string;
+    }
   | { ok: false; requires_authentication: true; continue_url: string };
 
 const UCP_VERSION = "2026-04-17";

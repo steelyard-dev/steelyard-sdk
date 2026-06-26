@@ -5,8 +5,10 @@ import {
   assertValidEcJwk,
   defaultClock,
   ecdsaVerifyRaw,
+  verifyDetachedJws,
   type EcJwk,
-  type HmsAlgorithm
+  type HmsAlgorithm,
+  type PaymentCapability
 } from "@steelyard/core";
 import {
   STRIPE_LIVE_KEY_PREFIX,
@@ -42,6 +44,7 @@ export interface PspCaptureArgs {
   session_id: string;
   merchant_id: string;
   handler_id?: string;
+  instrument_type?: string;
   payment_mandate?: PspPaymentMandate;
 }
 
@@ -60,17 +63,19 @@ export type PspCaptureResult =
         | "fraud"
         | "insufficient_funds"
         | "expired_card"
-        | "spt_expired"
-        | "amount_exceeded"
-        | "spt_revoked"
-        | "spt_seller_mismatch"
+        | "expired"
+        | "limit_exceeded"
+        | "revoked"
+        | "seller_mismatch"
         | "other";
       message: string;
+      detail?: string;
     }
   | { ok: false; requires_authentication: true; continue_url: string };
 
 export interface PspAdapter {
   name: string;
+  capabilities: readonly PaymentCapability[];
   supportsHandler(handlerId: string): boolean;
   capture(args: PspCaptureArgs): Promise<PspCaptureResult>;
   cancel(args: { psp_payment_id: string; idempotencyKey: string }): Promise<void>;
@@ -102,6 +107,16 @@ export interface StripePspOptions {
   clock?: () => Date;
 }
 
+export interface ReferencePspOptions {
+  signingKey: EcJwk;
+  allowInProduction?: boolean;
+  clock?: () => Date;
+}
+
+export const REFERENCE_PAYMENT_HANDLER_ID = "reference";
+export const REFERENCE_PAYMENT_INSTRUMENT_TYPE = "delegated_payment_token";
+export const REFERENCE_PAYMENT_TOKEN_PREFIX = "dpt_";
+
 export class MockInProductionError extends Error {
   constructor() {
     super(
@@ -126,17 +141,29 @@ export class StripePspError extends Error {
   }
 }
 
+export class ReferencePspInProductionError extends Error {
+  constructor() {
+    super(
+      "referencePsp() refused outside a known test environment. " +
+        "For demo/staging: pass allowInProduction: true AND set STEELYARD_ALLOW_REFERENCE_PSP=1."
+    );
+    this.name = "ReferencePspInProductionError";
+  }
+}
+
 export function mockPsp(opts: MockPspOptions = {}): PspAdapter {
   assertMockAllowed(opts);
   const handlerIds = new Set(opts.handlerIds ?? []);
+  const capabilities = mockCapabilities(opts.handlerIds);
   const captures = new Map<string, PspCaptureResult>();
   const seed = opts.seed ?? "steelyard-mock-psp";
   const clock = defaultClock(opts.clock);
   return {
     name: "mock",
+    capabilities,
     supportsHandler: (handlerId) => handlerIds.size === 0 || handlerIds.has(handlerId),
     async capture(args) {
-      const validation = await validateCaptureArgs(args, clock);
+      const validation = await validateCaptureArgs(args, clock, capabilities);
       const cached = captures.get(args.idempotencyKey);
       if (cached) return cloneResult(cached);
       const failure = mockFailure(opts.failOn, args);
@@ -183,18 +210,24 @@ export function stripePsp(opts: StripePspOptions): PspAdapter {
   if (!fetchImpl) throw new PspConfigError("stripePsp requires fetch support");
   const apiBaseUrl = (opts.apiBaseUrl ?? "https://api.stripe.com").replace(/\/+$/, "");
   const handlerIds = new Set(opts.handlerIds ?? ["stripe"]);
+  const capabilities = [...handlerIds].map((handlerId) => ({
+    handlerId,
+    instrumentType: "shared_payment_token",
+    idPrefix: STRIPE_SPT_ID_PREFIX
+  })) satisfies PaymentCapability[];
   const clock = defaultClock(opts.clock);
   return {
     name: "stripe",
+    capabilities,
     supportsHandler: (handlerId) => handlerIds.has(handlerId),
     async capture(args) {
-      const validation = await validateCaptureArgs(args, clock);
+      const validation = await validateCaptureArgs(args, clock, capabilities);
       const paymentMethod = pspPaymentMethod(args, validation);
       if (paymentMethod.startsWith(STRIPE_SPT_ID_PREFIX)) {
         if (opts.acceptSharedPaymentTokens !== true) {
           throw new PspConfigError("STRIPE_SPT_NOT_ENABLED");
         }
-        return await chargeSharedPaymentToken({
+        return neutralStripeResult(await chargeSharedPaymentToken({
           apiKey: opts.apiKey,
           apiBaseUrl,
           apiVersion: opts.apiVersion,
@@ -203,7 +236,7 @@ export function stripePsp(opts: StripePspOptions): PspAdapter {
           currency: args.currency,
           idempotencyKey: args.idempotencyKey,
           fetch: fetchImpl
-        });
+        }));
       }
       try {
         const response = await fetchImpl(`${apiBaseUrl}/v1/payment_intents`, {
@@ -245,6 +278,212 @@ export function stripePsp(opts: StripePspOptions): PspAdapter {
   };
 }
 
+export function referencePsp(opts: ReferencePspOptions): PspAdapter {
+  assertReferenceAllowed(opts);
+  const signingKey = validReferenceKey(opts.signingKey);
+  const capabilities = [{
+    handlerId: REFERENCE_PAYMENT_HANDLER_ID,
+    instrumentType: REFERENCE_PAYMENT_INSTRUMENT_TYPE,
+    idPrefix: REFERENCE_PAYMENT_TOKEN_PREFIX
+  }] satisfies PaymentCapability[];
+  const captures = new Map<string, PspCaptureResult>();
+  const clock = defaultClock(opts.clock);
+  return {
+    name: "reference",
+    capabilities,
+    supportsHandler: (handlerId) => handlerId === REFERENCE_PAYMENT_HANDLER_ID,
+    async capture(args) {
+      const validation = await validateCaptureArgs(args, clock, capabilities);
+      const cached = captures.get(args.idempotencyKey);
+      if (cached) return cloneResult(cached);
+      const paymentMethod = pspPaymentMethod(args, validation);
+      const verification = await verifyReferencePaymentToken(paymentMethod, signingKey, args, validation, clock);
+      if (!verification.ok) {
+        const result = referenceFailure(verification.reason);
+        captures.set(args.idempotencyKey, result);
+        return cloneResult(result);
+      }
+      const referenceId = shortHash(
+        paymentMethod,
+        String(args.amount),
+        args.currency,
+        args.idempotencyKey
+      );
+      const result: PspCaptureResult = {
+        ok: true,
+        psp_payment_id: `psp_reference_${referenceId}`,
+        psp_charge_id: `charge_reference_${referenceId}`,
+        psp_charge_status: "succeeded",
+        status: "captured"
+      };
+      captures.set(args.idempotencyKey, result);
+      return cloneResult(result);
+    },
+    async cancel(args) {
+      if (!args.psp_payment_id) throw new PspConfigError("psp_payment_id is required");
+      if (!args.idempotencyKey) throw new PspConfigError("idempotencyKey is required");
+    }
+  };
+}
+
+function mockCapabilities(handlerIds: readonly string[] | undefined): readonly PaymentCapability[] {
+  return (handlerIds ?? []).map((handlerId) => ({
+    handlerId,
+    instrumentType: "vault_token",
+    idPrefix: "vt_"
+  }));
+}
+
+type ReferenceTokenVerification =
+  | { ok: true; payload: ReferenceTokenPayload }
+  | { ok: false; reason: ReferenceTokenFailureReason };
+
+type ReferenceTokenFailureReason =
+  | "reference_token_shape_invalid"
+  | "reference_token_signature_invalid"
+  | "reference_token_expired"
+  | "reference_token_merchant_mismatch"
+  | "reference_token_checkout_mismatch"
+  | "reference_token_transaction_mismatch"
+  | "reference_token_amount_mismatch"
+  | "reference_token_currency_mismatch"
+  | "reference_token_handler_mismatch"
+  | "reference_token_instrument_mismatch";
+
+interface ReferenceTokenPayload {
+  merchant_id: string;
+  checkout_id: string;
+  transaction_id: string;
+  amount: number;
+  currency: string;
+  handler_id: string;
+  instrument_type: string;
+  exp: number;
+}
+
+async function verifyReferencePaymentToken(
+  token: string,
+  signingKey: EcJwk,
+  args: PspCaptureArgs,
+  validation: CaptureValidation,
+  clock: () => Date
+): Promise<ReferenceTokenVerification> {
+  const compact = token.startsWith(REFERENCE_PAYMENT_TOKEN_PREFIX)
+    ? token.slice(REFERENCE_PAYMENT_TOKEN_PREFIX.length)
+    : "";
+  const parts = compact.split(".");
+  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) {
+    return { ok: false, reason: "reference_token_shape_invalid" };
+  }
+  const payloadBytes = base64urlBytes(parts[1]!);
+  if (!payloadBytes) return { ok: false, reason: "reference_token_shape_invalid" };
+  const payload = referencePayload(payloadBytes);
+  if (!payload) return { ok: false, reason: "reference_token_shape_invalid" };
+  const verified = await verifyDetachedJws({
+    jws: `${parts[0]}..${parts[2]}`,
+    payload: payloadBytes,
+    resolveKey: async (kid, alg) => kid === signingKey.kid && alg === algorithmForReferenceKey(signingKey)
+      ? publicReferenceKey(signingKey)
+      : null
+  });
+  if (!verified.ok) return { ok: false, reason: "reference_token_signature_invalid" };
+
+  const expectedTransactionId = args.payment_mandate?.payment_intent.transaction_id ?? args.session_id;
+  const now = Math.floor(clock().getTime() / 1000);
+  if (payload.exp <= now) return { ok: false, reason: "reference_token_expired" };
+  if (payload.merchant_id !== args.merchant_id) return { ok: false, reason: "reference_token_merchant_mismatch" };
+  if (payload.checkout_id !== args.session_id) return { ok: false, reason: "reference_token_checkout_mismatch" };
+  if (payload.transaction_id !== expectedTransactionId) return { ok: false, reason: "reference_token_transaction_mismatch" };
+  if (payload.amount !== args.amount) return { ok: false, reason: "reference_token_amount_mismatch" };
+  if (payload.currency !== args.currency) return { ok: false, reason: "reference_token_currency_mismatch" };
+  if (payload.handler_id !== args.handler_id) return { ok: false, reason: "reference_token_handler_mismatch" };
+  if (payload.instrument_type !== args.instrument_type) return { ok: false, reason: "reference_token_instrument_mismatch" };
+
+  const mandateInstrument = stringValue(asRecord(validation.paymentMandateClaims?.payment_instrument).type, "");
+  if (mandateInstrument && payload.instrument_type !== mandateInstrument) {
+    return { ok: false, reason: "reference_token_instrument_mismatch" };
+  }
+  return { ok: true, payload };
+}
+
+function referenceFailure(reason: ReferenceTokenFailureReason): PspCaptureResult {
+  return {
+    ok: false,
+    reason: reason === "reference_token_expired" ? "expired" : "other",
+    detail: reason,
+    message: `reference PSP token rejected: ${reason}`
+  };
+}
+
+function referencePayload(bytes: Uint8Array): ReferenceTokenPayload | null {
+  try {
+    const value = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    const record = asRecord(value);
+    const payload = {
+      merchant_id: stringValue(record.merchant_id, ""),
+      checkout_id: stringValue(record.checkout_id, ""),
+      transaction_id: stringValue(record.transaction_id, ""),
+      amount: record.amount,
+      currency: stringValue(record.currency, ""),
+      handler_id: stringValue(record.handler_id, ""),
+      instrument_type: stringValue(record.instrument_type, ""),
+      exp: record.exp
+    };
+    if (
+      !payload.merchant_id ||
+      !payload.checkout_id ||
+      !payload.transaction_id ||
+      !Number.isSafeInteger(payload.amount) ||
+      !/^[A-Z]{3}$/.test(payload.currency) ||
+      !payload.handler_id ||
+      !payload.instrument_type ||
+      !Number.isSafeInteger(payload.exp)
+    ) {
+      return null;
+    }
+    return payload as ReferenceTokenPayload;
+  } catch {
+    return null;
+  }
+}
+
+function validReferenceKey(value: EcJwk): EcJwk & { kid: string } {
+  const key = assertValidEcJwk(value);
+  if (!key.kid) throw new PspConfigError("referencePsp signingKey.kid is required");
+  return key as EcJwk & { kid: string };
+}
+
+function publicReferenceKey(key: EcJwk): EcJwk {
+  const { d: _d, ...publicKey } = key;
+  return publicKey;
+}
+
+function algorithmForReferenceKey(key: EcJwk): HmsAlgorithm {
+  if (key.alg === "ES256" || key.alg === "ES384") return key.alg;
+  if (key.crv === "P-256") return "ES256";
+  if (key.crv === "P-384") return "ES384";
+  throw new PspConfigError(`unsupported referencePsp signingKey.crv: ${key.crv}`);
+}
+
+function base64urlBytes(value: string): Uint8Array | null {
+  try {
+    const normalized = value.replace(/-/gu, "+").replace(/_/gu, "/");
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+    const binary = atob(padded);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+function assertReferenceAllowed(opts: ReferencePspOptions): void {
+  const isKnownTest = !!process.env.VITEST || !!process.env.JEST_WORKER_ID || !!process.env.STEELYARD_TEST;
+  const bothOptIns = opts.allowInProduction === true && process.env.STEELYARD_ALLOW_REFERENCE_PSP === "1";
+  if (!isKnownTest && !bothOptIns) throw new ReferencePspInProductionError();
+}
+
 function assertMockAllowed(opts: MockPspOptions): void {
   const isKnownTest = !!process.env.VITEST || !!process.env.JEST_WORKER_ID || !!process.env.STEELYARD_TEST;
   const bothOptIns = opts.allowInProduction === true && process.env.STEELYARD_ALLOW_MOCK_PSP === "1";
@@ -268,7 +507,11 @@ interface CaptureValidation {
   paymentMandateClaims?: Record<string, unknown>;
 }
 
-async function validateCaptureArgs(args: PspCaptureArgs, clock: () => Date): Promise<CaptureValidation> {
+async function validateCaptureArgs(
+  args: PspCaptureArgs,
+  clock: () => Date,
+  capabilities: readonly PaymentCapability[]
+): Promise<CaptureValidation> {
   if (!args.vault_token) throw new PspConfigError("vault_token is required");
   if (!Number.isInteger(args.amount) || args.amount < 0) throw new PspConfigError("amount must be a non-negative integer");
   if (!/^[A-Z]{3}$/.test(args.currency)) throw new PspConfigError("currency must be ISO 4217 uppercase");
@@ -276,7 +519,7 @@ async function validateCaptureArgs(args: PspCaptureArgs, clock: () => Date): Pro
   if (!args.session_id) throw new PspConfigError("session_id is required");
   if (!args.merchant_id) throw new PspConfigError("merchant_id is required");
   if (args.payment_mandate) {
-    const verified = await verifyAp2PaymentMandate(args.payment_mandate, args.handler_id, clock);
+    const verified = await verifyAp2PaymentMandate(args.payment_mandate, args.handler_id, clock, capabilities);
     if (!verified.ok) throw new PspConfigError(`payment_mandate invalid: ${verified.reason}`);
     return { paymentMandateClaims: verified.claims };
   }
@@ -307,7 +550,8 @@ type PaymentMandateVerificationResult =
 async function verifyAp2PaymentMandate(
   mandate: PspPaymentMandate,
   expectedHandlerId: string | undefined,
-  clock: () => Date
+  clock: () => Date,
+  capabilities: readonly PaymentCapability[]
 ): Promise<PaymentMandateVerificationResult> {
   if ((mandate as { format?: string }).format !== "ap2-sd-jwt-kb" || !mandate.payload) {
     return { ok: false, reason: "shape_invalid" };
@@ -345,15 +589,23 @@ async function verifyAp2PaymentMandate(
   const paymentHandler = stringValue(asRecord(claims.payment).handler, "");
   const paymentInstrument = asRecord(claims.payment_instrument);
   const instrumentType = stringValue(paymentInstrument.type, "");
-  if (paymentHandler && expectedHandlerId && paymentHandler !== expectedHandlerId) {
-    return { ok: false, reason: "handler_mismatch" };
-  }
-  if (instrumentType === "shared_payment_token") {
-    if (paymentHandler !== "stripe" || (expectedHandlerId && expectedHandlerId !== "stripe")) {
+  if (instrumentType) {
+    const declaredForInstrument = capabilities.filter((capability) => capability.instrumentType === instrumentType);
+    if (declaredForInstrument.length) {
+      if (!paymentHandler || !expectedHandlerId || paymentHandler !== expectedHandlerId) {
+        return { ok: false, reason: "handler_mismatch" };
+      }
+      const capability = declaredForInstrument.find((candidate) => candidate.handlerId === paymentHandler);
+      if (!capability) {
+        return { ok: false, reason: "handler_mismatch" };
+      }
+      const tokenId = stringValue(paymentInstrument.id, "");
+      if (capability.idPrefix && !tokenId.startsWith(capability.idPrefix)) return { ok: false, reason: "claims_invalid" };
+    } else if (paymentHandler && expectedHandlerId && paymentHandler !== expectedHandlerId) {
       return { ok: false, reason: "handler_mismatch" };
     }
-    const tokenId = stringValue(paymentInstrument.id, "");
-    if (!tokenId.startsWith(STRIPE_SPT_ID_PREFIX)) return { ok: false, reason: "claims_invalid" };
+  } else if (paymentHandler && expectedHandlerId && paymentHandler !== expectedHandlerId) {
+    return { ok: false, reason: "handler_mismatch" };
   }
 
   const intent = mandate.payment_intent;
@@ -491,6 +743,26 @@ function stripeFailure(payload: unknown): PspCaptureResult {
   if (code === "expired_card") return { ok: false, reason: "expired_card", message };
   if (code === "insufficient_funds") return { ok: false, reason: "insufficient_funds", message };
   return { ok: false, reason: "other", message };
+}
+
+function neutralStripeResult(result: Awaited<ReturnType<typeof chargeSharedPaymentToken>>): PspCaptureResult {
+  if (result.ok || "requires_authentication" in result) return result;
+  switch (result.reason) {
+    case "spt_expired":
+      return { ok: false, reason: "expired", detail: result.reason, message: result.message };
+    case "amount_exceeded":
+      return { ok: false, reason: "limit_exceeded", detail: result.reason, message: result.message };
+    case "spt_revoked":
+      return { ok: false, reason: "revoked", detail: result.reason, message: result.message };
+    case "spt_seller_mismatch":
+      return { ok: false, reason: "seller_mismatch", detail: result.reason, message: result.message };
+    case "declined":
+    case "fraud":
+    case "insufficient_funds":
+    case "expired_card":
+    case "other":
+      return { ok: false, reason: result.reason, message: result.message };
+  }
 }
 
 function shortHash(...parts: string[]): string {

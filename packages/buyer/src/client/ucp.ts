@@ -21,6 +21,7 @@ import {
 import {
   issueAp2CheckoutMandate,
   issueAp2PaymentMandate,
+  ucpAp2PaymentTransactionId,
   type Ap2PaymentInstrument,
   type Ap2PaymentMerchant
 } from "../vault/mandate-ap2/index.js";
@@ -30,6 +31,7 @@ import {
   canonicalMandateCheckout,
   delegateVaultToken,
   driverClock,
+  handlerSupportsInstrument,
   joinUrl,
   mandateId,
   notifyTotals,
@@ -159,6 +161,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
   if (!selected) throw new UcpNoCompatibleHandler(checkoutId);
 
   const instrumentId = `instrument_${key.replace(/[^a-zA-Z0-9]/g, "").slice(0, 12) || "1"}`;
+  let selectedInstrumentType = ucpSelectedInstrumentType(selected.handler, opts) ?? "vault_token";
   const tokenType = stringValue(selected.handler.config?.token_type, "vault_token");
   checkout = asRecord(
     await patchJson(
@@ -171,7 +174,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
             {
               id: instrumentId,
               handler_id: selected.handler.id,
-              type: "vault_token",
+              type: selectedInstrumentType,
               selected: true
             }
           ]
@@ -185,7 +188,12 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
   const totals = await notifyTotals(opts, checkout);
   const audience = opts.merchantId;
   let vaultTokenId = "";
-  let ap2Mandates: { checkout_mandate: string; payment_mandate: string; payment_token_id: string } | undefined;
+  let ap2Mandates: {
+    checkout_mandate: string;
+    payment_mandate: string;
+    payment_token_id: string;
+    payment_instrument_type: string;
+  } | undefined;
   if (ap2Required && opts.port.paymentIssuer) {
     ap2Mandates = await issueUcpAp2Mandates({
       opts,
@@ -196,6 +204,18 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
       clock
     });
     vaultTokenId = ap2Mandates.payment_token_id;
+    selectedInstrumentType = ap2Mandates.payment_instrument_type;
+  } else if (!ap2Required && opts.port.paymentIssuer && handlerSupportsInstrument(selected.handler, opts.port.paymentIssuer.instrumentType)) {
+    const handle = await mintUcpPaymentHandle({
+      opts,
+      totals,
+      checkoutId,
+      handlerId: stringValue(selected.handler.id),
+      purchaseKey: key,
+      clock
+    });
+    vaultTokenId = handle.id;
+    selectedInstrumentType = opts.port.paymentIssuer.instrumentType;
   } else {
     vaultTokenId = await delegateVaultToken({
       delegatePaymentUrl: selected.delegatePaymentUrl,
@@ -227,7 +247,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
         {
           id: instrumentId,
           handler_id: selected.handler.id,
-          type: "vault_token",
+          type: selectedInstrumentType,
           credential: {
             type: ap2Mandates ? "ap2_payment_mandate" : tokenType,
             token: ap2Mandates?.payment_mandate ?? vaultTokenId
@@ -283,7 +303,7 @@ async function issueUcpAp2Mandates(args: {
   audience: string;
   handlerId: string;
   clock: () => Date;
-}): Promise<{ checkout_mandate: string; payment_mandate: string; payment_token_id: string }> {
+}): Promise<{ checkout_mandate: string; payment_mandate: string; payment_token_id: string; payment_instrument_type: string }> {
   const ap2 = args.opts.ap2;
   if (!ap2?.enabled) {
     throw new Ap2SessionInconsistent("agent_missing_key", "AP2 session is locked but AP2 mandate options are not configured");
@@ -314,18 +334,23 @@ async function issueUcpAp2Mandates(args: {
     expires_at: expiresAt
   };
   const issuedAt = Math.floor(args.clock().getTime() / 1000);
-  const spt = args.opts.port.paymentIssuer
-    ? await args.opts.port.paymentIssuer.mintForMandate({
+  const issuer = args.opts.port.paymentIssuer;
+  const issued = issuer
+    ? await issuer.mintForMandate({
         iat: issuedAt,
         nonce: paymentNonce,
+        merchant_id: args.opts.merchantId,
+        handler_id: args.handlerId,
+        instrument_type: issuer.instrumentType,
+        transaction_id: ucpAp2PaymentTransactionId(args.checkout),
         payment
       })
     : undefined;
-  const paymentInstrument = spt
+  const paymentInstrument = issued && issuer
     ? {
-        id: spt.id,
-        type: "shared_payment_token",
-        description: "Stripe Shared Payment Token (test mode)"
+        id: issued.id,
+        type: issuer.instrumentType,
+        description: "Issuer payment token"
       }
     : ap2.paymentInstrument ?? {
         id: args.vaultTokenId ?? "",
@@ -348,8 +373,36 @@ async function issueUcpAp2Mandates(args: {
   return {
     checkout_mandate: checkoutMandate.checkout_mandate,
     payment_mandate: paymentMandate.payment_mandate,
-    payment_token_id: spt?.id ?? args.vaultTokenId ?? paymentInstrument.id
+    payment_token_id: issued?.id ?? args.vaultTokenId ?? paymentInstrument.id,
+    payment_instrument_type: paymentInstrument.type
   };
+}
+
+async function mintUcpPaymentHandle(args: {
+  opts: UcpDriverOpts;
+  totals: { amount: number; currency: string };
+  checkoutId: string;
+  handlerId: string;
+  purchaseKey: string;
+  clock: () => Date;
+}) {
+  const issuer = args.opts.port.paymentIssuer;
+  if (!issuer) throw new UcpAuthMissing("UCP payment issuer is required for this payment handler");
+  const expiresAt = new Date(args.clock().getTime() + 15 * 60_000).toISOString();
+  return await issuer.mintForMandate({
+    iat: Math.floor(args.clock().getTime() / 1000),
+    nonce: `ucp:${args.checkoutId}:${args.purchaseKey}`,
+    merchant_id: args.opts.merchantId,
+    handler_id: args.handlerId,
+    instrument_type: issuer.instrumentType,
+    transaction_id: args.checkoutId,
+    payment: {
+      amount: args.totals.amount,
+      currency: args.totals.currency,
+      checkout_id: args.checkoutId,
+      expires_at: expiresAt
+    }
+  });
 }
 
 function resolveAp2Nonce(checkout: Checkout, configured: string | undefined, field: "checkout_nonce" | "payment_nonce"): string {
@@ -604,14 +657,21 @@ function selectedUcpHandler(
   return compatible ? { handler: compatible, delegatePaymentUrl: "" } : undefined;
 }
 
-function handlerSupportsInstrument(handler: PaymentHandlerLike, instrumentType: string): boolean {
-  const instruments = handler.available_instruments;
-  if (!Array.isArray(instruments)) return stringValue(handler.id) === "stripe" && instrumentType === "shared_payment_token";
-  return instruments.map(asRecord).some((instrument) => stringValue(instrument.type) === instrumentType);
+function ucpSelectedInstrumentType(handler: PaymentHandlerLike, opts: UcpDriverOpts): string | undefined {
+  const issuer = opts.port.paymentIssuer;
+  return issuer && handlerSupportsInstrument(handler, issuer.instrumentType) ? issuer.instrumentType : undefined;
 }
 
 function flattenHandlers(catalog: Record<string, unknown>): PaymentHandlerLike[] {
   return Object.values(catalog)
     .flatMap((value) => (Array.isArray(value) ? value : []))
-    .map((handler) => asRecord(handler) as PaymentHandlerLike);
+    .map((handler) => {
+      const record = asRecord(handler);
+      return {
+        id: stringValue(record.id),
+        available_instruments: Array.isArray(record.available_instruments) ? record.available_instruments : undefined,
+        config: asRecord(record.config)
+      };
+    })
+    .filter((handler) => handler.id);
 }

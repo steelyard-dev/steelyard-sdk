@@ -401,10 +401,7 @@ describe("Steelyard.connect", () => {
       {
         namespace: "net.steelyard",
         id: "stripe",
-        available_instruments: [
-          { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
-          { type: "shared_payment_token" }
-        ]
+        available_instruments: [{ type: "shared_payment_token" }]
       }
     ]);
     await closeServer();
@@ -757,12 +754,20 @@ function ucpVariantProduct(): Record<string, unknown> {
 async function startUcpDiscoveryServer(opts: { checkout: boolean; steelyardMandate: boolean; ap2?: boolean; paymentHandlers?: boolean }): Promise<string> {
   server = createServer((req, res) => {
     if (req.method === "GET" && req.url?.startsWith("/.well-known/ucp")) {
+      const ucp = {
+        ...(opts.ap2 ? { ap2: { enabled: true } } : {}),
+        ...(opts.paymentHandlers
+          ? {
+              paymentCapabilities: [{ handlerId: "stripe", instrumentType: "shared_payment_token", idPrefix: "spt_" }],
+              paymentHandlers: ["stripe"]
+            }
+          : {})
+      };
       sendJson(res, buildUcpDiscovery(manifest, {
         baseUrl: `http://${req.headers.host}`,
         checkout: opts.checkout,
         steelyardMandate: opts.steelyardMandate,
-        ...(opts.paymentHandlers ? { ucp: { paymentHandlers: ["stripe"] } } : {}),
-        ...(opts.ap2 ? { ucp: { ap2: { enabled: true } } } : {})
+        ...(Object.keys(ucp).length ? { ucp } : {})
       }));
       return;
     }
@@ -929,6 +934,10 @@ function withUcpHandler(checkout: UcpCheckout): UcpCheckout {
             version: "2026-04-17",
             spec: "https://steelyard.dev/specs/payment/vault-token",
             schema: "https://ucp.dev/schemas/payment_handler.json",
+            available_instruments: [
+              { type: "vault_token" },
+              { type: "shared_payment_token" }
+            ],
             config: { token_type: "vault_token" }
           }
         ]

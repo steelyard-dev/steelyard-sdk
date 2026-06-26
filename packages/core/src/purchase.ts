@@ -98,6 +98,10 @@ export interface WalletDriverPort {
 export interface PaymentIssuerMandateDraft {
   iat: number;
   nonce: string;
+  merchant_id?: string;
+  handler_id?: string;
+  instrument_type?: string;
+  transaction_id?: string;
   payment: {
     amount: number;
     currency: string;
@@ -106,20 +110,37 @@ export interface PaymentIssuerMandateDraft {
   };
 }
 
-export interface SptHandle {
+export interface PaymentCapability {
+  handlerId: string;
+  instrumentType: KnownInstrument | (string & {});
+  idPrefix?: string;
+}
+
+export type KnownInstrument = "shared_payment_token";
+
+export interface PaymentScopeProof {
+  type: string;
+  [key: string]: unknown;
+}
+
+export interface PaymentHandle {
   id: string;
   expires_at: number;
   max_amount: number;
   currency: string;
-  scope_proof: {
+  scope_proof: PaymentScopeProof;
+}
+
+export type SptHandle = PaymentHandle & {
+  scope_proof: PaymentScopeProof & {
     type: "stripe_spt_usage_limits";
     idempotency_key: string;
   };
-}
+};
 
 export interface WalletPaymentIssuer {
-  instrumentType: "shared_payment_token";
-  mintForMandate(mandate: PaymentIssuerMandateDraft): Promise<SptHandle>;
+  instrumentType: KnownInstrument | (string & {});
+  mintForMandate(mandate: PaymentIssuerMandateDraft): Promise<PaymentHandle>;
 }
 
 export interface Total {

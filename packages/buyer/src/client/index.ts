@@ -35,11 +35,12 @@ import {
   type UcpProfileDoc
 } from "@steelyard/protocol/ucp";
 import { acpDriver, type AcpAuthOptions } from "./acp.js";
+import { handlerSupportsInstrument } from "./driver-common.js";
 import { ucpDriver, type UcpAp2MandateOptions, type UcpAuthOptions } from "./ucp.js";
 
 export { createUcpBuyerProfile, createUcpBuyerProfileHandler } from "./profile.js";
 export type { UcpBuyerProfileOptions } from "./profile.js";
-export { AcpNoCompatibleHandler, AcpPaymentIssuerMissing, verifyAcpWebhook } from "./acp.js";
+export { AcpNoCompatibleHandler, AcpPaymentIssuerMissing, AcpUnsupportedPaymentIssuer, verifyAcpWebhook } from "./acp.js";
 export type { AcpAuthOptions, AcpWebhookVerifyArgs } from "./acp.js";
 export { Ap2MerchantAuthorizationInvalid, Ap2SessionInconsistent, UcpAuthMissing, UcpResponseSignatureInvalid } from "./ucp.js";
 export type { UcpAp2MandateOptions, UcpAuthOptions, UcpAuthPreference, UcpHmsSigningOptions } from "./ucp.js";
@@ -755,12 +756,6 @@ function assertCompatiblePaymentHandler(
   if (!issuer || !handlers.some((handler) => handlerSupportsInstrument(handler, issuer.instrumentType))) {
     throw new NoCompatiblePaymentHandlerError({ protocol, instrumentType: issuer?.instrumentType });
   }
-}
-
-function handlerSupportsInstrument(handler: MerchantPaymentHandler, instrumentType: string): boolean {
-  const instruments = handler.available_instruments;
-  if (!Array.isArray(instruments)) return handler.id === "stripe" && instrumentType === "shared_payment_token";
-  return instruments.some((instrument) => objectRecord(instrument).type === instrumentType);
 }
 
 function isError(value: unknown): value is SteelyardError {

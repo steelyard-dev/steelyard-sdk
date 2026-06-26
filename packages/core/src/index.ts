@@ -78,6 +78,10 @@ export type {
   Total,
   WalletDriverPort,
   PaymentIssuerMandateDraft,
+  KnownInstrument,
+  PaymentCapability,
+  PaymentHandle,
+  PaymentScopeProof,
   SptHandle,
   WalletPaymentIssuer
 } from "./purchase.js";

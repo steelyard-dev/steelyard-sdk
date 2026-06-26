@@ -2,7 +2,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createServer, request, type Server as NodeServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { COMMERCE_MANIFEST_PATH, defineCommerce, type EcJwk } from "@steelyard/core";
+import { COMMERCE_MANIFEST_PATH, defineCommerce, type EcJwk, type PaymentCapability } from "@steelyard/core";
 import {
   UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,
@@ -13,7 +13,6 @@ import {
   UCP_WELL_KNOWN_PATH,
   STEELYARD_CHECKOUT_MANDATE_V01,
   STEELYARD_PAYMENT_HANDLER_NAMESPACE,
-  STRIPE_PAYMENT_HANDLER_ID,
   assertValidGetProductResponse,
   assertValidLookupResponse,
   assertValidSearchResponse,
@@ -167,29 +166,31 @@ describe("buildUcpDiscovery", () => {
     expect(validateUcpDiscovery(doc).valid).toBe(true);
   });
 
-  it("advertises the AP2-compatible Stripe payment handler only when configured", () => {
+  it("advertises UCP payment handlers from PSP capabilities", () => {
+    const stripeSptCapability = {
+      handlerId: "stripe",
+      instrumentType: "shared_payment_token",
+      idPrefix: "spt_"
+    } satisfies PaymentCapability;
     const doc = buildUcpDiscovery(manifest, {
       baseUrl: "https://shop.example/",
       checkout: true,
-      ucp: { paymentHandlers: [STRIPE_PAYMENT_HANDLER_ID] }
+      ucp: { paymentCapabilities: [stripeSptCapability], paymentHandlers: ["stripe"] }
     });
 
     expect(doc.ucp.payment_handlers).toEqual({
       [STEELYARD_PAYMENT_HANDLER_NAMESPACE]: [
         {
-          id: STRIPE_PAYMENT_HANDLER_ID,
+          id: "stripe",
           version: UCP_VERSION,
-          available_instruments: [
-            { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
-            { type: "shared_payment_token" }
-          ]
+          available_instruments: [{ type: "shared_payment_token" }]
         }
       ]
     });
-    expect(buildUcpPaymentHandlers([STRIPE_PAYMENT_HANDLER_ID])).toEqual(
+    expect(buildUcpPaymentHandlers([stripeSptCapability], ["stripe"])).toEqual(
       doc.ucp.payment_handlers[STEELYARD_PAYMENT_HANDLER_NAMESPACE]
     );
-    expect(() => buildUcpPaymentHandlers(["not-stripe"])).toThrow(/unknown UCP payment handler/);
+    expect(() => buildUcpPaymentHandlers([stripeSptCapability], ["not-stripe"])).toThrow(/unknown UCP payment handler/);
     expect(validateUcpDiscovery(doc).valid).toBe(true);
     expect(() => assertValidUcpDiscovery(doc)).not.toThrow();
   });

@@ -767,8 +767,7 @@ describe("createMerchantCheckout", () => {
               id: "stripe",
               version: "2026-04-17",
               available_instruments: [
-                { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
-                { type: "shared_payment_token" }
+                { type: "vault_token" }
               ]
             }
           ]
@@ -797,7 +796,11 @@ describe("createMerchantCheckout", () => {
       body: { status: "completed", order: { id: `order_${checkoutId}`, permalink_url: expect.any(String) } }
     });
     expect(completed.body.order).not.toHaveProperty("status");
-    expect(psp.captures[0]).toMatchObject({ handler_id: "stripe", idempotencyKey: `psp:ucp:${checkoutId}:capture` });
+    expect(psp.captures[0]).toMatchObject({
+      handler_id: "stripe",
+      instrument_type: "vault_token",
+      idempotencyKey: `psp:ucp:${checkoutId}:capture`
+    });
 
     const missingCreated = await okClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-missing-create");
     const missingId = stringField(missingCreated.body, "id");
@@ -815,6 +818,75 @@ describe("createMerchantCheckout", () => {
       }
     });
     expect(psp.captures).toHaveLength(1);
+
+    const unknownInstrumentCreated = await okClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-unknown-instrument-create");
+    const unknownInstrumentId = stringField(unknownInstrumentCreated.body, "id");
+    await expect(
+      okClient.post(
+        `/ucp/api/checkout/${unknownInstrumentId}/complete`,
+        {
+          payment: {
+            instruments: [
+              {
+                id: "instrument_unknown",
+                handler_id: "stripe",
+                type: "unknown_token",
+                credential: { type: "vault_token", token: "vt_unknown" },
+                selected: true
+              }
+            ]
+          },
+          "steelyard.checkout_mandate": "mock.jwt"
+        },
+        "ucp-unknown-instrument-complete"
+      )
+    ).resolves.toMatchObject({
+      status: 400,
+      body: {
+        status: "canceled",
+        messages: { errors: [expect.objectContaining({ code: "payment_instrument_mismatch" })] }
+      }
+    });
+    expect(psp.captures).toHaveLength(1);
+
+    const referencePsp = recordingPsp({ handlerIds: ["reference"] });
+    const referenceClient = await listen(
+      createMerchantCheckout(manifest, {
+        protocols: ["ucp"],
+        store: memoryCheckoutSessionStore(),
+        psp: referencePsp.adapter,
+        idempotency: memoryIdempotencyStore(),
+        clock: () => now
+      }).handler
+    );
+    const referenceCreated = await referenceClient.post("/ucp/api/checkout", { line_items: ucpLineItems }, "ucp-reference-create");
+    const referenceId = stringField(referenceCreated.body, "id");
+    await expect(
+      referenceClient.post(
+        `/ucp/api/checkout/${referenceId}/complete`,
+        {
+          payment: {
+            instruments: [
+              {
+                id: "instrument_spt",
+                handler_id: "reference",
+                type: "shared_payment_token",
+                credential: { type: "vault_token", token: "spt_wrong_handler" },
+                selected: true
+              }
+            ]
+          }
+        },
+        "ucp-reference-spt-complete"
+      )
+    ).resolves.toMatchObject({
+      status: 400,
+      body: {
+        status: "canceled",
+        messages: { errors: [expect.objectContaining({ code: "payment_instrument_mismatch" })] }
+      }
+    });
+    expect(referencePsp.captures).toHaveLength(0);
 
     const failingPsp = recordingPsp();
     const failClient = await listen(
@@ -1493,6 +1565,7 @@ function recordingPsp(opts: {
     captures,
     adapter: {
       name: "stripe",
+      capabilities: [...handlerIds].map((handlerId) => ({ handlerId, instrumentType: "vault_token", idPrefix: "vt_" })),
       supportsHandler: (handlerId) => handlerIds.has(handlerId),
       async capture(args) {
         captures.push({ ...args, metadata: { ...args.metadata } });

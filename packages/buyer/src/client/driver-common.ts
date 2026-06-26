@@ -26,8 +26,8 @@ export interface DriverBaseOpts {
 
 export interface PaymentHandlerLike {
   id: string;
+  available_instruments?: unknown[];
   config?: Record<string, unknown>;
-  [key: string]: unknown;
 }
 
 export type JsonRecord = Record<string, unknown>;
@@ -238,6 +238,12 @@ export function selectedHandler(
   if (!candidate) return undefined;
   const delegatePaymentUrl = explicitDelegatePaymentUrl ?? stringValue(candidate.config?.delegate_payment_url);
   return delegatePaymentUrl ? { handler: candidate, delegatePaymentUrl } : undefined;
+}
+
+export function handlerSupportsInstrument(handler: PaymentHandlerLike, instrumentType: string): boolean {
+  const instruments = handler.available_instruments;
+  if (!Array.isArray(instruments)) return false;
+  return instruments.map(asRecord).some((instrument) => stringValue(instrument.type) === instrumentType);
 }
 
 export function canonicalMandateCheckout(checkout: JsonRecord): unknown {

@@ -41,6 +41,16 @@ import { packVaultBox, unpackVaultBox } from "../vault/format.js";
 import { parseVaultHeader, type VaultHeader } from "../vault/header.js";
 import { isPasswordKeystore, passwordKeystoreWithParams } from "../vault/keystore.js";
 
+export {
+  REFERENCE_PAYMENT_HANDLER_ID,
+  REFERENCE_PAYMENT_INSTRUMENT_TYPE,
+  REFERENCE_PAYMENT_TOKEN_PREFIX,
+  ReferencePaymentIssuerError,
+  ReferencePaymentIssuerInProductionError,
+  createReferencePaymentIssuer
+} from "../reference-payment.js";
+export type { ReferencePaymentIssuer, ReferencePaymentIssuerOptions } from "../reference-payment.js";
+
 const WALLET_RULE_NAME = "steelyard.wallet.allowed_merchants";
 const DEFAULT_POLICY = "deny";
 

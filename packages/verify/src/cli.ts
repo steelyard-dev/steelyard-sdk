@@ -194,6 +194,7 @@ function addBehavioralCases(cases: VerifyCase[]): void {
   addV042SignatureConformanceCases(cases);
   addV05Ap2ConformanceCases(cases);
   addV06StripeConformanceCases(cases);
+  addV07AdapterConformanceCases(cases);
   cases.push({
     id: "docs:migration",
     suite: "docs",
@@ -202,6 +203,72 @@ function addBehavioralCases(cases: VerifyCase[]): void {
     evidence: ["docs/guides/migrating-from-v0.2.md", "README.md"],
     run: assertMigrationDocs
   });
+}
+
+function addV07AdapterConformanceCases(cases: VerifyCase[]): void {
+  const entries: Array<[string, string, string[], (ctx: VerifyContext) => Promise<void>]> = [
+    [
+      "V07-NC-01",
+      "UCP payment handlers derive from neutral PSP capabilities",
+      ["packages/protocol/src/ucp/ucp.test.ts", "packages/merchant/src/checkout/server.test.ts", "NC1", "MV2", "AD3"],
+      async (ctx) => {
+        await runFocusedVitest(ctx, "v06-protocol-ucp", "@steelyard/protocol", "src/ucp/ucp.test.ts");
+        await runFocusedVitest(ctx, "v07-merchant-checkout", "@steelyard/merchant", "src/checkout/server.test.ts");
+      }
+    ],
+    [
+      "V07-BN-01",
+      "Buyer UCP requires advertised instruments and carries issuer instrument types",
+      ["packages/buyer/src/client/checkout-drivers.test.ts", "BN2", "BN3"],
+      (ctx) => runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard/buyer", "src/client/checkout-drivers.test.ts")
+    ],
+    [
+      "V07-RP-01",
+      "Reference issuer and PSP sign and verify delegated payment tokens",
+      ["packages/buyer/src/reference-payment.test.ts", "packages/merchant/src/psp/psp.test.ts", "RP1", "RP2", "RP3"],
+      async (ctx) => {
+        await runFocusedVitest(ctx, "v07-buyer-reference-payment", "@steelyard/buyer", "src/reference-payment.test.ts");
+        await runFocusedVitest(ctx, "v06-merchant-psp", "@steelyard/merchant", "src/psp/psp.test.ts");
+      }
+    ],
+    [
+      "V07-AG-01",
+      "ACP rejects non-SPT wallet issuers before minting",
+      ["packages/buyer/src/client/checkout-drivers.test.ts", "AG1"],
+      (ctx) => runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard/buyer", "src/client/checkout-drivers.test.ts")
+    ],
+    [
+      "V07-EX-01",
+      "Coffee-shop dual UCP smoke compares Stripe-backed and reference-backed configs",
+      ["examples/coffee-shop/scripts/smoke-dual-ucp.ts", "EX1"],
+      (ctx) =>
+        runCommandOnce(ctx, "v07-coffee-shop-dual-ucp", "pnpm", [
+          "--filter",
+          "@steelyard/example-coffee-shop",
+          "smoke:ucp:dual"
+        ], {
+          STEELYARD_MOCK_STRIPE: "1",
+          STEELYARD_ALLOW_REFERENCE_PSP: "1",
+          STRIPE_TEST_SECRET_KEY: "sk_test_mock"
+        })
+    ],
+    [
+      "V07-IN-01",
+      "Public docs describe payment adapters and ACP's Stripe-only boundary",
+      ["CHANGELOG.md", "docs/releases.md", "docs/concepts/payment-adapters.md", "README.md", "IN3", "IN5"],
+      assertV07PaymentAdapterDocs
+    ]
+  ];
+  for (const [id, title, evidence, run] of entries) {
+    cases.push({
+      id,
+      suite: "V07",
+      title,
+      verifies: [],
+      evidence,
+      run
+    });
+  }
 }
 
 function addV06StripeConformanceCases(cases: VerifyCase[]): void {
@@ -758,6 +825,22 @@ async function assertMigrationDocs(ctx: VerifyContext): Promise<void> {
   assertIncludes(migration, "listSpend()", "migration guide must describe listSpend()");
   assertIncludes(migration, "Wallet.pay()", "migration guide must describe Wallet.pay()");
   assertIncludes(readme, "const intent", "README must include inline intent example");
+}
+
+async function assertV07PaymentAdapterDocs(ctx: VerifyContext): Promise<void> {
+  const changelog = await readRepoFile(ctx, "CHANGELOG.md");
+  const releases = await readRepoFile(ctx, "docs/releases.md");
+  const adapters = await readRepoFile(ctx, "docs/concepts/payment-adapters.md");
+  const readme = await readRepoFile(ctx, "README.md");
+  const nav = await readRepoFile(ctx, "mkdocs.yml");
+  assertIncludes(changelog, "## [0.7.0] - 2026-06-26", "CHANGELOG must include v0.7.0");
+  assertIncludes(releases, "## 0.7.0 - 2026-06-26", "release history must include v0.7.0");
+  assertIncludes(adapters, "UCP payment negotiation", "payment-adapters doc must describe UCP negotiation");
+  assertIncludes(adapters, "referencePsp()", "payment-adapters doc must describe referencePsp()");
+  assertIncludes(adapters, "ACP checkout is intentionally narrower", "payment-adapters doc must describe ACP boundary");
+  assertIncludes(readme, "v0.7 generalizes UCP payment wiring", "README must describe v0.7 payment adapter scope");
+  assertIncludes(readme, "intentionally direct Stripe SPT-only", "README must describe ACP Stripe-only boundary");
+  assertIncludes(nav, "concepts/payment-adapters.md", "MkDocs nav must expose payment-adapters doc");
 }
 
 async function assertNoDirectTotalsTotal(ctx: VerifyContext): Promise<void> {

@@ -1,14 +1,18 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createHash } from "node:crypto";
 import { SDJwtInstance } from "@sd-jwt/core";
-import { ecdsaSignRaw, type EcJwk, type HmsAlgorithm } from "@steelyard/core";
+import { ecdsaSignRaw, signDetachedJws, type EcJwk, type HmsAlgorithm } from "@steelyard/core";
 import { describe, expect, it } from "vitest";
 import {
   MockInProductionError,
   PspConfigError,
+  REFERENCE_PAYMENT_INSTRUMENT_TYPE,
+  REFERENCE_PAYMENT_TOKEN_PREFIX,
+  ReferencePspInProductionError,
   StripeLiveDisabledError,
   mockPsp,
   mockVaultToken,
+  referencePsp,
   stripePsp,
   type PspCaptureArgs
 } from "./index.js";
@@ -70,6 +74,9 @@ describe("mockPsp", () => {
       });
       expect(declined.supportsHandler("handler_1")).toBe(true);
       expect(declined.supportsHandler("handler_2")).toBe(false);
+      expect(declined.capabilities).toEqual([
+        { handlerId: "handler_1", instrumentType: "vault_token", idPrefix: "vt_" }
+      ]);
 
       const auth = mockPsp({ failOn: "requires_authentication" });
       await expect(auth.capture(captureArgs)).resolves.toMatchObject({
@@ -146,6 +153,65 @@ describe("mockPsp", () => {
   });
 });
 
+describe("referencePsp", () => {
+  it("is default-deny outside known test environments", async () => {
+    await withMockEnv({}, async () => {
+      expect(() => referencePsp({ signingKey: holderP256PublicKey })).toThrow(ReferencePspInProductionError);
+      expect(() => referencePsp({ signingKey: holderP256PublicKey, allowInProduction: true }))
+        .toThrow(ReferencePspInProductionError);
+      process.env.STEELYARD_ALLOW_REFERENCE_PSP = "1";
+      expect(() => referencePsp({ signingKey: holderP256PublicKey })).toThrow(ReferencePspInProductionError);
+      expect(() => referencePsp({ signingKey: holderP256PublicKey, allowInProduction: true })).not.toThrow();
+    });
+  });
+
+  it("declares reference delegated-token capability and captures valid tokens", async () => {
+    const psp = referencePsp({ signingKey: holderP256PublicKey, clock: () => now });
+    const token = await issueReferenceToken();
+
+    expect(psp.name).toBe("reference");
+    expect(psp.capabilities).toEqual([
+      { handlerId: "reference", instrumentType: REFERENCE_PAYMENT_INSTRUMENT_TYPE, idPrefix: REFERENCE_PAYMENT_TOKEN_PREFIX }
+    ]);
+    expect(psp.supportsHandler("reference")).toBe(true);
+    expect(psp.supportsHandler("stripe")).toBe(false);
+    await expect(psp.capture(referenceCaptureArgs(token))).resolves.toMatchObject({
+      ok: true,
+      psp_payment_id: expect.stringMatching(/^psp_reference_[a-f0-9]{24}$/),
+      status: "captured"
+    });
+  });
+
+  it("rejects forged or context-mismatched reference tokens at capture (RP2)", async () => {
+    const psp = referencePsp({ signingKey: holderP256PublicKey, clock: () => now });
+    const wrongAmount = await issueReferenceToken({ amount: 999 });
+    const wrongMerchant = await issueReferenceToken({ merchant_id: "https://wrong.example/.well-known/ucp" });
+    const expired = await issueReferenceToken({ exp: nowSeconds - 1 });
+    const altered = alterReferenceToken(await issueReferenceToken(), { currency: "EUR" });
+
+    await expect(psp.capture(referenceCaptureArgs(wrongAmount, "idem_reference_amount"))).resolves.toMatchObject({
+      ok: false,
+      reason: "other",
+      detail: "reference_token_amount_mismatch"
+    });
+    await expect(psp.capture(referenceCaptureArgs(wrongMerchant, "idem_reference_merchant"))).resolves.toMatchObject({
+      ok: false,
+      reason: "other",
+      detail: "reference_token_merchant_mismatch"
+    });
+    await expect(psp.capture(referenceCaptureArgs(expired, "idem_reference_expired"))).resolves.toMatchObject({
+      ok: false,
+      reason: "expired",
+      detail: "reference_token_expired"
+    });
+    await expect(psp.capture(referenceCaptureArgs(altered, "idem_reference_altered"))).resolves.toMatchObject({
+      ok: false,
+      reason: "other",
+      detail: "reference_token_signature_invalid"
+    });
+  });
+});
+
 describe("stripePsp", () => {
   it("requires an explicit API key and handler match", () => {
     expect(() => stripePsp({ apiKey: "" })).toThrow(/apiKey/);
@@ -153,6 +219,9 @@ describe("stripePsp", () => {
     expect(() => stripePsp({ apiKey: "rk_test_unit", acceptSharedPaymentTokens: true })).toThrow(StripeLiveDisabledError);
     const psp = stripePsp({ apiKey: "sk_test_unit", fetch: async () => stripeResponse({ id: "pi_1", status: "succeeded" }) });
     expect(psp.name).toBe("stripe");
+    expect(psp.capabilities).toEqual([
+      { handlerId: "stripe", instrumentType: "shared_payment_token", idPrefix: "spt_" }
+    ]);
     expect(psp.supportsHandler("stripe")).toBe(true);
     expect(psp.supportsHandler("other")).toBe(false);
   });
@@ -226,6 +295,30 @@ describe("stripePsp", () => {
     expect(body.get("payment_method")).toBeNull();
   });
 
+  it("surfaces Stripe SPT decline details through neutral PSP reasons (NC3)", async () => {
+    const cases: Array<[string, string, string | undefined]> = [
+      ["spt_max_amount_exceeded", "limit_exceeded", "amount_exceeded"],
+      ["spt_revoked", "revoked", "spt_revoked"],
+      ["spt_seller_mismatch", "seller_mismatch", "spt_seller_mismatch"],
+      ["card_declined", "declined", undefined]
+    ];
+
+    for (const [stripeCode, reason, detail] of cases) {
+      await expect(
+        stripePsp({
+          apiKey: "sk_test_unit",
+          acceptSharedPaymentTokens: true,
+          fetch: async () => stripeResponse({ error: { code: stripeCode, message: stripeCode } }, 402)
+        }).capture({ ...captureArgs, vault_token: "spt_123" })
+      ).resolves.toEqual({
+        ok: false,
+        reason,
+        message: stripeCode,
+        ...(detail ? { detail } : {})
+      });
+    }
+  });
+
   it("uses an SPT embedded in a verified AP2 payment mandate (AP1, SC1)", async () => {
     const paymentMandate = await issuePaymentMandate({
       handlerId: "stripe",
@@ -256,28 +349,31 @@ describe("stripePsp", () => {
   });
 
   it("rejects SPT AP2 payment mandates whose handler claim is missing or mismatched (UH4)", async () => {
-    await withMockEnv({ STEELYARD_TEST: "1" }, async () => {
-      const psp = mockPsp({ seed: "unit", clock: () => now });
-      const paymentInstrument = {
-        id: "spt_123",
-        type: "shared_payment_token",
-        description: "Stripe Shared Payment Token (test mode)"
-      };
-      const missing = await issuePaymentMandate({ paymentInstrument });
-      const mismatched = await issuePaymentMandate({ handlerId: "other", paymentInstrument });
-
-      await expect(
-        psp.capture({ ...captureArgs, handler_id: "stripe", idempotencyKey: "idem_ap2_spt_missing_handler", payment_mandate: missing })
-      ).rejects.toThrow(/handler_mismatch/);
-      await expect(
-        psp.capture({
-          ...captureArgs,
-          handler_id: "stripe",
-          idempotencyKey: "idem_ap2_spt_mismatched_handler",
-          payment_mandate: mismatched
-        })
-      ).rejects.toThrow(/handler_mismatch/);
+    const psp = stripePsp({
+      apiKey: "sk_test_unit",
+      acceptSharedPaymentTokens: true,
+      clock: () => now,
+      fetch: async () => stripeResponse({ id: "pi_unreachable", status: "succeeded" })
     });
+    const paymentInstrument = {
+      id: "spt_123",
+      type: "shared_payment_token",
+      description: "Stripe Shared Payment Token (test mode)"
+    };
+    const missing = await issuePaymentMandate({ paymentInstrument });
+    const mismatched = await issuePaymentMandate({ handlerId: "other", paymentInstrument });
+
+    await expect(
+      psp.capture({ ...captureArgs, handler_id: "stripe", idempotencyKey: "idem_ap2_spt_missing_handler", payment_mandate: missing })
+    ).rejects.toThrow(/handler_mismatch/);
+    await expect(
+      psp.capture({
+        ...captureArgs,
+        handler_id: "stripe",
+        idempotencyKey: "idem_ap2_spt_mismatched_handler",
+        payment_mandate: mismatched
+      })
+    ).rejects.toThrow(/handler_mismatch/);
   });
 
   it("verifies AP2 payment mandates before Stripe capture (PM5-3)", async () => {
@@ -399,6 +495,57 @@ function stripeResponse(body: unknown, status = 200): Response {
   });
 }
 
+async function issueReferenceToken(overrides: Partial<{
+  merchant_id: string;
+  checkout_id: string;
+  transaction_id: string;
+  amount: number;
+  currency: string;
+  handler_id: string;
+  instrument_type: string;
+  exp: number;
+}> = {}): Promise<string> {
+  const payload = {
+    merchant_id: "merchant_1",
+    checkout_id: "cs_1",
+    transaction_id: "cs_1",
+    amount: 500,
+    currency: "USD",
+    handler_id: "reference",
+    instrument_type: REFERENCE_PAYMENT_INSTRUMENT_TYPE,
+    exp: nowSeconds + 300,
+    ...overrides
+  };
+  const payloadBytes = Buffer.from(JSON.stringify(payload), "utf8");
+  const detached = await signDetachedJws({
+    payload: payloadBytes,
+    header: { alg: "ES256", kid: holderP256PublicKey.kid },
+    privateKey: holderP256PrivateKey
+  });
+  const [header, empty, signature] = detached.split(".");
+  if (!header || empty !== "" || !signature) throw new Error("bad detached reference token");
+  return `${REFERENCE_PAYMENT_TOKEN_PREFIX}${header}.${payloadBytes.toString("base64url")}.${signature}`;
+}
+
+function referenceCaptureArgs(token: string, idempotencyKey = "idem_reference_valid"): PspCaptureArgs {
+  return {
+    ...captureArgs,
+    vault_token: token,
+    idempotencyKey,
+    handler_id: "reference",
+    instrument_type: REFERENCE_PAYMENT_INSTRUMENT_TYPE
+  };
+}
+
+function alterReferenceToken(token: string, patch: Record<string, unknown>): string {
+  const prefix = REFERENCE_PAYMENT_TOKEN_PREFIX;
+  if (!token.startsWith(prefix)) throw new Error("expected reference token");
+  const parts = token.slice(prefix.length).split(".");
+  const payload = JSON.parse(Buffer.from(parts[1]!, "base64url").toString("utf8")) as Record<string, unknown>;
+  const nextPayload = Buffer.from(JSON.stringify({ ...payload, ...patch }), "utf8").toString("base64url");
+  return `${prefix}${parts[0]}.${nextPayload}.${parts[2]}`;
+}
+
 async function issuePaymentMandate(opts: {
   handlerId?: string;
   paymentInstrument?: { id: string; type: string; description?: string };
@@ -483,7 +630,14 @@ const holderP256PrivateKey = {
 } satisfies EcJwk;
 
 async function withMockEnv(env: Record<string, string | undefined>, fn: () => Promise<void>): Promise<void> {
-  const keys = ["VITEST", "JEST_WORKER_ID", "STEELYARD_TEST", "STEELYARD_ALLOW_MOCK_PSP", "NODE_ENV"] as const;
+  const keys = [
+    "VITEST",
+    "JEST_WORKER_ID",
+    "STEELYARD_TEST",
+    "STEELYARD_ALLOW_MOCK_PSP",
+    "STEELYARD_ALLOW_REFERENCE_PSP",
+    "NODE_ENV"
+  ] as const;
   const original = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
   for (const key of keys) delete process.env[key];
   for (const [key, value] of Object.entries(env)) {

@@ -10,6 +10,7 @@ import {
   type HmsAlgorithm,
   type Manifest,
   type Offer,
+  type PaymentCapability,
   type PurchaseIntent,
   type Total
 } from "@steelyard/core";
@@ -39,8 +40,10 @@ import {
 } from "@steelyard/protocol/ucp/checkout";
 import {
   UCP_AP2_CAPABILITY,
+  STEELYARD_PAYMENT_HANDLER_NAMESPACE,
   UcpProfileCache,
   assertValidAp2EnvelopeOnResponse,
+  buildUcpPaymentHandlers,
   isValidAp2EnvelopeOnRequest,
   signUcpResponse,
   verifyUcpRequest,
@@ -184,7 +187,7 @@ export function createMerchantCheckout(manifest: Manifest, opts: MerchantCheckou
     throw new MerchantCheckoutConfigError("mandateVerifier is required when steelyardMandate is enabled");
   }
   validateAcpConfig(protocols.has("acp") ? opts.acp : undefined);
-  validateUcpConfig(protocols.has("ucp") ? opts.ucp : undefined);
+  validateUcpConfig(protocols.has("ucp") ? opts.ucp : undefined, opts.psp);
   assertPspCurrencySupport(manifest, opts.psp);
 
   const ctx = new MerchantCheckoutContext(manifest, opts);
@@ -358,6 +361,7 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
           ap2Locked
             ? { ...checkout, ap2_locked: true, ap2_nonces: await issueUcpAp2Nonces(ctx, checkoutId) }
             : checkout,
+          ctx.opts.psp.capabilities,
           ctx.opts.ucp?.paymentHandlers
         );
         await ctx.opts.store.put(next as StoredCheckout);
@@ -406,6 +410,17 @@ function createUcpRoutes(ctx: MerchantCheckoutContext): UcpRoutes {
                 claimed,
                 "payment_handler_mismatch",
                 "PSP does not support the selected handler",
+                ctx.clock()
+              )
+            };
+          }
+          if (!pspSupportsPayment(ctx.opts.psp, payment.handler_id, payment.instrument_type)) {
+            status = 400;
+            return {
+              next: checkoutCanceled(
+                claimed,
+                "payment_instrument_mismatch",
+                "PSP does not support the selected payment instrument",
                 ctx.clock()
               )
             };
@@ -683,7 +698,7 @@ async function capture(
   ctx: MerchantCheckoutContext,
   protocol: "acp" | "ucp",
   session: StoredCheckout,
-  payment: { vault_token: string; handler_id: string; payment_mandate_token?: string },
+  payment: { vault_token: string; handler_id: string; instrument_type?: string; payment_mandate_token?: string },
   _httpIdempotencyKey: string,
   mandateOk?: Extract<MandateVerificationResult, { ok: true }>
 ): Promise<PspCaptureResult> {
@@ -695,8 +710,9 @@ async function capture(
     metadata: { protocol, checkout_id: id },
     idempotencyKey: `psp:${protocol}:${id}:capture`,
     session_id: id,
-    merchant_id: ctx.manifest.identity.domain ?? ctx.manifest.identity.name,
+    merchant_id: protocol === "ucp" ? ctx.ucpAudience : ctx.manifest.identity.domain ?? ctx.manifest.identity.name,
     handler_id: payment.handler_id,
+    instrument_type: payment.instrument_type,
     ...(payment.payment_mandate_token
       ? { payment_mandate: ap2PaymentMandateForCapture(ctx, session, payment.payment_mandate_token, mandateOk) }
       : {})
@@ -942,7 +958,13 @@ function mandateFailureCode(result: Extract<MandateVerificationResult, { ok: fal
   return mandateErrorCode(result.reason);
 }
 
-function ucpPaymentData(body: unknown): { vault_token: string; handler_id: string; payment_mandate_token?: string } {
+function ucpPaymentData(body: unknown): {
+  vault_token: string;
+  handler_id: string;
+  instrument_id: string;
+  instrument_type: string;
+  payment_mandate_token?: string;
+} {
   const payment = asRecord(asRecord(body).payment);
   const instruments = payment.instruments;
   if (!Array.isArray(instruments)) throw new HttpError(400, "payment_instrument_required");
@@ -950,12 +972,18 @@ function ucpPaymentData(body: unknown): { vault_token: string; handler_id: strin
   const credential = asRecord(selected.credential);
   const token = stringValue(credential.token, "");
   const handlerId = stringValue(selected.handler_id, "");
+  const instrumentId = stringValue(selected.id, "");
+  const instrumentType = stringValue(selected.type, "");
   if (!token) throw new HttpError(400, "vault_token_required");
   if (!handlerId) throw new HttpError(400, "payment_handler_required");
+  if (!instrumentId) throw new HttpError(400, "payment_instrument_id_required");
+  if (!instrumentType) throw new HttpError(400, "payment_instrument_type_required");
   const credentialType = stringValue(credential.type, "");
   return {
     vault_token: token,
     handler_id: handlerId,
+    instrument_id: instrumentId,
+    instrument_type: instrumentType,
     ...(credentialType === "ap2_payment_mandate" ? { payment_mandate_token: token } : {})
   };
 }
@@ -986,29 +1014,42 @@ function withAcpPaymentHandlers(session: Record<string, unknown>, psp: PspAdapte
   };
 }
 
-function withUcpPaymentHandlers(checkout: Record<string, unknown>, paymentHandlers: readonly string[] | undefined): Record<string, unknown> {
-  if (!paymentHandlers?.length) return checkout;
+function withUcpPaymentHandlers(
+  checkout: Record<string, unknown>,
+  capabilities: readonly PaymentCapability[],
+  paymentHandlers: readonly string[] | undefined
+): Record<string, unknown> {
+  const selected = ucpCapabilitiesForHandlers(capabilities, paymentHandlers);
+  if (!selected.length) return checkout;
   return {
     ...checkout,
     ucp: {
       ...asRecord(checkout.ucp),
       payment_handlers: {
-        "net.steelyard": paymentHandlers.map(ucpPaymentHandler)
+        [STEELYARD_PAYMENT_HANDLER_NAMESPACE]: buildUcpPaymentHandlers(selected)
       }
     }
   };
 }
 
-function ucpPaymentHandler(id: string): Record<string, unknown> {
-  if (id !== "stripe") throw new UnknownPaymentHandlerError(id);
-  return {
-    id: "stripe",
-    version: "2026-04-17",
-    available_instruments: [
-      { type: "card", constraints: { brands: ["visa", "mastercard", "amex"] } },
-      { type: "shared_payment_token" }
-    ]
-  };
+function ucpCapabilitiesForHandlers(
+  capabilities: readonly PaymentCapability[],
+  paymentHandlers: readonly string[] | undefined
+): readonly PaymentCapability[] {
+  if (!paymentHandlers?.length) return capabilities;
+  const selected: PaymentCapability[] = [];
+  for (const handlerId of paymentHandlers) {
+    const matches = capabilities.filter((capability) => capability.handlerId === handlerId);
+    if (!matches.length) throw new UnknownPaymentHandlerError(handlerId);
+    selected.push(...matches);
+  }
+  return selected;
+}
+
+function pspSupportsPayment(psp: PspAdapter, handlerId: string, instrumentType: string): boolean {
+  return psp.capabilities.some((capability) =>
+    capability.handlerId === handlerId && capability.instrumentType === instrumentType
+  );
 }
 
 function withUcpCatalogDetails(manifest: Manifest, checkout: Record<string, unknown>): Record<string, unknown> {
@@ -1178,10 +1219,10 @@ function assertPspCurrencySupport(manifest: Manifest, psp: PspAdapter): void {
   }
 }
 
-function validateUcpConfig(config: NonNullable<MerchantCheckoutOpts["ucp"]> | undefined): void {
+function validateUcpConfig(config: NonNullable<MerchantCheckoutOpts["ucp"]> | undefined, psp: PspAdapter): void {
   validateUcpAuthConfig(config?.auth);
   validateUcpAp2Config(config);
-  validateUcpPaymentHandlers(config?.paymentHandlers);
+  validateUcpPaymentHandlers(config?.paymentHandlers, psp.capabilities);
 }
 
 function validateAcpConfig(config: NonNullable<MerchantCheckoutOpts["acp"]> | undefined): void {
@@ -1190,10 +1231,11 @@ function validateAcpConfig(config: NonNullable<MerchantCheckoutOpts["acp"]> | un
   }
 }
 
-function validateUcpPaymentHandlers(paymentHandlers: readonly string[] | undefined): void {
-  for (const handler of paymentHandlers ?? []) {
-    if (handler !== "stripe") throw new UnknownPaymentHandlerError(handler);
-  }
+function validateUcpPaymentHandlers(
+  paymentHandlers: readonly string[] | undefined,
+  capabilities: readonly PaymentCapability[]
+): void {
+  ucpCapabilitiesForHandlers(capabilities, paymentHandlers);
 }
 
 function validateUcpAuthConfig(config: UcpAuthConfig | undefined): void {

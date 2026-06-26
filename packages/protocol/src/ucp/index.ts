@@ -41,7 +41,6 @@ export {
   UCP_WELL_KNOWN_PATH,
   STEELYARD_CHECKOUT_MANDATE_V01,
   STEELYARD_PAYMENT_HANDLER_NAMESPACE,
-  STRIPE_PAYMENT_HANDLER_ID,
   assertValidUcpDiscovery,
   assertValidUcpProfile,
   buildUcpPaymentHandlers,
