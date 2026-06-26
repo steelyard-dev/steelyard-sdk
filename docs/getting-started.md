@@ -61,7 +61,7 @@ Prefer to poke at a working multi-protocol shop with an LLM agent first?
 LLM path of `@steelyard/agent` (without it, a naive parser still answers).
 
 ```bash
-git clone https://github.com/riccardoio/steelyard-sdk.git steelyard
+git clone https://github.com/steelyard-dev/steelyard-sdk.git steelyard
 cd steelyard
 pnpm install
 pnpm -r build

@@ -135,7 +135,7 @@ non-compliance notice.
 
 ## Verification
 
-[`packages/protocol/src/ucp/ucp.test.ts`](https://github.com/riccardoio/steelyard-sdk/blob/main/packages/protocol/src/ucp/ucp.test.ts)
+[`packages/protocol/src/ucp/ucp.test.ts`](https://github.com/steelyard-dev/steelyard-sdk/blob/main/packages/protocol/src/ucp/ucp.test.ts)
 runs 15 cases including spec-conformance for discovery + search + lookup +
 get_product, plus adversarial tests that tamper each response and assert AJV
 throws.

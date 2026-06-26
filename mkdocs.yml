@@ -2,8 +2,8 @@ site_name: Steelyard
 site_description: The open-source SDK for agentic commerce. Define commerce once. Expose it as commerce.json, HTTP, MCP, ACP, and UCP.
 site_url: https://steelyard.dev
 site_author: Steelyard contributors
-repo_url: https://github.com/riccardoio/steelyard-sdk
-repo_name: riccardoio/steelyard-sdk
+repo_url: https://github.com/steelyard-dev/steelyard-sdk
+repo_name: steelyard-dev/steelyard-sdk
 edit_uri: edit/main/docs/
 copyright: Copyright &copy; Steelyard contributors. MIT License.
 
@@ -146,6 +146,6 @@ plugins:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/riccardoio/steelyard-sdk
+      link: https://github.com/steelyard-dev/steelyard-sdk
     - icon: fontawesome/brands/npm
       link: https://www.npmjs.com/org/steelyard
