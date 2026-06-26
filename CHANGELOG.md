@@ -7,6 +7,24 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-26
+
+### Added
+- UCP PSP capability declarations now drive `ucp.payment_handlers["net.steelyard"]`, so merchants can advertise payment handlers without hard-coding Stripe-specific UCP discovery fields (NC1, MV2, AD3).
+- Added a guarded reference UCP payment rail: `referencePsp()` and `createReferencePaymentIssuer()` use `delegated_payment_token` / `dpt_` handles with signed, merchant- and transaction-bound scope verification before capture (RP1, RP2, RP3).
+- Coffee-shop now has a dual UCP smoke that runs the same catalog through Stripe-backed and reference-backed checkout-server configs and compares receipt shape and order outcome (EX1).
+- Added public payment-adapter documentation covering UCP-neutral adapters, Stripe SPT, the reference PSP, and ACP's current Stripe-only boundary (IN3).
+
+### Changed
+- Buyer, merchant, protocol, and docs code now use neutral payment capability and instrument vocabulary for UCP paths instead of assuming `shared_payment_token` everywhere (NC1, MV2, MV4).
+- Stripe SPT capture failures are normalized to neutral PSP reasons while retaining vendor-specific detail codes for diagnostics (NC3).
+- UCP buyer negotiation now requires advertised `available_instruments`; merchants that omit UCP instrument advertisement no longer match Stripe by default and now surface `NoCompatiblePaymentHandlerError` (BN2).
+- UCP and AP2 selected payment instruments now use the issuer's `instrumentType`, including non-SPT issuers, instead of hard-coded `shared_payment_token` values (BN3).
+- ACP checkout remains intentionally limited to direct Stripe SPT payment data and now rejects non-`shared_payment_token` wallet issuers before minting (AG1).
+
+### Fixed
+- `pnpm verify` and `pnpm validate-examples` now cover v0.7 adapter-neutral UCP discovery, handler negotiation, reference-token verification, ACP guard behavior, and dual-adapter coffee-shop smoke coverage (IN5, EX1).
+
 ## [0.6.0] - 2026-06-16
 
 ### Added

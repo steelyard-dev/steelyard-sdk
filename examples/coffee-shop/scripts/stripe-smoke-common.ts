@@ -8,6 +8,7 @@ import { stripePsp, type PspAdapter, type PspCaptureResult } from "@steelyard/me
 import { createStripeSptIssuer } from "@steelyard/stripe/buyer";
 import {
   startCoffeeShopCheckoutServer,
+  type CoffeeShopUcpAuthMode,
   type RunningCoffeeShopCheckout
 } from "../src/checkout-server.js";
 
@@ -51,7 +52,11 @@ export function stripeSmokeConfigOrSkip(): StripeSmokeConfig | undefined {
 
 export async function startStripeSmokeHarness(
   config: StripeSmokeConfig,
-  opts: { acpBearerToken?: string } = {}
+  opts: {
+    acpBearerToken?: string;
+    ap2?: boolean;
+    ucpAuthMode?: CoffeeShopUcpAuthMode;
+  } = {}
 ): Promise<StripeSmokeHarness> {
   const root = await mkdtemp(join(tmpdir(), "steelyard-stripe-smoke-"));
   const cwd = process.cwd();
@@ -89,9 +94,10 @@ export async function startStripeSmokeHarness(
     const signing = await wallet.createUcpSigningKey({ algorithm: "ES256" });
     const buyerPublicKey = await wallet.exportUcpSigningPublicKey();
     shop = await startCoffeeShopCheckoutServer({
-      ap2: true,
+      ap2: opts.ap2 ?? true,
       ap2Issuer: stripeSmokeIssuer,
       steelyardMandate: false,
+      ucpAuthMode: opts.ucpAuthMode ?? "hms-and-bearer",
       buyerSigningKeys: [buyerPublicKey],
       psp: recordingPsp(stripePsp({
         apiKey: config.apiKey,

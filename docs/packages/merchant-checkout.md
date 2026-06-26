@@ -123,12 +123,16 @@ can provide database-backed implementations.
 
 - `mockPsp()` for tests and demos. Outside known test environments it requires
   `allowInProduction: true` and `STEELYARD_ALLOW_MOCK_PSP=1`.
-- `stripePsp({ apiKey })` for Stripe test mode. v0.6 rejects `sk_live_*`;
+- `stripePsp({ apiKey })` for Stripe test mode. v0.7 rejects `sk_live_*`;
   `acceptSharedPaymentTokens: true` also requires an unrestricted `sk_test_*`
   key.
+- `referencePsp({ signingKey })` for UCP adapter interop tests and demos. It
+  verifies `delegated_payment_token` handles and requires
+  `allowInProduction: true` plus `STEELYARD_ALLOW_REFERENCE_PSP=1` outside
+  known test environments.
 
-Mock PSPs must not be silently enabled in production. The explicit env guard is
-intentional.
+Mock and reference PSPs must not be silently enabled in production. The explicit
+env guards are intentional.
 
 ## Mandates
 

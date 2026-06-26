@@ -17,6 +17,7 @@
     "smoke:vanilla-ucp": "tsx scripts/smoke-vanilla-ucp.ts",
     "smoke:well-known": "tsx scripts/smoke-well-known.ts",
     "smoke:stripe": "tsx scripts/smoke-stripe.ts",
+    "smoke:ucp:dual": "tsx scripts/smoke-dual-ucp.ts",
     "smoke:stripe:ucp": "tsx scripts/smoke-stripe-ucp.ts",
     "smoke:stripe:acp": "tsx scripts/smoke-stripe-acp.ts",
     "start": "node dist/index.js",

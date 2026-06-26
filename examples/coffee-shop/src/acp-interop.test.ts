@@ -60,6 +60,7 @@ describe("vanilla ACP buyer interop", () => {
 function stripeLikePsp(captures: PspCaptureArgs[]): PspAdapter {
   return {
     name: "stripe",
+    capabilities: [{ handlerId: "stripe", instrumentType: "shared_payment_token", idPrefix: "spt_" }],
     supportsHandler: (handlerId) => handlerId === "stripe",
     async capture(args) {
       captures.push(args);

@@ -4,11 +4,12 @@ Steelyard is a TypeScript SDK for defining commerce once, serving it as static
 `commerce.json`, plain HTTP, MCP, ACP, and UCP, and letting buyers complete
 agentic purchases through a local encrypted Wallet.
 
-v0.6 adds the SDK wiring for Stripe Shared Payment Token payment over UCP and
-ACP. UCP uses AP2-signed checkout and payment mandates; ACP uses direct SPT
-`payment_data`. The release validates that flow with offline Stripe smokes;
-real Stripe payment execution remains opt-in and requires account-level Stripe
-SPT/business-profile access. MCP checkout remains out of scope for this release.
+v0.7 generalizes UCP payment wiring across PSP adapters. Merchants advertise
+neutral payment capabilities, buyers select wallet issuers by advertised
+instrument type, and the coffee-shop validation runs the same catalog through
+Stripe-backed and reference-backed UCP checkout configs. ACP remains
+intentionally direct Stripe SPT-only in this release. MCP checkout remains out
+of scope.
 
 ## Install
 
@@ -46,17 +47,19 @@ Pass that manifest to `@steelyard/protocol/mcp`, `@steelyard/protocol/acp`, and 
 Pass the same manifest to `@steelyard/merchant/checkout` to mount ACP and UCP
 checkout routes.
 
-## What's New in v0.6
+## What's New in v0.7
 
-Stripe SPTs are now the payment adapter primitive for both agentic checkout
-surfaces:
+UCP payment handlers are now adapter-neutral. Stripe SPTs remain supported, and
+the guarded reference PSP proves the same UCP checkout path can use another
+instrument type:
 
 ```mermaid
 sequenceDiagram
-  Buyer->>Merchant: UCP or ACP checkout
-  Buyer->>Stripe: Mint spt_* scoped to amount/currency/expiry
-  Buyer->>Merchant: AP2 payment mandate (UCP) or payment_data (ACP)
-  Merchant->>Stripe: Confirm PaymentIntent with SPT
+  Buyer->>Merchant: UCP checkout
+  Merchant-->>Buyer: payment_handlers + available_instruments
+  Buyer->>Issuer: Mint scoped payment handle
+  Buyer->>Merchant: Selected instrument + credential
+  Merchant->>PSP: Verify and capture handle
   Merchant-->>Buyer: Receipt
 ```
 
@@ -69,8 +72,9 @@ console.log(receipt.reference.ucp?.psp_payment_id);
 ```
 
 See `docs/concepts/agentic-payment.md` and
-`docs/guides/stripe-test-mode-setup.md` for the full UCP/ACP flow, offline
-validation, and the current Stripe Test mode account-access requirements.
+`docs/concepts/payment-adapters.md` for UCP adapter wiring. See
+`docs/guides/stripe-test-mode-setup.md` for Stripe Test mode requirements and
+ACP's current Stripe SPT path.
 
 ## Signed UCP Checkout
 

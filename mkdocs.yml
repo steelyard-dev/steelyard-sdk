@@ -67,6 +67,7 @@ nav:
     - Mandates: concepts/mandates.md
     - Payment mandates: concepts/payment-mandates.md
     - Agentic payment: concepts/agentic-payment.md
+    - Payment adapters: concepts/payment-adapters.md
     - Payment handlers: concepts/payment-handlers.md
     - Stripe SPT errors: concepts/stripe-spt-errors.md
     - Trust models: concepts/trust-models.md

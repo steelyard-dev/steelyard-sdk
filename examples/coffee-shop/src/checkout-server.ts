@@ -62,6 +62,7 @@ export async function startCoffeeShopCheckoutServer(opts: {
   const ap2Issuer = opts.ap2Issuer ?? "did:example:coffee-dpc-issuer";
   const buyerSigningKeys = opts.buyerSigningKeys ?? [buyerDemoUcpPublicKey];
   const ap2NonceStore = ap2Enabled ? memoryNonceStore({ clock: opts.clock }) : undefined;
+  const psp = opts.psp ?? mockPsp({ allowInProduction: true, handlerIds: opts.paymentHandlers ?? ["stripe"], clock: opts.clock });
   const buyerProfile = createUcpBuyerProfileHandler({
     signingKeys: buyerSigningKeys,
     ...(ap2Enabled ? { ap2: { enabled: true as const } } : {})
@@ -82,7 +83,7 @@ export async function startCoffeeShopCheckoutServer(opts: {
         baseUrl,
         checkout: true,
         steelyardMandate,
-        ucp: discoveryUcpConfig(ucpAuthMode, ap2Enabled, opts.paymentHandlers)
+        ucp: discoveryUcpConfig(ucpAuthMode, ap2Enabled, psp.capabilities, opts.paymentHandlers)
       }));
       return;
     }
@@ -112,7 +113,7 @@ export async function startCoffeeShopCheckoutServer(opts: {
     protocols: ["acp", "ucp"],
     store: memoryCheckoutSessionStore(),
     idempotency: memoryIdempotencyStore(),
-    psp: opts.psp ?? mockPsp({ allowInProduction: true, clock: opts.clock }),
+    psp,
     ...(mandateVerifier ? { mandateVerifier } : {}),
     steelyardMandate,
     clock: opts.clock,
@@ -189,17 +190,23 @@ function checkoutAcpFeed(): Record<string, unknown> {
 function discoveryUcpConfig(
   mode: CoffeeShopUcpAuthMode,
   ap2Enabled: boolean,
+  paymentCapabilities: PspAdapter["capabilities"],
   paymentHandlers: readonly string[] | undefined
 ) {
-  if (mode !== "hms" && mode !== "hms-and-bearer") return undefined;
+  const hmsEnabled = mode === "hms" || mode === "hms-and-bearer";
   return {
-    auth: {
-      hms: {
-        enabled: true,
-        signingKeys: [merchantDemoUcpPrivateKey]
-      }
-    },
+    ...(hmsEnabled
+      ? {
+          auth: {
+            hms: {
+              enabled: true,
+              signingKeys: [merchantDemoUcpPrivateKey]
+            }
+          }
+        }
+      : {}),
     ...(ap2Enabled ? { ap2: { enabled: true } } : {}),
+    paymentCapabilities,
     ...(paymentHandlers?.length ? { paymentHandlers } : {})
   };
 }

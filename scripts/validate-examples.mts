@@ -47,6 +47,12 @@ async function main(): Promise<void> {
     STEELYARD_MOCK_STRIPE: "1",
     STRIPE_TEST_SECRET_KEY: "sk_test_mock"
   });
+  await run("pnpm", ["--filter", "@steelyard/example-coffee-shop", "smoke:ucp:dual"], {
+    ...process.env,
+    STEELYARD_MOCK_STRIPE: "1",
+    STEELYARD_ALLOW_REFERENCE_PSP: "1",
+    STRIPE_TEST_SECRET_KEY: "sk_test_mock"
+  });
   await run("pnpm", ["--filter", "@steelyard/example-coffee-shop", "smoke:stripe:acp"], {
     ...process.env,
     STEELYARD_MOCK_STRIPE: "1",

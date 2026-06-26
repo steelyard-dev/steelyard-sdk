@@ -1,5 +1,27 @@
 # Release History
 
+## 0.7.0 - 2026-06-26
+
+Steelyard v0.7 generalizes UCP payment wiring beyond Stripe-specific Shared
+Payment Tokens. Merchant PSP adapters now declare neutral payment capabilities,
+UCP discovery derives `payment_handlers` from those capabilities, and the buyer
+matches wallet issuers to advertised `available_instruments` instead of falling
+back to implicit Stripe behavior. Stripe remains supported through
+`shared_payment_token`, but UCP can now complete with another issuer-defined
+instrument type.
+
+The release adds a guarded reference PSP and buyer issuer for local interop and
+demo validation. The reference path signs `delegated_payment_token` handles and
+verifies merchant, checkout, transaction, amount, currency, handler, instrument,
+signature, and expiry before capture. Coffee-shop validation now runs the same
+catalog through Stripe-backed and reference-backed UCP checkout configs and
+compares receipt shape and order outcome.
+
+ACP is unchanged in scope: it remains intentionally direct Stripe SPT-only in
+v0.7 and rejects non-`shared_payment_token` wallet issuers before minting. The
+new docs describe the adapter boundary, the reference PSP guard rails, neutral
+Stripe error mapping, and the UCP/ACP split.
+
 ## 0.6.0 - 2026-06-16
 
 Steelyard v0.6 completes the SDK surface for exposing one commerce definition
