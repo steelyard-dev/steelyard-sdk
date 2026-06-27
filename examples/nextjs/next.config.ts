@@ -13,6 +13,15 @@ const nextConfig: NextConfig = {
   // handlers used by the demo (manifest serving + read surfaces only), so this
   // require is effectively dead at runtime here.
   serverExternalPackages: ["@napi-rs/keyring"],
+  // Map the well-known UCP discovery path onto the catch-all UCP route handler.
+  // The app-router file lives at /api/ucp/[...path]; this rewrite exposes the
+  // canonical /.well-known/ucp URL that the protocol spec expects.
+  async rewrites() {
+    return [
+      { source: "/.well-known/ucp", destination: "/api/ucp/.well-known/ucp" },
+      { source: "/.well-known/ucp/:path*", destination: "/api/ucp/.well-known/ucp/:path*" }
+    ];
+  },
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Belt-and-braces: also externalize via webpack so the transitive native
