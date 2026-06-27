@@ -32,6 +32,7 @@ site/
 .env
 .env.*
 !.env.example
+!packages/cli/test/fixtures/**/.env*
 
 # OS
 .DS_Store
