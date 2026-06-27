@@ -58,7 +58,11 @@ Steelyard surfaces (`/.well-known/commerce.json`, `/mcp`, `/acp/feed`,
 inspector at `/steelyard`, then installs `steelyard` + `@steelyard/next`
 with your project's package manager (pass `--skip-install` to skip). If a
 Stripe API key is found, it offers to import your existing Stripe catalog.
-Discovery-only by default; upgrade with `steelyard enable checkout`.
+Discovery is fully wired today. `steelyard enable checkout` lays the
+tier-B foundation (verifies your Stripe key, checks that your account
+has the agentic-payments capability enabled, flips the tier flag) — the
+generated merchant checkout endpoint that actually accepts agent
+purchases ships in a follow-up release.
 
 See `examples/nextjs/` for a deployable reference app.
 

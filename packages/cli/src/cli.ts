@@ -76,9 +76,13 @@ export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO
   cli
     .command("enable <feature>", "Enable a Steelyard feature in this project")
     .option("--yes", "Accept all defaults")
+    .option("--allow-live", "Permit live-mode Stripe keys (otherwise blocked)")
     .action(async (feature: string, options: Record<string, unknown>) => {
       if (feature === "checkout") {
-        result = await runEnableCheckout({ yes: Boolean(options.yes) }, io);
+        result = await runEnableCheckout(
+          { yes: Boolean(options.yes), allowLive: Boolean(options.allowLive) },
+          io
+        );
       } else {
         writeLine(io.stderr, `unknown feature: ${feature}`);
         result = { code: 4 };

@@ -13,10 +13,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    },
-    "./inspector": {
-      "types": "./dist/inspector/page.d.ts",
-      "import": "./dist/inspector/page.js"
     }
   },
   "files": ["dist"],

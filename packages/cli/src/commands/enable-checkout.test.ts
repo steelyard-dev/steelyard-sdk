@@ -43,6 +43,7 @@ describe("runEnableCheckout", () => {
 
   it("returns exit code 1 when Stripe verification throws", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "sy-enable-"));
+    writeFileSync(join(cwd, "commerce.ts"), "");
     const stripeFactory = () => ({
       accounts: {
         retrieve: async () => {
@@ -56,11 +57,16 @@ describe("runEnableCheckout", () => {
 
   it("replaces an existing STEELYARD_TIER line instead of appending", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "sy-enable-"));
+    writeFileSync(join(cwd, "commerce.ts"), "");
     writeFileSync(join(cwd, ".env.local"), "STEELYARD_TIER=a\nFOO=bar\n");
     const stripeFactory = () => ({
       accounts: { retrieve: async () => ({ id: "acct_456", livemode: true }) }
     });
-    const result = await runEnableCheckout({ yes: true }, io(cwd), { stripeFactory: stripeFactory as any });
+    const result = await runEnableCheckout(
+      { yes: true, allowLive: true },
+      io(cwd),
+      { stripeFactory: stripeFactory as any }
+    );
     expect(result.code).toBe(0);
     const env = readFileSync(join(cwd, ".env.local"), "utf8");
     expect(env).toContain("STEELYARD_TIER=b");
@@ -68,8 +74,81 @@ describe("runEnableCheckout", () => {
     expect(env).toContain("FOO=bar");
   });
 
+  it("blocks live-mode Stripe keys without --allow-live", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "sy-enable-"));
+    writeFileSync(join(cwd, "commerce.ts"), "");
+    const stripeFactory = () => ({
+      accounts: { retrieve: async () => ({ id: "acct_live", livemode: true }) }
+    });
+    const result = await runEnableCheckout({ yes: true }, io(cwd), { stripeFactory: stripeFactory as any });
+    expect(result.code).toBe(3);
+  });
+
+  it("blocks when not in a Steelyard project (no manifest, no routes)", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "sy-enable-"));
+    const result = await runEnableCheckout(
+      { yes: true },
+      io(cwd),
+      { stripeFactory: (() => ({ accounts: { retrieve: async () => ({ id: "x", livemode: false }) } })) as any }
+    );
+    expect(result.code).toBe(4);
+  });
+
+  it("warns when the Stripe account lacks agentic-payments capability", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "sy-enable-"));
+    writeFileSync(join(cwd, "commerce.ts"), "");
+    const stderr: string[] = [];
+    const stdout: string[] = [];
+    const captureIo = {
+      ...io(cwd),
+      stdout: Object.assign(new PassThrough(), { isTTY: false }),
+      stderr: new PassThrough()
+    } as CliIO;
+    (captureIo.stdout as unknown as PassThrough).on("data", (c: Buffer) => stdout.push(c.toString("utf8")));
+    (captureIo.stderr as unknown as PassThrough).on("data", (c: Buffer) => stderr.push(c.toString("utf8")));
+    const stripeFactory = () => ({
+      accounts: { retrieve: async () => ({ id: "acct_no_cap", livemode: false, capabilities: {} }) }
+    });
+    const result = await runEnableCheckout(
+      { yes: true },
+      captureIo,
+      { stripeFactory: stripeFactory as any }
+    );
+    expect(result.code).toBe(0); // still proceeds, just warns
+    const all = stdout.join("");
+    expect(all).toMatch(/No agentic-payments capability detected/);
+  });
+
+  it("recognizes an active agentic-payments capability", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "sy-enable-"));
+    writeFileSync(join(cwd, "commerce.ts"), "");
+    const stdout: string[] = [];
+    const captureIo = {
+      ...io(cwd),
+      stdout: Object.assign(new PassThrough(), { isTTY: false })
+    } as CliIO;
+    (captureIo.stdout as unknown as PassThrough).on("data", (c: Buffer) => stdout.push(c.toString("utf8")));
+    const stripeFactory = () => ({
+      accounts: {
+        retrieve: async () => ({
+          id: "acct_with_cap",
+          livemode: false,
+          capabilities: { delegated_authorization_payments: "active" }
+        })
+      }
+    });
+    const result = await runEnableCheckout(
+      { yes: true },
+      captureIo,
+      { stripeFactory: stripeFactory as any }
+    );
+    expect(result.code).toBe(0);
+    expect(stdout.join("")).toMatch(/delegated_authorization_payments \(active\)/);
+  });
+
   it("reads the Stripe key from .env.local when env var is unset", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "sy-enable-"));
+    writeFileSync(join(cwd, "commerce.ts"), "");
     writeFileSync(join(cwd, ".env.local"), 'STRIPE_SECRET_KEY="sk_test_fromfile"\n');
     const seen: string[] = [];
     const stripeFactory = (k: string) => {
