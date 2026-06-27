@@ -39,6 +39,13 @@
     "@steelyard/core": "workspace:^",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
-    "cac": "^7.0.0"
+    "cac": "^7.0.0",
+    "ora": "^8.1.1",
+    "picocolors": "^1.1.1",
+    "prompts": "^2.4.2",
+    "stripe": "^17.4.0"
+  },
+  "devDependencies": {
+    "@types/prompts": "^2.4.9"
   }
 }
