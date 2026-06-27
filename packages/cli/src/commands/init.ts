@@ -5,6 +5,7 @@
 // stub, and optional dev inspector page transactionally.
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { loadInspectorPageTemplate } from "@steelyard/next";
 import type { CliIO, CommandResult } from "../io.js";
@@ -27,6 +28,8 @@ export interface InitOptions {
   surfaces?: "all" | string;
   inspector?: boolean;
   force?: boolean;
+  /** Skip running the package manager after codegen. Used by tests and CI. */
+  skipInstall?: boolean;
 }
 
 export interface InitDeps {
@@ -125,6 +128,35 @@ export async function runInit(options: InitOptions, io: CliIO, deps: InitDeps = 
 
   for (const path of result.written) {
     ui.success(path);
+  }
+
+  const depsToInstall = ["steelyard", "@steelyard/next"];
+  if (!options.skipInstall && shouldRunInstall(io.env)) {
+    const installCmd = installCommand(project.packageManager, depsToInstall);
+    const spin = ui.spinner(
+      `Installing ${depsToInstall.join(" + ")} with ${project.packageManager}…`
+    );
+    const proc = spawnSync(installCmd.bin, installCmd.args, {
+      cwd: io.cwd,
+      env: io.env as NodeJS.ProcessEnv,
+      stdio: "ignore"
+    });
+    if (proc.status === 0) {
+      spin.succeed(`Installed ${depsToInstall.join(" + ")}`);
+    } else {
+      spin.fail(`${project.packageManager} install exited ${proc.status ?? "with a signal"}`);
+      ui.line(
+        ui.dim(
+          `Run manually: ${installCmd.bin} ${installCmd.args.join(" ")}`
+        )
+      );
+    }
+  } else if (options.skipInstall) {
+    ui.line(
+      ui.dim(
+        `Skipped install. Run manually: ${describeInstallCommand(project.packageManager, depsToInstall)}`
+      )
+    );
   }
 
   if (answers.tier === "b") {
@@ -302,4 +334,26 @@ function mergeEnvLocal(
     writeFileSync(path, next, "utf8");
   }
   return { added, keptExisting };
+}
+
+// Return true if the install step should run. We skip in CI (where tests run
+// against bare fixtures with no network/registry) and when SKIP_INSTALL=1.
+function shouldRunInstall(env: NodeJS.ProcessEnv): boolean {
+  if (env.STEELYARD_SKIP_INSTALL === "1") return false;
+  if (env.CI) return false;
+  return true;
+}
+
+function installCommand(pm: ProjectDetection["packageManager"], deps: string[]): { bin: string; args: string[] } {
+  switch (pm) {
+    case "pnpm": return { bin: "pnpm", args: ["add", ...deps] };
+    case "yarn": return { bin: "yarn", args: ["add", ...deps] };
+    case "bun": return { bin: "bun", args: ["add", ...deps] };
+    default: return { bin: "npm", args: ["install", ...deps] };
+  }
+}
+
+function describeInstallCommand(pm: ProjectDetection["packageManager"], deps: string[]): string {
+  const { bin, args } = installCommand(pm, deps);
+  return `${bin} ${args.join(" ")}`;
 }

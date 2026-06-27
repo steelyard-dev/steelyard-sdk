@@ -52,12 +52,13 @@ integrators need (`defineCommerce`, the protocol handlers, `Wallet`, `Steelyard.
 npx steelyard init
 ```
 
-In a Next.js 14+ App Router app, this writes the four Steelyard route handlers
-(`/.well-known/commerce.json`, `/mcp`, `/acp/feed`, `/.well-known/ucp`), a
-`commerce.ts` manifest stub, and an optional dev inspector at
-`/steelyard`. If a Stripe API key is found, it offers to import your
-existing Stripe catalog. Discovery-only by default; upgrade with
-`steelyard enable checkout`.
+In a Next.js 14+ App Router app, this writes the route handlers for the four
+Steelyard surfaces (`/.well-known/commerce.json`, `/mcp`, `/acp/feed`,
+`/.well-known/ucp`), a `commerce.ts` manifest stub, and an optional dev
+inspector at `/steelyard`, then installs `steelyard` + `@steelyard/next`
+with your project's package manager (pass `--skip-install` to skip). If a
+Stripe API key is found, it offers to import your existing Stripe catalog.
+Discovery-only by default; upgrade with `steelyard enable checkout`.
 
 See `examples/nextjs/` for a deployable reference app.
 

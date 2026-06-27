@@ -57,6 +57,7 @@ export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO
     .option("--import-stripe", "Import the Stripe catalog (skipped if absent)")
     .option("--no-inspector", "Skip dev inspector page")
     .option("--force", "Overwrite existing files")
+    .option("--skip-install", "Skip running the package manager after codegen")
     .action(async (options: Record<string, unknown>) => {
       result = await runInit(
         {
@@ -65,7 +66,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO
           manifestPath: (options.manifest as string) ?? "./commerce",
           importStripe: Boolean(options.importStripe),
           inspector: options.inspector !== false,
-          force: Boolean(options.force)
+          force: Boolean(options.force),
+          skipInstall: Boolean(options.skipInstall)
         },
         io
       );

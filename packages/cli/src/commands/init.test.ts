@@ -213,7 +213,7 @@ describe("runInit (non-interactive defaults)", () => {
     (io.stdout as unknown as { isTTY: boolean }).isTTY = true;
     io.env = { NO_COLOR: "1" };
     const result = await runInit(
-      { yes: true, tier: "a", manifestPath: "./commerce", inspector: false },
+      { yes: true, tier: "a", manifestPath: "./commerce", inspector: false, skipInstall: true },
       io
     );
     expect(result.code).toBe(0);
