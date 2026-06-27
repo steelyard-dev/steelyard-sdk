@@ -93,7 +93,7 @@ export async function runInit(options: InitOptions, io: CliIO, deps: InitDeps = 
     offers: importedOffers
   });
 
-  const routes = plannedRouteFiles({ manifestImport: answers.manifestPath });
+  const routes = plannedRouteFiles({ manifestImport: toAliasedImport(answers.manifestPath) });
 
   const plan: WritePlanEntry[] = [
     ...routes,
@@ -230,6 +230,16 @@ function describeRunCommand(project: ProjectDetection, script: string): string {
 
 function stripDotSlash(p: string): string {
   return p.startsWith("./") ? p.slice(2) : p;
+}
+
+// Convert a filesystem-style path (e.g. "./commerce", "./src/commerce") into
+// a Next.js-aliased import string ("@/commerce", "@/src/commerce"). Generated
+// route files live deep under `app/`, so a relative "./commerce" import would
+// resolve relative to each route file rather than to the project root — which
+// is what users actually want. Pass through paths that don't start with "./".
+function toAliasedImport(p: string): string {
+  if (p.startsWith("./")) return `@/${p.slice(2)}`;
+  return p;
 }
 
 function readEnvKey(cwd: string, envFile: string, key: string): string | undefined {
