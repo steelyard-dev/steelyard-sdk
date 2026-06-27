@@ -7,6 +7,23 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ## [Unreleased]
 
+### Added
+
+- `@steelyard/next` adapter package: `toNextHandler`, `toNextApiHandler`,
+  `createCommerceRoutes`, `resolveManifestModule`, dev inspector page template.
+- `steelyard init` command: interactive scaffolder for Next.js App Router
+  apps with Stripe auto-detection, ASCII banner, transactional codegen, and
+  per-tier wiring.
+- `steelyard enable checkout` command: tier A → B upgrade with Stripe key
+  verification.
+- `examples/nextjs` demo app: human Stripe Checkout + agent surfaces in one
+  Next.js 15 App Router project, generated via the CLI.
+
+### Changed
+
+- `@steelyard/cli` now depends on `prompts`, `ora`, `picocolors`, and `stripe`
+  for the init flow.
+
 ## [0.10.0] - 2026-06-26
 
 ### Added

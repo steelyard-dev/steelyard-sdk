@@ -46,6 +46,21 @@ no PSP required. The single `steelyard` package re-exports the ~15 symbols most
 integrators need (`defineCommerce`, the protocol handlers, `Wallet`, `Steelyard.connect`,
 `stripePsp`, `createStripeSptIssuer`, …); see [`packages/steelyard`](packages/steelyard/README.md).
 
+## Next.js Quickstart
+
+```sh
+npx steelyard init
+```
+
+In a Next.js 14+ App Router app, this writes the four Steelyard route handlers
+(`/.well-known/commerce.json`, `/mcp`, `/acp/feed`, `/.well-known/ucp`), a
+`commerce.ts` manifest stub, and an optional dev inspector at
+`/__steelyard`. If a Stripe API key is found, it offers to import your
+existing Stripe catalog. Discovery-only by default; upgrade with
+`steelyard enable checkout`.
+
+See `examples/nextjs/` for a deployable reference app.
+
 ## Advanced: individual packages
 
 The umbrella is a front door, not a wall. Import any specific package directly when
