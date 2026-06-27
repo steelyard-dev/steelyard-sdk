@@ -148,6 +148,9 @@ importers:
       '@steelyard/core':
         specifier: workspace:^
         version: link:../core
+      '@steelyard/next':
+        specifier: workspace:^
+        version: link:../next
       ajv:
         specifier: ^8.17.1
         version: 8.20.0

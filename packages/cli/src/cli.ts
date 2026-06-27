@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import cac from "cac";
 import { doctorCommand } from "./commands/doctor.js";
+import { runInit } from "./commands/init.js";
 import { manifestCommand } from "./commands/manifest.js";
 import { validateCommand } from "./commands/validate.js";
 import { defaultIO, type CliIO, type CommandResult, writeLine } from "./io.js";
@@ -47,13 +48,33 @@ export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO
       result = await doctorCommand({ json: Boolean(options.json) }, io);
     });
 
+  cli
+    .command("init", "Scaffold Steelyard surfaces into a Next.js app")
+    .option("--yes", "Accept all defaults (non-interactive)")
+    .option("--tier <tier>", "a (discovery) or b (checkout)", { default: "a" })
+    .option("--manifest <path>", "Manifest file path", { default: "./commerce" })
+    .option("--no-inspector", "Skip dev inspector page")
+    .option("--force", "Overwrite existing files")
+    .action(async (options: Record<string, unknown>) => {
+      result = await runInit(
+        {
+          yes: Boolean(options.yes),
+          tier: (options.tier as "a" | "b") ?? "a",
+          manifestPath: (options.manifest as string) ?? "./commerce",
+          inspector: options.inspector !== false,
+          force: Boolean(options.force)
+        },
+        io
+      );
+    });
+
   cli.help();
 
   try {
     cli.parse(["node", "steelyard", ...argv.map((arg) => (arg === "-" ? STDIN_SENTINEL : arg))], { run: false });
     await cli.runMatchedCommand();
     if (!result) {
-      writeLine(io.stderr, "usage: steelyard <validate|manifest|doctor> ...");
+      writeLine(io.stderr, "usage: steelyard <validate|manifest|doctor|init> ...");
       return 4;
     }
     return result.code;

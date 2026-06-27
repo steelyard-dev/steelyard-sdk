@@ -125,7 +125,7 @@ function toBuffer(chunk: unknown): Buffer {
   return Buffer.from(String(chunk), "utf8");
 }
 
-function normalizeHeaders(raw: Record<string, string | string[] | number>): HeadersInit {
+function normalizeHeaders(raw: Record<string, string | string[] | number>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [name, value] of Object.entries(raw)) {
     if (Array.isArray(value)) {
