@@ -1,0 +1,45 @@
+{
+  "name": "@steelyard/next",
+  "version": "0.1.0",
+  "description": "Next.js adapter for Steelyard — App Router and Pages Router handlers, plus the dev inspector page.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./inspector": {
+      "types": "./dist/inspector/page.d.ts",
+      "import": "./dist/inspector/page.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo coverage"
+  },
+  "dependencies": {
+    "@steelyard/core": "workspace:^",
+    "@steelyard/protocol": "workspace:^"
+  },
+  "peerDependencies": {
+    "next": ">=14.0.0"
+  },
+  "peerDependenciesMeta": {
+    "next": { "optional": true }
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.5"
+  }
+}
