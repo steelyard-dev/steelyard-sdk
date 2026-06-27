@@ -7,3 +7,4 @@ export {
   type CreateCommerceRoutesOptions
 } from "./create-commerce-routes.js";
 export { loadInspectorPageTemplate } from "./templates.js";
+export { resolveManifestModule } from "./resolve-manifest-module.js";
