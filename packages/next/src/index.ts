@@ -6,3 +6,4 @@ export {
   type CommerceRoutes,
   type CreateCommerceRoutesOptions
 } from "./create-commerce-routes.js";
+export { loadInspectorPageTemplate } from "./templates.js";

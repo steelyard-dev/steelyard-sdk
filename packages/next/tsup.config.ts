@@ -1,4 +1,5 @@
 import { defineConfig } from "tsup";
+import { cpSync, mkdirSync } from "node:fs";
 
 export default defineConfig({
   entry: ["src/index.ts"],
@@ -7,5 +8,9 @@ export default defineConfig({
   splitting: false,
   clean: true,
   sourcemap: true,
-  target: "node20"
+  target: "node20",
+  onSuccess: async () => {
+    mkdirSync("dist/templates", { recursive: true });
+    cpSync("src/templates", "dist/templates", { recursive: true });
+  }
 });
