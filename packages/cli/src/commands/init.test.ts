@@ -102,6 +102,36 @@ describe("runInit (non-interactive defaults)", () => {
     expect(readFileSync(resolve(cwd, ".env.local"), "utf8")).toContain("STRIPE_SECRET_KEY=");
   });
 
+  it("preserves existing .env.local content even with --force (C4)", async () => {
+    const cwd = nextAppFixture();
+    const existing = "DATABASE_URL=postgres://prod\nMY_API_KEY=secret123\n";
+    writeFileSync(resolve(cwd, ".env.local"), existing);
+    const io = fakeIo(cwd);
+    const result = await runInit(
+      { yes: true, tier: "b", manifestPath: "./commerce", inspector: false, force: true },
+      io
+    );
+    expect(result.code).toBe(0);
+    const contents = readFileSync(resolve(cwd, ".env.local"), "utf8");
+    expect(contents).toContain("DATABASE_URL=postgres://prod");
+    expect(contents).toContain("MY_API_KEY=secret123");
+    expect(contents).toContain("STRIPE_SECRET_KEY=sk_test_replace_me");
+  });
+
+  it("does not duplicate STRIPE_SECRET_KEY if user already has it", async () => {
+    const cwd = nextAppFixture();
+    writeFileSync(resolve(cwd, ".env.local"), "STRIPE_SECRET_KEY=sk_test_real_key_42\n");
+    const io = fakeIo(cwd);
+    const result = await runInit(
+      { yes: true, tier: "b", manifestPath: "./commerce", inspector: false },
+      io
+    );
+    expect(result.code).toBe(0);
+    expect(readFileSync(resolve(cwd, ".env.local"), "utf8")).toBe(
+      "STRIPE_SECRET_KEY=sk_test_real_key_42\n"
+    );
+  });
+
   it("returns code 2 when no Next.js detected", async () => {
     const cwd = nonNextFixture();
     const io = fakeIo(cwd);

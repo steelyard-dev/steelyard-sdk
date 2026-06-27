@@ -4,7 +4,7 @@
 // to confirm a small set of choices, then writes the route files, manifest
 // stub, and optional dev inspector page transactionally.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { loadInspectorPageTemplate } from "@steelyard/next";
 import type { CliIO, CommandResult } from "../io.js";
@@ -107,12 +107,9 @@ export async function runInit(options: InitOptions, io: CliIO, deps: InitDeps = 
     });
   }
 
-  if (answers.tier === "b") {
-    plan.push({
-      path: ".env.local",
-      contents: renderEnvLocalAddition("b").trimStart()
-    });
-  }
+  // .env.local is intentionally NOT included in the transactional plan: that
+  // writer would overwrite the whole file in --force mode, wiping any of the
+  // user's existing env vars. Instead we merge it post-write below.
 
   ui.line("");
   ui.line("Writing files…");
@@ -128,6 +125,15 @@ export async function runInit(options: InitOptions, io: CliIO, deps: InitDeps = 
 
   for (const path of result.written) {
     ui.success(path);
+  }
+
+  if (answers.tier === "b") {
+    const merged = mergeEnvLocal(io.cwd, { STRIPE_SECRET_KEY: "sk_test_replace_me" });
+    if (merged.added.length > 0) {
+      ui.success(`.env.local (added ${merged.added.join(", ")})`);
+    } else {
+      ui.line(ui.dim(`.env.local already has ${merged.keptExisting.join(", ")}; left untouched.`));
+    }
   }
 
   if (skipped.length > 0) {
@@ -255,4 +261,45 @@ function readEnvKey(cwd: string, envFile: string, key: string): string | undefin
 async function defaultStripeFactory(): Promise<(apiKey: string) => StripeLike> {
   const { default: Stripe } = await import("stripe");
   return (apiKey: string) => new Stripe(apiKey) as unknown as StripeLike;
+}
+
+// Merge missing keys into .env.local without clobbering existing content.
+// Used for tier-B init: we add STRIPE_SECRET_KEY=sk_test_replace_me only when
+// the user doesn't already have that key set. Never overwrites — that would
+// destroy DB urls / API keys / etc. the user already had in the file.
+function mergeEnvLocal(
+  cwd: string,
+  defaults: Record<string, string>
+): { added: string[]; keptExisting: string[] } {
+  const path = resolve(cwd, ".env.local");
+  let existing = "";
+  try {
+    existing = readFileSync(path, "utf8");
+  } catch {
+    /* file doesn't exist; we'll create it */
+  }
+
+  const added: string[] = [];
+  const keptExisting: string[] = [];
+  let next = existing;
+  if (next && !next.endsWith("\n")) next += "\n";
+
+  for (const [key, value] of Object.entries(defaults)) {
+    if (new RegExp(`^${key}=`, "m").test(existing)) {
+      keptExisting.push(key);
+      continue;
+    }
+    if (added.length === 0 && next.length > 0) {
+      next += "\n# Added by `steelyard init` — required for tier-B agent checkout.\n";
+    } else if (added.length === 0) {
+      next += "# Added by `steelyard init` — required for tier-B agent checkout.\n";
+    }
+    next += `${key}=${value}\n`;
+    added.push(key);
+  }
+
+  if (added.length > 0) {
+    writeFileSync(path, next, "utf8");
+  }
+  return { added, keptExisting };
 }
