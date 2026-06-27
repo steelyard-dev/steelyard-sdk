@@ -120,7 +120,7 @@ describe("runInit (non-interactive defaults)", () => {
         devDependencies: { typescript: "^5.0.0" }
       })
     );
-    prompts.inject([true, "./commerce", true, "a"]);
+    prompts.inject([false, "./commerce", true, "a"]);
     const io = fakeIo(cwd);
     const result = await runInit({ manifestPath: "./commerce" }, io);
     expect(result.code).toBe(0);
@@ -142,6 +142,37 @@ describe("runInit (non-interactive defaults)", () => {
       );
       expect(result.code).toBe(0);
     }
+  });
+
+  it("imports Stripe catalog when --import-stripe is set", async () => {
+    const cwd = nextAppFixture();
+    writeFileSync(join(cwd, ".env.local"), "STRIPE_SECRET_KEY=sk_test_xxx\n");
+    // Add stripe to package.json so detection finds it
+    const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
+    pkg.dependencies.stripe = "^17.0.0";
+    writeFileSync(join(cwd, "package.json"), JSON.stringify(pkg));
+
+    const io = fakeIo(cwd);
+    const stripeFactory = () => ({
+      products: { list: async () => ({ data: [{ id: "prod_a", name: "Espresso", active: true }] as any, has_more: false }) },
+      prices: {
+        list: async () => ({
+          data: [
+            { id: "price_a", product: "prod_a", active: true, type: "one_time", unit_amount: 300, currency: "usd", recurring: null }
+          ] as any,
+          has_more: false
+        })
+      }
+    });
+    const result = await runInit(
+      { yes: true, tier: "a", importStripe: true, manifestPath: "./commerce", inspector: false },
+      io,
+      { stripeFactory }
+    );
+    expect(result.code).toBe(0);
+    const manifest = readFileSync(resolve(cwd, "commerce.ts"), "utf8");
+    expect(manifest).toContain('"price_a"');
+    expect(manifest).toContain('"Espresso"');
   });
 
   it("renders banner when stdout looks like a TTY", async () => {

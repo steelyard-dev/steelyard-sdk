@@ -4,6 +4,8 @@
 // to confirm a small set of choices, then writes the route files, manifest
 // stub, and optional dev inspector page transactionally.
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { loadInspectorPageTemplate } from "@steelyard/next";
 import type { CliIO, CommandResult } from "../io.js";
 import { renderBanner, shouldShowBanner } from "../init/banner.js";
@@ -15,6 +17,7 @@ import {
   renderManifestStub
 } from "../init/templates.js";
 import { writePlanTransactional, type WritePlanEntry } from "../init/codegen.js";
+import { importFromStripeCatalog, type StripeLike } from "../init/stripe-import.js";
 
 export interface InitOptions {
   yes?: boolean;
@@ -26,7 +29,11 @@ export interface InitOptions {
   force?: boolean;
 }
 
-export async function runInit(options: InitOptions, io: CliIO): Promise<CommandResult> {
+export interface InitDeps {
+  stripeFactory?: (apiKey: string) => StripeLike;
+}
+
+export async function runInit(options: InitOptions, io: CliIO, deps: InitDeps = {}): Promise<CommandResult> {
   const ui = createUi(io);
 
   const banner = renderBanner({
@@ -50,14 +57,40 @@ export async function runInit(options: InitOptions, io: CliIO): Promise<CommandR
     ? answersFromDefaults(options)
     : await promptUser(ui, project, options);
 
-  // Manifest seed: empty by default. (Stripe import is wired in Task 13.)
+  let importedIdentity: Parameters<typeof renderManifestStub>[0]["identity"] | undefined;
+  let importedOffers: any[] = [];
+  let skipped: { priceId: string; productId: string; reason: string }[] = [];
+
+  if (answers.importStripe && project.stripe.envKey) {
+    const apiKey =
+      process.env[project.stripe.envKey] ??
+      readEnvKey(io.cwd, project.stripe.envFile!, project.stripe.envKey);
+    if (!apiKey) {
+      ui.warn(`Stripe import requested but ${project.stripe.envKey} not readable; skipping.`);
+    } else {
+      const factory = deps.stripeFactory ?? (await defaultStripeFactory());
+      const stripe = factory(apiKey);
+      const spin = ui.spinner("Fetching Stripe catalog…");
+      try {
+        const result = await importFromStripeCatalog(stripe);
+        importedIdentity = result.identity;
+        importedOffers = result.offers;
+        skipped = result.skipped;
+        spin.succeed(`Imported ${result.offers.length} prices · ${result.skipped.length} skipped`);
+      } catch (err) {
+        spin.fail(`Stripe import failed: ${err instanceof Error ? err.message : err}`);
+        return { code: 1 };
+      }
+    }
+  }
+
   const manifestStub = renderManifestStub({
-    identity: {
+    identity: importedIdentity ?? {
       name: "My Shop",
       domain: "shop.example",
       currencies: ["USD"]
     },
-    offers: []
+    offers: importedOffers
   });
 
   const routes = plannedRouteFiles({ manifestImport: answers.manifestPath });
@@ -95,6 +128,14 @@ export async function runInit(options: InitOptions, io: CliIO): Promise<CommandR
 
   for (const path of result.written) {
     ui.success(path);
+  }
+
+  if (skipped.length > 0) {
+    ui.line("");
+    ui.line(ui.dim("Skipped during import:"));
+    for (const s of skipped) {
+      ui.line(`  ${ui.dim("•")} ${s.priceId} — ${s.reason}`);
+    }
   }
 
   ui.line("");
@@ -189,4 +230,19 @@ function describeRunCommand(project: ProjectDetection, script: string): string {
 
 function stripDotSlash(p: string): string {
   return p.startsWith("./") ? p.slice(2) : p;
+}
+
+function readEnvKey(cwd: string, envFile: string, key: string): string | undefined {
+  try {
+    const contents = readFileSync(resolve(cwd, envFile), "utf8");
+    const m = contents.match(new RegExp(`^${key}=(.+)$`, "m"));
+    return m?.[1]?.trim().replace(/^["']|["']$/g, "");
+  } catch {
+    return undefined;
+  }
+}
+
+async function defaultStripeFactory(): Promise<(apiKey: string) => StripeLike> {
+  const { default: Stripe } = await import("stripe");
+  return (apiKey: string) => new Stripe(apiKey) as unknown as StripeLike;
 }

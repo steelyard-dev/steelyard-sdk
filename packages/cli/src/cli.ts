@@ -53,6 +53,7 @@ export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO
     .option("--yes", "Accept all defaults (non-interactive)")
     .option("--tier <tier>", "a (discovery) or b (checkout)", { default: "a" })
     .option("--manifest <path>", "Manifest file path", { default: "./commerce" })
+    .option("--import-stripe", "Import the Stripe catalog (skipped if absent)")
     .option("--no-inspector", "Skip dev inspector page")
     .option("--force", "Overwrite existing files")
     .action(async (options: Record<string, unknown>) => {
@@ -61,6 +62,7 @@ export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO
           yes: Boolean(options.yes),
           tier: (options.tier as "a" | "b") ?? "a",
           manifestPath: (options.manifest as string) ?? "./commerce",
+          importStripe: Boolean(options.importStripe),
           inspector: options.inspector !== false,
           force: Boolean(options.force)
         },
