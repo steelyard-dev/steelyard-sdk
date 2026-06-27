@@ -237,4 +237,20 @@ describe("types and error taxonomy", () => {
     expect(offer.title).toBe("Double Espresso");
     expect(policies).toHaveLength(1);
   });
+
+  it("preserves psp.stripe.priceId so Stripe import binding survives validation", () => {
+    const manifest = defineCommerce({
+      identity: { name: "Acme", domain: "acme.example", currencies: ["USD"] },
+      offers: [
+        {
+          id: "espresso",
+          title: "Espresso",
+          availability: "in_stock",
+          pricing: [{ kind: "one_time", amount: 300, currency: "USD" }],
+          psp: { stripe: { priceId: "price_1ABC" } }
+        }
+      ]
+    });
+    expect(manifest.catalog.offers[0]!.psp?.stripe?.priceId).toBe("price_1ABC");
+  });
 });

@@ -26,7 +26,7 @@ export default async function SteelyardInspector() {
         id: string;
         title: string;
         pricing: Array<{ kind: string; amount?: number; currency?: string }>;
-        stripe?: { priceId?: string };
+        psp?: { stripe?: { priceId?: string } };
       }>;
     };
   };
@@ -38,7 +38,7 @@ export default async function SteelyardInspector() {
       title: offer.title,
       amount: oneTime?.amount ?? null,
       currency: oneTime?.currency ?? null,
-      hasStripePriceId: Boolean(offer.stripe?.priceId)
+      hasStripePriceId: Boolean(offer.psp?.stripe?.priceId)
     };
   });
 

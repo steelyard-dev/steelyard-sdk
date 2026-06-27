@@ -68,6 +68,18 @@ export const AttributeValueSchema = z.union([
   z.array(z.string())
 ]);
 
+// Per-PSP binding. Carried on the offer so init's Stripe import has a place to
+// stash the upstream price id; tier-B agent checkout reads this back when
+// creating a PaymentIntent. Kept optional so discovery-only manifests stay
+// PSP-agnostic. Currently Stripe-only; additional PSP keys can join later.
+export const OfferPspSchema = z
+  .object({
+    stripe: z.object({ priceId: z.string().min(1) }).strict().optional()
+  })
+  .strict()
+  .optional();
+export type OfferPsp = z.infer<typeof OfferPspSchema>;
+
 export const OfferSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -78,7 +90,8 @@ export const OfferSchema = z.object({
   categories: z.array(z.string()).default([]),
   attributes: z.record(AttributeValueSchema).default({}),
   availability: z.enum(["in_stock", "out_of_stock", "preorder", "unknown"]).default("unknown"),
-  pricing: z.array(PriceSchema).default([])
+  pricing: z.array(PriceSchema).default([]),
+  psp: OfferPspSchema
 });
 export type Offer = z.infer<typeof OfferSchema>;
 

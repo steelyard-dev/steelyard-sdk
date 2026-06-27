@@ -60,7 +60,7 @@ describe("importFromStripeCatalog", () => {
     expect(result.offers[0]!.id).toBe("price_a");
     expect(result.offers[0]!.title).toBe("Espresso");
     expect(result.offers[0]!.pricing[0]).toMatchObject({ kind: "one_time", amount: 300, currency: "USD" });
-    expect(result.offers[0]!.stripe?.priceId).toBe("price_a");
+    expect(result.offers[0]!.psp?.stripe?.priceId).toBe("price_a");
     expect(result.skipped).toHaveLength(0);
   });
 

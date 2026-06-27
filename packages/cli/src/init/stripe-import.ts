@@ -20,7 +20,7 @@ export interface SkippedPrice {
 }
 
 export interface StripeImportResult {
-  offers: Array<Offer & { stripe: { priceId: string } }>;
+  offers: Array<Offer & { psp: { stripe: { priceId: string } } }>;
   skipped: SkippedPrice[];
   identity: Manifest["identity"];
 }
@@ -30,7 +30,7 @@ export async function importFromStripeCatalog(stripe: StripeLike): Promise<Strip
   const prices = await listAll(stripe.prices.list.bind(stripe.prices), { active: true, limit: 100 });
   const productsById = new Map(products.map((p) => [p.id, p]));
 
-  const offers: Array<Offer & { stripe: { priceId: string } }> = [];
+  const offers: Array<Offer & { psp: { stripe: { priceId: string } } }> = [];
   const skipped: SkippedPrice[] = [];
 
   for (const price of prices) {
@@ -58,7 +58,7 @@ export async function importFromStripeCatalog(stripe: StripeLike): Promise<Strip
       images: [],
       availability: "in_stock",
       pricing: [mapped.price],
-      stripe: { priceId: price.id }
+      psp: { stripe: { priceId: price.id } }
     });
   }
 
