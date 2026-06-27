@@ -40,4 +40,27 @@ describe("createCommerceRoutes", () => {
     const body = (await res.json()) as Record<string, unknown>;
     expect(body).toHaveProperty("products");
   });
+
+  it("mcp invokes the underlying handler (proves wiring)", async () => {
+    const routes = createCommerceRoutes(manifest);
+    const res = await routes.mcp(
+      new Request("https://test.example/mcp", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })
+      })
+    );
+    // The MCP handler may legitimately reject our minimal request shape (400)
+    // or accept it (200). Either response proves the handler ran end-to-end
+    // through toNextHandler — what this test exists to verify.
+    expect(res.status).toBeLessThan(500);
+  });
+
+  it("ucp serves the discovery document at /.well-known/ucp", async () => {
+    const routes = createCommerceRoutes(manifest);
+    const res = await routes.ucp(new Request("https://test.example/.well-known/ucp"));
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body).toHaveProperty("ucp");
+  });
 });
