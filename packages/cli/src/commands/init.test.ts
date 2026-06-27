@@ -60,7 +60,7 @@ describe("runInit (non-interactive defaults)", () => {
     expect(existsSync(resolve(cwd, "app/acp/feed/route.ts"))).toBe(true);
     expect(existsSync(resolve(cwd, "app/api/ucp/[...path]/route.ts"))).toBe(true);
     expect(existsSync(resolve(cwd, "commerce.ts"))).toBe(true);
-    expect(existsSync(resolve(cwd, "app/(steelyard)/__steelyard/page.tsx"))).toBe(true);
+    expect(existsSync(resolve(cwd, "app/(steelyard)/steelyard/page.tsx"))).toBe(true);
   });
 
   it("refuses to overwrite existing route files without --force", async () => {
@@ -125,7 +125,7 @@ describe("runInit (non-interactive defaults)", () => {
     const result = await runInit({ manifestPath: "./commerce" }, io);
     expect(result.code).toBe(0);
     expect(existsSync(resolve(cwd, "commerce.ts"))).toBe(true);
-    expect(existsSync(resolve(cwd, "app/(steelyard)/__steelyard/page.tsx"))).toBe(true);
+    expect(existsSync(resolve(cwd, "app/(steelyard)/steelyard/page.tsx"))).toBe(true);
   });
 
   it("describes yarn / bun / npm run commands too", async () => {

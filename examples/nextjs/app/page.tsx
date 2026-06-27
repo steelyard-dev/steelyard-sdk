@@ -25,7 +25,7 @@ export default function Home() {
       </ul>
       <p style={{ marginTop: 48, fontSize: 12, color: "#999" }}>
         Agents discover this shop at <code>/.well-known/commerce.json</code>.
-        Dev inspector at <a href="/__steelyard">/__steelyard</a>.
+        Dev inspector at <a href="/steelyard">/steelyard</a>.
       </p>
     </main>
   );

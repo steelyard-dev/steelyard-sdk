@@ -102,7 +102,7 @@ export async function runInit(options: InitOptions, io: CliIO, deps: InitDeps = 
 
   if (answers.inspector) {
     plan.push({
-      path: "app/(steelyard)/__steelyard/page.tsx",
+      path: "app/(steelyard)/steelyard/page.tsx",
       contents: loadInspectorPageTemplate()
     });
   }
@@ -142,7 +142,7 @@ export async function runInit(options: InitOptions, io: CliIO, deps: InitDeps = 
   ui.line("Next:");
   ui.line(`  ${ui.dim("$")} ${describeRunCommand(project, "dev")}`);
   if (answers.inspector) {
-    ui.line(`  ${ui.dim("$")} open http://localhost:3000/__steelyard`);
+    ui.line(`  ${ui.dim("$")} open http://localhost:3000/steelyard`);
   }
   ui.line("");
   if (answers.tier === "a") {
@@ -189,7 +189,7 @@ async function promptUser(
     {
       type: "confirm",
       name: "inspector",
-      message: "Install dev inspector at /__steelyard?",
+      message: "Install dev inspector at /steelyard?",
       initial: true
     },
     {

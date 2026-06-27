@@ -39,5 +39,5 @@ export default toNextApiHandler(createMcpHttpHandler(manifest));
 ## Dev inspector
 
 `steelyard init` optionally writes a dev-only page at
-`app/(steelyard)/__steelyard/page.tsx`. It is owned by your repo: edit, gitignore,
+`app/(steelyard)/steelyard/page.tsx`. It is owned by your repo: edit, gitignore,
 or delete freely.

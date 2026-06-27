@@ -55,7 +55,7 @@ npx steelyard init
 In a Next.js 14+ App Router app, this writes the four Steelyard route handlers
 (`/.well-known/commerce.json`, `/mcp`, `/acp/feed`, `/.well-known/ucp`), a
 `commerce.ts` manifest stub, and an optional dev inspector at
-`/__steelyard`. If a Stripe API key is found, it offers to import your
+`/steelyard`. If a Stripe API key is found, it offers to import your
 existing Stripe catalog. Discovery-only by default; upgrade with
 `steelyard enable checkout`.
 

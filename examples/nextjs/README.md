@@ -14,7 +14,7 @@ pnpm dev
 Visit:
 
 - `http://localhost:3000` — the shop
-- `http://localhost:3000/__steelyard` — the dev inspector
+- `http://localhost:3000/steelyard` — the dev inspector
 - `http://localhost:3000/.well-known/commerce.json` — agent discovery
 
 ## Upgrade to agent checkout

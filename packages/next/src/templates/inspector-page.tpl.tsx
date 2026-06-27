@@ -1,6 +1,7 @@
 // Steelyard dev inspector — written by `steelyard init`.
-// Lives at /__steelyard, dev-only, owned by your repo (edit or delete freely).
+// Lives at /steelyard, dev-only, owned by your repo (edit or delete freely).
 
+import { resolveManifestModule } from "@steelyard/next";
 import manifestModule from "../../../commerce";
 
 export const dynamic = "force-dynamic";
@@ -13,27 +14,24 @@ interface OfferRow {
   hasStripePriceId: boolean;
 }
 
-async function loadManifest() {
-  const factory = (manifestModule as { default: unknown }).default;
-  return typeof factory === "function" ? await factory() : factory;
-}
-
 export default async function SteelyardInspector() {
   if (process.env.NODE_ENV === "production") {
     return <main style={{ padding: 32 }}>Not available in production.</main>;
   }
 
-  const manifest = (await loadManifest()) as {
+  const manifest = (await resolveManifestModule(manifestModule)) as unknown as {
     identity: { name: string; domain: string };
-    offers: Array<{
-      id: string;
-      title: string;
-      pricing: Array<{ kind: string; amount?: number; currency?: string }>;
-      stripe?: { priceId?: string };
-    }>;
+    catalog: {
+      offers: Array<{
+        id: string;
+        title: string;
+        pricing: Array<{ kind: string; amount?: number; currency?: string }>;
+        stripe?: { priceId?: string };
+      }>;
+    };
   };
 
-  const offers: OfferRow[] = manifest.offers.map((offer) => {
+  const offers: OfferRow[] = manifest.catalog.offers.map((offer) => {
     const oneTime = offer.pricing.find((p) => p.kind === "one_time");
     return {
       id: offer.id,
