@@ -42,9 +42,20 @@ export const GET = routes.acpFeed;
 `;
 }
 
-export function renderUcpRoute(opts: RouteTemplateOptions): string {
-  return `${HEADER}// Catch-all for /.well-known/ucp and /api/catalog/* — UCP discovery + catalog.
-// Path segment is named [...path] by convention.
+export function renderUcpWellKnownRoute(opts: RouteTemplateOptions): string {
+  return `${HEADER}// UCP discovery document — served at /.well-known/ucp.
+
+${IMPORTS(opts.manifestImport)}
+
+export const GET = routes.ucp;
+export const POST = routes.ucp;
+`;
+}
+
+export function renderUcpCatalogRoute(opts: RouteTemplateOptions): string {
+  return `${HEADER}// UCP catalog endpoints — /api/catalog/search, /api/catalog/lookup, /api/catalog/product.
+// The catch-all forwards to the same handler that serves /.well-known/ucp; the
+// handler internally routes by request URL.
 
 ${IMPORTS(opts.manifestImport)}
 
@@ -86,6 +97,7 @@ export function plannedRouteFiles(opts: RouteTemplateOptions): RouteSpec[] {
     { path: "app/.well-known/commerce.json/route.ts", contents: renderWellKnownRoute(opts) },
     { path: "app/mcp/route.ts", contents: renderMcpRoute(opts) },
     { path: "app/acp/feed/route.ts", contents: renderAcpFeedRoute(opts) },
-    { path: "app/api/ucp/[...path]/route.ts", contents: renderUcpRoute(opts) }
+    { path: "app/.well-known/ucp/route.ts", contents: renderUcpWellKnownRoute(opts) },
+    { path: "app/api/catalog/[...path]/route.ts", contents: renderUcpCatalogRoute(opts) }
   ];
 }

@@ -3,7 +3,9 @@ import {
   renderWellKnownRoute,
   renderMcpRoute,
   renderAcpFeedRoute,
-  renderUcpRoute,
+  renderUcpWellKnownRoute,
+  renderUcpCatalogRoute,
+  plannedRouteFiles,
   renderManifestStub,
   renderEnvLocalAddition
 } from "./templates.js";
@@ -28,11 +30,25 @@ describe("route templates", () => {
     expect(out).toContain("routes.acpFeed");
   });
 
-  it("ucp route handles a catch-all path segment", () => {
-    const out = renderUcpRoute({ manifestImport: "@/commerce" });
-    expect(out).toContain("[...path]");
+  it("ucp well-known route exposes GET + POST", () => {
+    const out = renderUcpWellKnownRoute({ manifestImport: "@/commerce" });
     expect(out).toContain("export const GET");
     expect(out).toContain("export const POST");
+    expect(out).toContain("routes.ucp");
+  });
+
+  it("ucp catalog route exposes GET + POST and mentions the catch-all", () => {
+    const out = renderUcpCatalogRoute({ manifestImport: "@/commerce" });
+    expect(out).toContain("export const GET");
+    expect(out).toContain("export const POST");
+    expect(out).toContain("/api/catalog");
+  });
+
+  it("plannedRouteFiles writes UCP at /.well-known/ucp and /api/catalog/[...path]", () => {
+    const paths = plannedRouteFiles({ manifestImport: "@/commerce" }).map((r) => r.path);
+    expect(paths).toContain("app/.well-known/ucp/route.ts");
+    expect(paths).toContain("app/api/catalog/[...path]/route.ts");
+    expect(paths).not.toContain("app/api/ucp/[...path]/route.ts");
   });
 
   it("manifest stub is valid TS importable code", () => {

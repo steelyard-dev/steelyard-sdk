@@ -58,7 +58,8 @@ describe("runInit (non-interactive defaults)", () => {
     expect(existsSync(resolve(cwd, "app/.well-known/commerce.json/route.ts"))).toBe(true);
     expect(existsSync(resolve(cwd, "app/mcp/route.ts"))).toBe(true);
     expect(existsSync(resolve(cwd, "app/acp/feed/route.ts"))).toBe(true);
-    expect(existsSync(resolve(cwd, "app/api/ucp/[...path]/route.ts"))).toBe(true);
+    expect(existsSync(resolve(cwd, "app/.well-known/ucp/route.ts"))).toBe(true);
+    expect(existsSync(resolve(cwd, "app/api/catalog/[...path]/route.ts"))).toBe(true);
     expect(existsSync(resolve(cwd, "commerce.ts"))).toBe(true);
     expect(existsSync(resolve(cwd, "app/(steelyard)/steelyard/page.tsx"))).toBe(true);
   });
