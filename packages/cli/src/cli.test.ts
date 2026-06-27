@@ -180,6 +180,23 @@ describe("steelyard manifest", () => {
   });
 });
 
+describe("steelyard enable", () => {
+  it("rejects unknown features with exit code 4", async () => {
+    const result = await run(["enable", "nonsense"]);
+    expect(result.code).toBe(4);
+    expect(result.stderr).toContain("unknown feature: nonsense");
+  });
+
+  it("returns a non-zero exit when checkout has no Stripe key", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "steelyard-cli-"));
+    const result = await run(["enable", "checkout", "--yes"], {
+      cwd: dir,
+      env: { STRIPE_SECRET_KEY: "" }
+    });
+    expect(result.code).not.toBe(0);
+  });
+});
+
 describe("steelyard doctor", () => {
   it("reports read-side setup checks in text and JSON modes", async () => {
     const text = await run(["doctor"]);

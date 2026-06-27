@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import cac from "cac";
 import { doctorCommand } from "./commands/doctor.js";
+import { runEnableCheckout } from "./commands/enable-checkout.js";
 import { runInit } from "./commands/init.js";
 import { manifestCommand } from "./commands/manifest.js";
 import { validateCommand } from "./commands/validate.js";
@@ -70,13 +71,25 @@ export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO
       );
     });
 
+  cli
+    .command("enable <feature>", "Enable a Steelyard feature in this project")
+    .option("--yes", "Accept all defaults")
+    .action(async (feature: string, options: Record<string, unknown>) => {
+      if (feature === "checkout") {
+        result = await runEnableCheckout({ yes: Boolean(options.yes) }, io);
+      } else {
+        writeLine(io.stderr, `unknown feature: ${feature}`);
+        result = { code: 4 };
+      }
+    });
+
   cli.help();
 
   try {
     cli.parse(["node", "steelyard", ...argv.map((arg) => (arg === "-" ? STDIN_SENTINEL : arg))], { run: false });
     await cli.runMatchedCommand();
     if (!result) {
-      writeLine(io.stderr, "usage: steelyard <validate|manifest|doctor|init> ...");
+      writeLine(io.stderr, "usage: steelyard <validate|manifest|doctor|init|enable> ...");
       return 4;
     }
     return result.code;
