@@ -18,11 +18,17 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
   verification.
 - `examples/nextjs` demo app: human Stripe Checkout + agent surfaces in one
   Next.js 15 App Router project, generated via the CLI.
+- `@steelyard/policy`: buyer-side policy engine for agent-initiated payments, including YAML policy loading, first-match policy evaluation with deny precedence, reservation ledger, hash-chained audit log, and local IPC server (EN1-EN9, AU1-AU3, LE1-LE5, AD1-AD5, IP1-IP8).
+- `@steelyard/policy-rail-card`: Stripe Issuing virtual-card rail adapter implementing the public `RailAdapter` contract with explicit card-rail caveats and sandbox/prod separation (RA1-RA6).
+- `steelyard policy lint`, `steelyard policy run`, and `steelyard policy audit verify` CLI commands for policy validation, foreground engine operation, and audit-chain verification (CL1-CL3).
+- Webhook approval channel with HMAC-signed callbacks, nonce replay protection, policy-snapshot checks, and rolling-window anti-fatigue budget (AP1-AP5).
+- Public policy-engine docs, package READMEs, example policies, lint snapshots, and replayable Stripe Issuing E2E coverage (DX1-DX6).
 
 ### Changed
 
-- `@steelyard/cli` now depends on `prompts`, `ora`, `picocolors`, and `stripe`
-  for the init flow.
+- `@steelyard/cli` now depends on `prompts`, `ora`, `picocolors`, `stripe`,
+  `@steelyard/next`, and `@steelyard/policy` for the init, checkout, and policy
+  command families.
 
 ## [0.10.0] - 2026-06-26
 

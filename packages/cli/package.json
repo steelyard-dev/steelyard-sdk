@@ -23,6 +23,18 @@
     "./commands/doctor": {
       "types": "./dist/commands/doctor.d.ts",
       "import": "./dist/commands/doctor.js"
+    },
+    "./commands/policy/lint": {
+      "types": "./dist/commands/policy/lint.d.ts",
+      "import": "./dist/commands/policy/lint.js"
+    },
+    "./commands/policy/run": {
+      "types": "./dist/commands/policy/run.d.ts",
+      "import": "./dist/commands/policy/run.js"
+    },
+    "./commands/policy/audit-verify": {
+      "types": "./dist/commands/policy/audit-verify.d.ts",
+      "import": "./dist/commands/policy/audit-verify.js"
     }
   },
   "files": [
@@ -38,6 +50,7 @@
   "dependencies": {
     "@steelyard/core": "workspace:^",
     "@steelyard/next": "workspace:^",
+    "@steelyard/policy": "workspace:*",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "cac": "^7.0.0",

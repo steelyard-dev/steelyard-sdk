@@ -1,6 +1,6 @@
 # Release History
 
-## Unreleased — Next.js Developer Experience
+## Unreleased — Next.js Developer Experience and Policy Engine
 
 Steelyard now drops into existing Next.js + Stripe apps with one command.
 `npx steelyard init` detects the framework, language, package manager, and
@@ -21,6 +21,17 @@ skipped during Stripe import; schema extensions to cover them are
 tracked separately. Imported `psp.stripe.priceId` is preserved on each
 offer so the follow-up checkout endpoint can mint PaymentIntents
 against the right Stripe Prices.
+
+Steelyard now includes a buyer-side policy engine for agent-initiated payments.
+The engine runs outside the LLM agent, evaluates a YAML policy, reserves budget
+in SQLite, mints scoped rail credentials, and records each decision in an
+operational audit log. The new guide is available at
+[Policy engine](guides/policy-engine.md).
+
+The v1 rail scope is intentionally card-only through Stripe Issuing. VRP and
+UCP/ACP payment rails remain deferred until their different loss ceilings and
+attestation models can be represented honestly instead of hidden behind a false
+cross-rail abstraction.
 
 ## 0.10.0 - 2026-06-26
 

@@ -14,7 +14,6 @@ import { createUi } from "../init/ui.js";
 import { detectProject, type ProjectDetection } from "../init/detect.js";
 import {
   plannedRouteFiles,
-  renderEnvLocalAddition,
   renderManifestStub
 } from "../init/templates.js";
 import { writePlanTransactional, type WritePlanEntry } from "../init/codegen.js";

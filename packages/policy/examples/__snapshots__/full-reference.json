@@ -1,0 +1,7 @@
+[
+  {
+    "code": "unreachable_predicate_card_rail",
+    "message": "merchant_signature: verified is unreachable in v1 because the card rail does not carry merchant signatures",
+    "rule": "signed-merchant-future-rail"
+  }
+]

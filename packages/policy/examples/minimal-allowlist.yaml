@@ -1,0 +1,18 @@
+version: 2026-06-27
+trusted_domains:
+  retail:
+    - example.com
+rules:
+  - name: trusted-small-card
+    do: allow
+    rail: virtual_card
+    when:
+      merchant_domain_in: retail
+      amount_usd:
+        max: 100
+      type: one_time
+    limits:
+      per_day_usd: 300
+      per_day_count: 5
+  - name: deny-all
+    do: deny

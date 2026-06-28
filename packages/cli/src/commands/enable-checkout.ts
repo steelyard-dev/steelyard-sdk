@@ -168,7 +168,8 @@ function readStripeKey(io: CliIO): string | undefined {
   for (const f of [".env.local", ".env"]) {
     const contents = safeRead(resolve(io.cwd, f));
     const m = contents.match(/^STRIPE_SECRET_KEY=(.+)$/m);
-    if (m) return m[1].trim().replace(/^["']|["']$/g, "");
+    const value = m?.[1];
+    if (value) return value.trim().replace(/^["']|["']$/g, "");
   }
   return undefined;
 }

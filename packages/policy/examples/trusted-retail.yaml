@@ -1,0 +1,39 @@
+version: 2026-06-27
+trusted_domains:
+  tier1:
+    - amazon.com
+    - target.com
+  software:
+    - figma.com
+rules:
+  - name: trusted-retail-small
+    do: allow
+    rail: virtual_card
+    when:
+      merchant_domain_in: tier1
+      amount_usd:
+        max: 150
+      type: one_time
+      tls: required
+    limits:
+      per_day_usd: 500
+      per_day_count: 6
+      per_purchase_usd: 250
+  - name: approved-software-subscription
+    do: require_approval
+    rail: virtual_card
+    when:
+      merchant_domain_in: software
+      amount_usd:
+        max: 75
+      type: subscription
+    approval:
+      who: user
+      channel: webhook
+      expires_in: 10m
+      include_in_prompt:
+        - merchant
+        - amount
+        - cadence
+  - name: deny-all
+    do: deny
