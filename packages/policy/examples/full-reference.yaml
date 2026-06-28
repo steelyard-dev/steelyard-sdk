@@ -1,0 +1,65 @@
+version: 2026-06-27
+trusted_domains:
+  office:
+    - staples.com
+    - officedepot.com
+  travel:
+    - delta.com
+  signed_placeholder:
+    - signed.example
+blocked_domains:
+  - blocked.example
+rules:
+  - name: deny-blocked-domains
+    do: deny
+    when:
+      merchant_domain_in: blocked_domains
+  - name: office-supplies-card
+    do: allow
+    rail: virtual_card
+    when:
+      merchant_domain_in: office
+      amount_usd:
+        min: 1
+        max: 250
+      type:
+        - one_time
+        - installment
+      cart_contains:
+        - office_supply
+      tls: required
+    limits:
+      per_day_usd: 750
+      per_day_count: 8
+      per_purchase_usd: 300
+  - name: signed-merchant-future-rail
+    do: allow
+    rail: virtual_card
+    when:
+      merchant_domain_in: signed_placeholder
+      merchant_signature: verified
+      amount_usd:
+        min: 1000
+        max: 2000
+      type: one_time
+  - name: travel-needs-approval
+    do: require_approval
+    rail: virtual_card
+    when:
+      merchant_domain_in: travel
+      amount_usd:
+        min: 250
+        max: 1500
+      type: one_time
+    limits:
+      per_day_usd: 2000
+    approval:
+      who: user
+      channel: webhook
+      expires_in: 15m
+      include_in_prompt:
+        - merchant
+        - amount
+        - itinerary
+  - name: deny-all
+    do: deny

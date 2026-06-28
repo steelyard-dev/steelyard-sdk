@@ -35,3 +35,15 @@ export { createReferencePaymentIssuer } from "@steelyard/buyer";
 // ── Buyer: wallet + explore client ──────────────────────────────────────────
 export { Wallet } from "@steelyard/buyer";
 export { Steelyard, connect } from "@steelyard/buyer/client";
+
+// ── Buyer policy engine types ───────────────────────────────────────────────
+export type {
+  Intent,
+  PolicyDocument,
+  Rule,
+  CredentialConstraints,
+  IssuedCredential,
+  RailAdapter,
+  SettlementEvent,
+  NormalizedFacts
+} from "@steelyard/policy";

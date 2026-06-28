@@ -1,0 +1,27 @@
+{
+  "name": "@steelyard/policy-rail-card",
+  "version": "0.0.0",
+  "description": "Virtual-card rail adapter (Stripe Issuing) for @steelyard/policy.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@steelyard/policy": "workspace:*",
+    "stripe": "^17"
+  }
+}

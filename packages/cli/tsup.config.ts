@@ -5,7 +5,10 @@ export default defineConfig({
     cli: "src/cli.ts",
     "commands/validate": "src/commands/validate.ts",
     "commands/manifest": "src/commands/manifest.ts",
-    "commands/doctor": "src/commands/doctor.ts"
+    "commands/doctor": "src/commands/doctor.ts",
+    "commands/policy/lint": "src/commands/policy/lint.ts",
+    "commands/policy/run": "src/commands/policy/run.ts",
+    "commands/policy/audit-verify": "src/commands/policy/audit-verify.ts"
   },
   format: ["esm"],
   dts: true,

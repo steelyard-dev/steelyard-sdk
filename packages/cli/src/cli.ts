@@ -4,12 +4,18 @@ import { pathToFileURL } from "node:url";
 import cac from "cac";
 import { doctorCommand } from "./commands/doctor.js";
 import { manifestCommand } from "./commands/manifest.js";
+import { policyAuditVerifyCommand } from "./commands/policy/audit-verify.js";
+import { policyLintCommand } from "./commands/policy/lint.js";
+import { policyRunCommand } from "./commands/policy/run.js";
 import { validateCommand } from "./commands/validate.js";
 import { defaultIO, type CliIO, type CommandResult, writeLine } from "./io.js";
 
 const STDIN_SENTINEL = "__STEELYARD_STDIN_SOURCE__";
 
 export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO()): Promise<number> {
+  const policyResult = await runPolicyCommand(argv, io);
+  if (policyResult) return policyResult.code;
+
   let result: CommandResult | undefined;
   const cli = cac("steelyard");
 
@@ -53,7 +59,7 @@ export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO
     cli.parse(["node", "steelyard", ...argv.map((arg) => (arg === "-" ? STDIN_SENTINEL : arg))], { run: false });
     await cli.runMatchedCommand();
     if (!result) {
-      writeLine(io.stderr, "usage: steelyard <validate|manifest|doctor> ...");
+      writeLine(io.stderr, "usage: steelyard <validate|manifest|doctor|policy> ...");
       return 4;
     }
     return result.code;
@@ -61,6 +67,68 @@ export async function runCli(argv = process.argv.slice(2), io: CliIO = defaultIO
     writeLine(io.stderr, error instanceof Error ? error.message : String(error));
     return 4;
   }
+}
+
+async function runPolicyCommand(argv: string[], io: CliIO): Promise<CommandResult | undefined> {
+  if (argv[0] !== "policy") return undefined;
+  if (argv[1] === "audit" && argv[2] === "verify") return await runPolicyAuditVerifyCommand(argv.slice(3), io);
+  if (argv[1] === "run") return await runPolicyRunCommand(argv.slice(2), io);
+  if (argv[1] !== "lint") {
+    writeLine(io.stderr, "usage: steelyard policy <lint|run|audit> ...");
+    return { code: 4 };
+  }
+
+  let json = false;
+  let path: string | undefined;
+  for (const arg of argv.slice(2)) {
+    if (arg === "--json") {
+      json = true;
+    } else if (arg.startsWith("-")) {
+      writeLine(io.stderr, `unknown option: ${arg}`);
+      return { code: 4 };
+    } else if (!path) {
+      path = arg;
+    } else {
+      writeLine(io.stderr, "usage: steelyard policy lint <path> [--json]");
+      return { code: 4 };
+    }
+  }
+
+  if (!path) {
+    writeLine(io.stderr, "usage: steelyard policy lint <path> [--json]");
+    return { code: 4 };
+  }
+  return await policyLintCommand(path, { json }, io);
+}
+
+async function runPolicyRunCommand(argv: string[], io: CliIO): Promise<CommandResult> {
+  let policy: string | undefined;
+  let dataDir: string | undefined;
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === "--policy") {
+      policy = argv[++i];
+    } else if (arg === "--data-dir") {
+      dataDir = argv[++i];
+    } else {
+      writeLine(io.stderr, "usage: steelyard policy run [--policy <path>] [--data-dir <path>]");
+      return { code: 4 };
+    }
+    if (!argv[i]) {
+      writeLine(io.stderr, "usage: steelyard policy run [--policy <path>] [--data-dir <path>]");
+      return { code: 4 };
+    }
+  }
+  return await policyRunCommand({ policy, dataDir }, io);
+}
+
+async function runPolicyAuditVerifyCommand(argv: string[], io: CliIO): Promise<CommandResult> {
+  const dataDir = argv[0];
+  if (argv.length !== 1 || !dataDir || dataDir.startsWith("-")) {
+    writeLine(io.stderr, "usage: steelyard policy audit verify <data-dir>");
+    return { code: 4 };
+  }
+  return await policyAuditVerifyCommand(dataDir, io);
 }
 
 function normalizeSourceArg(source: string): string {
@@ -103,3 +171,6 @@ if (import.meta.url === argvPath) {
 export { validateCommand } from "./commands/validate.js";
 export { manifestCommand } from "./commands/manifest.js";
 export { doctorCommand } from "./commands/doctor.js";
+export { policyAuditVerifyCommand } from "./commands/policy/audit-verify.js";
+export { policyLintCommand } from "./commands/policy/lint.js";
+export { policyRunCommand } from "./commands/policy/run.js";

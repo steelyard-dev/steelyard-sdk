@@ -28,6 +28,7 @@
     "@steelyard/buyer": "workspace:^",
     "@steelyard/core": "workspace:^",
     "@steelyard/merchant": "workspace:^",
+    "@steelyard/policy": "workspace:*",
     "@steelyard/protocol": "workspace:^",
     "@steelyard/stripe": "workspace:^"
   },

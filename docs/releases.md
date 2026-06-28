@@ -1,5 +1,18 @@
 # Release History
 
+## Unreleased
+
+Steelyard now includes a buyer-side policy engine for agent-initiated payments.
+The engine runs outside the LLM agent, evaluates a YAML policy, reserves budget
+in SQLite, mints scoped rail credentials, and records each decision in an
+operational audit log. The new guide is available at
+[Policy engine](guides/policy-engine.md).
+
+The v1 rail scope is intentionally card-only through Stripe Issuing. VRP and
+UCP/ACP payment rails remain deferred until their different loss ceilings and
+attestation models can be represented honestly instead of hidden behind a false
+cross-rail abstraction.
+
 ## 0.10.0 - 2026-06-26
 
 Steelyard v0.10 turns PSP adapters into a public, contributable contract. The new
