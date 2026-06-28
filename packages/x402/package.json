@@ -1,7 +1,7 @@
 {
-  "name": "steelyard",
+  "name": "@steelyard/x402",
   "version": "0.2.0",
-  "description": "The Steelyard SDK front door: define commerce once, serve it over commerce.json, HTTP, MCP, ACP, and UCP, and let buyers complete agentic purchases.",
+  "description": "x402 paid HTTP resource support for Steelyard wallets and servers.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
@@ -13,6 +13,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "require": "./dist/server.cjs"
     }
   },
   "files": [
@@ -26,17 +31,13 @@
   },
   "dependencies": {
     "@steelyard/buyer": "workspace:^",
-    "@steelyard/core": "workspace:^",
-    "@steelyard/merchant": "workspace:^",
-    "@steelyard/policy": "workspace:*",
-    "@steelyard/protocol": "workspace:^",
-    "@steelyard/stripe": "workspace:^",
-    "@steelyard/x402": "workspace:^"
+    "@steelyard/core": "workspace:^"
   },
   "devDependencies": {
+    "@types/node": "^22.9.0",
+    "@vitest/coverage-v8": "^2.1.9",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.5",
-    "@vitest/coverage-v8": "^2.1.9"
+    "vitest": "^2.1.5"
   }
 }

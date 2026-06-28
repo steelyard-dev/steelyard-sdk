@@ -14,7 +14,6 @@ export type {
   MerchantAuthorizationSigner
 } from "./ap2.js";
 export type {
-  Ap2DigitalPaymentCredentialTrustModel,
   Ap2MandateFailureReason,
   Ap2MandateTrustModel,
   Ap2MandateVerificationResult,

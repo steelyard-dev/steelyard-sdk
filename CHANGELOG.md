@@ -24,6 +24,15 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 - Webhook approval channel with HMAC-signed callbacks, nonce replay protection, policy-snapshot checks, and rolling-window anti-fatigue budget (AP1-AP5).
 - Public policy-engine docs, package READMEs, example policies, lint snapshots, and replayable Stripe Issuing E2E coverage (DX1-DX6).
 - Developer-facing payment names: `PaymentInstrument`, `PaymentMandate`, `PaymentMandateIssuer`, `vaultedCard`, `BrowserManualSession`, `stripeSpt`, `referenceMandate`, and wallet instrument management helpers (`addInstrument`, `listInstruments`, `chooseInstrument`, `prepareMandate`, `purchase`).
+- `@steelyard/x402` package with `x402Fetch`, `x402Payments`, advanced
+  `x402Exact`, strict `PAYMENT-*` header helpers, deterministic requirement
+  selection, typed buyer errors, and x402 mandate issuance through the Wallet
+  policy path (PK1-PK3, PT1-PT3, BI1-BI5, PY1-PY5).
+- x402 server paywall support with `x402Paywall`, `exactUsdc`,
+  `createX402FacilitatorClient`, `memoryX402IdempotencyStore`, and tests for
+  verify/settle flow and duplicate settlement protection (SI1-SI5).
+- Offline `examples/x402-weather` package plus public x402 concept, package,
+  paid-fetch, and paywall docs (EX1, DO1-DO3).
 
 ### Changed
 
@@ -32,6 +41,12 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
   command families.
 - Checkout/read/policy names now prefer `createCheckoutServer`, `createCommerceReadHandler`, `PolicyEngine`, `createPolicyEngine`, `PolicyRailAdapter`, `virtualCardRail`, and `VirtualCardPolicyRailAdapter`; the old policy rail aliases were removed before public release.
 - PSP adapters now use `capabilities` as the single capability declaration; the temporary `acceptedInstruments` alias was removed before public release.
+- The `steelyard` umbrella package now re-exports the curated x402 names
+  `x402Fetch`, `x402Payments`, `x402Paywall`, and `exactUsdc`; protocol-specific
+  helpers remain in `@steelyard/x402` (PK4).
+- `PaymentMandateRequest` can carry optional opaque issuer context so protocols
+  such as x402 can bind selected challenge metadata without adding
+  protocol-specific types to `@steelyard/core` (BI3, PY2).
 
 ## [0.10.0] - 2026-06-26
 

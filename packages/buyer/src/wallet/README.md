@@ -5,10 +5,17 @@ Root `Wallet` facade for buyer-side payment instruments.
 ```ts
 import { Wallet, vaultedCard } from "@steelyard/buyer";
 import { stripeSpt } from "@steelyard/stripe/buyer";
+import { x402Payments } from "@steelyard/x402";
 
 const wallet = await Wallet.open();
 
 await wallet.addInstrument(stripeSpt({ apiKey: process.env.STRIPE_SECRET_KEY! }));
+await wallet.addInstrument(x402Payments({
+  signer,
+  networks: ["eip155:84532"],
+  assets: ["USDC"],
+  schemes: ["exact"]
+}));
 await wallet.addInstrument(vaultedCard({
   number: "4242 4242 4242 4242",
   exp: "12/29",
@@ -16,7 +23,7 @@ await wallet.addInstrument(vaultedCard({
   merchants: ["legacy-shop.example"]
 }));
 
-const credential = await wallet.prepareMandate(intent);
+const mandate = await wallet.prepareMandate(intent);
 const session = await wallet.createBrowserManualSession(intent);
 ```
 
@@ -26,8 +33,9 @@ const session = await wallet.createBrowserManualSession(intent);
 
 ## Payment modes
 
-- `agent-native`: `stripeSpt(...)`, `referenceMandate(...)`, or another
-  `PaymentMandateIssuer` mint a scoped `PaymentMandate` for agentic checkout.
+- `agent-native`: `stripeSpt(...)`, `referenceMandate(...)`, `x402Payments(...)`,
+  or another `PaymentMandateIssuer` issues a scoped `PaymentMandate` for
+  agentic checkout or paid HTTP resources.
 - `browser-manual`: `vaultedCard(...)` stores legacy cards locally and returns a
   `BrowserManualSession` for browser automation or manual checkout.
 

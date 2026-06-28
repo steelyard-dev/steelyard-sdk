@@ -209,7 +209,7 @@ export interface Ap2MandateVerifier {
   ): Promise<Ap2MandateVerificationResult>;
 }
 
-export interface Ap2DigitalPaymentCredentialTrustModel {
+export interface Ap2MandateTrustModel {
   kind: "digital_payment_credential";
   resolveIssuerKey(args: {
     issuer: string;
@@ -218,8 +218,6 @@ export interface Ap2DigitalPaymentCredentialTrustModel {
     claims: Record<string, unknown>;
   }): Promise<EcJwk | null> | EcJwk | null;
 }
-
-export type Ap2MandateTrustModel = Ap2DigitalPaymentCredentialTrustModel;
 
 export type Ap2NonceConsumeFailureReason = "missing" | "expired" | "session_mismatch" | "already_consumed";
 

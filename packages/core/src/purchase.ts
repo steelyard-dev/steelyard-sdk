@@ -102,6 +102,7 @@ export interface PaymentMandateRequest {
   handler_id?: string;
   instrument_type?: string;
   transaction_id?: string;
+  context?: Record<string, unknown>;
   payment: {
     amount: number;
     currency: string;

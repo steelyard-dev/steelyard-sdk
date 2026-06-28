@@ -5,7 +5,6 @@ export {
   sdJwtKbVerifier
 } from "@steelyard/ucp-signing";
 export type {
-  Ap2DigitalPaymentCredentialTrustModel,
   Ap2MandateFailureReason,
   Ap2MandateTrustModel,
   Ap2MandateVerificationResult,

@@ -6,8 +6,8 @@ agentic purchases through a local encrypted `Wallet`.
 
 The payment model has two explicit modes:
 
-- `agent-native`: the wallet mints scoped credentials such as Stripe SPTs or
-  PSP-specific payment tokens.
+- `agent-native`: the wallet issues scoped `PaymentMandate`s such as Stripe
+  SPT authorizations, PSP-specific payment tokens, or x402 payment payloads.
 - `browser-manual`: the wallet stores legacy vaulted cards and exposes a
   `BrowserManualSession` for browser automation or manual checkout flows.
 
@@ -44,7 +44,7 @@ from a single manifest: `/.well-known/commerce.json`, the `/commerce` HTTP API,
 `/mcp`, `/acp/feed`, and `/.well-known/ucp` + `/api/catalog/*`. Read-only by default,
 no PSP required. The single `steelyard` package re-exports the symbols most
 integrators need (`defineCommerce`, `serveCommerce`, `createCheckoutServer`,
-`Wallet`, `vaultedCard`, `stripeSpt`, `stripePsp`, …); see
+`Wallet`, `vaultedCard`, `stripeSpt`, `x402Payments`, `x402Fetch`, `stripePsp`, …); see
 [`packages/steelyard`](packages/steelyard/README.md).
 
 ## Next.js Quickstart
@@ -130,6 +130,35 @@ public key through a UCP profile, and verify signed merchant completion
 responses. Merchants can accept HMS, bearer tokens, or both.
 
 See `docs/guides/configuring-ucp-auth.md` for operator configuration.
+
+## x402 Paid HTTP Resources
+
+x402 is for paid API calls and other HTTP resources. It is separate from
+ACP/UCP commerce checkout and does not require a Steelyard manifest.
+
+```ts
+import { Wallet, x402Fetch, x402Payments } from "steelyard";
+
+const wallet = await Wallet.open({ project: true });
+
+await wallet.addInstrument(x402Payments({
+  signer,
+  networks: ["eip155:84532"],
+  assets: ["USDC"],
+  schemes: ["exact"]
+}));
+
+const fetchPaid = x402Fetch(wallet, {
+  maxAmount: { amount: "0.10", currency: "USDC" }
+});
+
+const response = await fetchPaid("https://api.example.com/paid-weather");
+console.log(response.x402?.receipt.transaction);
+```
+
+The wallet runs local policy before signing any x402 payment payload. Signer
+adapters are bring-your-own; public APIs and examples do not accept raw private
+key strings. See `docs/concepts/x402.md`.
 
 ## v0.4 Read-Side Surfaces
 

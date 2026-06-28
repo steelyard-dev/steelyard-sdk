@@ -114,6 +114,7 @@ export interface PrepareMandateOptions {
   handlerId?: string;
   transactionId?: string;
   idempotencyKey?: string;
+  context?: Record<string, unknown>;
   ttlMs?: number;
   clock?: () => Date;
 }
@@ -434,6 +435,7 @@ export class Wallet {
       ...(handlerId ? { handler_id: handlerId } : {}),
       instrument_type: issuer.instrumentType,
       transaction_id: opts.transactionId ?? nonce,
+      ...(opts.context ? { context: opts.context } : {}),
       payment: {
         amount: intent.amount,
         currency: normalizeCurrency(intent.currency),

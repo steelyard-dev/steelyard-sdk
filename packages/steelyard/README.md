@@ -44,7 +44,8 @@ This package re-exports the symbols 90% of integrators need:
 | Serve | `serveCommerce`, `createCommerceReadHandler` |
 | Per-protocol handlers | `createMcpServer` `createMcpHttpHandler` `createUcpHandler` `buildUcpDiscovery` `createAcpFeedHandler` `buildAcpFeed` `createCommerceManifestHandler` `createHttpApiHandler` |
 | Checkout + PSP | `createCheckoutServer`, `stripePsp`, `referencePsp` |
-| Payment instruments | `vaultedCard`, `stripeSpt`, `referenceMandate` |
+| Payment instruments | `vaultedCard`, `stripeSpt`, `referenceMandate`, `x402Payments`, `x402Fetch` |
+| Paid HTTP resources | `x402Paywall`, `exactUsdc` |
 | Policy | `PolicyEngine`, `createPolicyEngine` |
 | Buy | `Wallet`, `Steelyard` / `connect` |
 
@@ -52,5 +53,6 @@ This package re-exports the symbols 90% of integrators need:
 
 This is a curated front door, not the whole surface. For anything not above, import
 the specific package directly — e.g. `@steelyard/protocol/ucp`,
-`@steelyard/buyer/vault`, `@steelyard/merchant`, `@steelyard/core`. The umbrella never
+`@steelyard/buyer/vault`, `@steelyard/merchant`, `@steelyard/x402`,
+`@steelyard/core`. The umbrella never
 hides them; it just gives you a shorter path to the common case.

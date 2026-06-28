@@ -61,6 +61,9 @@ you target.
 - **ACP and UCP checkout.** Merchant checkout assembly, PSP adapters,
   delegate-payment, UCP mandates, UCP HTTP Message Signatures or bearer auth,
   buyer reservations, and persisted receipts.
+- **x402 paid HTTP resources.** Wallet-bound paid fetch for HTTP 402
+  challenges, local policy before signing, and a server paywall wrapper that
+  delegates verify/settle through a facilitator boundary.
 - **Adapter-neutral UCP payments.** UCP discovery derives payment handlers from
   PSP `capabilities`, supports Stripe SPT and the guarded reference PSP,
   and validates both through coffee-shop smokes.
@@ -80,12 +83,14 @@ you target.
 | ACP feed | `/acp/feed` | `@steelyard/protocol/acp` |
 | UCP discovery/catalog | `/.well-known/ucp`, `/api/catalog/*` | `@steelyard/protocol/ucp` |
 | UCP checkout | `/api/checkout*` or `/ucp/api/checkout*` | `@steelyard/merchant/checkout` |
+| x402 paid HTTP | any protected route returning `402` | `@steelyard/x402` |
 
 ## Get started
 
 - :material-rocket-launch: **[Quickstart](getting-started.md)** — clone, install, watch the demo.
 - :material-file-code: **[Static manifest](guides/static-manifest.md)** — generate `commerce.json` for a CDN.
 - :material-cart: **[Your first purchase](guides/your-first-purchase.md)** — run ACP and UCP mock checkout.
+- :material-cash-fast: **[x402 paid fetch](guides/x402-paid-fetch.md)** — call a paid HTTP resource through Wallet policy.
 - :material-lightbulb-on: **[Unification thesis](concepts/unification.md)** — why one config and three protocols.
 - :material-package-variant-closed: **[Buyer SDK](packages/client.md)** — `Steelyard.connect()` against any agentic merchant.
 

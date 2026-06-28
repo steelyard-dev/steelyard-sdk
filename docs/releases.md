@@ -43,6 +43,15 @@ rails now lead with `createCheckoutServer`, `createCommerceReadHandler`,
 `virtualCardRail` / `VirtualCardPolicyRailAdapter`; the old policy rail aliases
 were removed before the public API is frozen.
 
+Steelyard now includes first-class x402 support for paid HTTP resources. Buyers
+can add an `x402Payments(...)` instrument to a Wallet, call paid endpoints with
+`x402Fetch(...)`, enforce local policy before signing, and read the typed x402
+receipt from the response. Servers can protect explicit routes with
+`x402Paywall(...)` and `exactUsdc(...)`, delegating verify and settle operations
+through an `X402FacilitatorClient`. x402 remains separate from ACP/UCP commerce
+checkout: it does not require a Steelyard manifest, does not make Steelyard a
+facilitator, and defaults examples to testnet or mock settlement.
+
 ## 0.10.0 - 2026-06-26
 
 Steelyard v0.10 turns PSP adapters into a public, contributable contract. The new

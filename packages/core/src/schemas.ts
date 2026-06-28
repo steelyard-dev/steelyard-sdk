@@ -205,7 +205,7 @@ export interface PurchaseIntent {
     domain: string;
     declared_domain?: string;
     transport_url: string;
-    protocol: "mcp" | "acp" | "ucp";
+    protocol: "mcp" | "acp" | "ucp" | "x402";
   };
   offer: { id: string; title: string; categories: string[] };
   amount: number;

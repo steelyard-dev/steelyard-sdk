@@ -206,7 +206,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     vaultTokenId = ap2Mandates.payment_token_id;
     selectedInstrumentType = ap2Mandates.payment_instrument_type;
   } else if (!ap2Required && opts.port.paymentMandateIssuer && handlerSupportsInstrument(selected.handler, opts.port.paymentMandateIssuer.instrumentType)) {
-    const handle = await mintUcpPaymentHandle({
+    const mandate = await issueUcpPaymentMandate({
       opts,
       totals,
       checkoutId,
@@ -214,7 +214,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
       purchaseKey: key,
       clock
     });
-    vaultTokenId = handle.id;
+    vaultTokenId = mandate.id;
     selectedInstrumentType = opts.port.paymentMandateIssuer.instrumentType;
   } else {
     vaultTokenId = await delegateVaultToken({
@@ -378,7 +378,7 @@ async function issueUcpAp2Mandates(args: {
   };
 }
 
-async function mintUcpPaymentHandle(args: {
+async function issueUcpPaymentMandate(args: {
   opts: UcpDriverOpts;
   totals: { amount: number; currency: string };
   checkoutId: string;

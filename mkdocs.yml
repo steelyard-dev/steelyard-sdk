@@ -52,6 +52,8 @@ nav:
     - Quickstart: getting-started.md
     - Your first purchase: guides/your-first-purchase.md
     - Policy engine: guides/policy-engine.md
+    - x402 paid fetch: guides/x402-paid-fetch.md
+    - x402 paywall: guides/x402-paywall.md
     - Static manifest: guides/static-manifest.md
     - Migrating from v0.2: guides/migrating-from-v0.2.md
     - Migrating from v0.4: guides/migrating-from-v0.4.md
@@ -67,6 +69,7 @@ nav:
     - Idempotency: concepts/idempotency.md
     - Mandates: concepts/mandates.md
     - Payment mandates: concepts/payment-mandates.md
+    - x402 paid HTTP resources: concepts/x402.md
     - Agentic payment: concepts/agentic-payment.md
     - Payment adapters: concepts/payment-adapters.md
     - Payment handlers: concepts/payment-handlers.md
@@ -103,6 +106,7 @@ nav:
     - "@steelyard/buyer/client": packages/client.md
     - "@steelyard/agent": packages/agent.md
     - "@steelyard/cli": packages/cli.md
+    - "@steelyard/x402": packages/x402.md
   - Architecture: architecture.md
 
 markdown_extensions:

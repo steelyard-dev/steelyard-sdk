@@ -34,6 +34,8 @@ export { stripePsp, referencePsp } from "@steelyard/merchant/psp";
 // ── Payment instruments (buyer side) ────────────────────────────────────────
 export { stripeSpt } from "@steelyard/stripe/buyer";
 export { referenceMandate, vaultedCard } from "@steelyard/buyer";
+export { x402Fetch, x402Payments } from "@steelyard/x402";
+export { exactUsdc, x402Paywall } from "@steelyard/x402/server";
 
 // ── Buyer: wallet + explore client ──────────────────────────────────────────
 export { Wallet } from "@steelyard/buyer";

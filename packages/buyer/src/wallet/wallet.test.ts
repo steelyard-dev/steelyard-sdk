@@ -583,7 +583,7 @@ describe("Wallet decision, payment, and maintenance", () => {
     });
   });
 
-  it("prepares agent-native credentials and exposes the issuer on merchant purchase ports", async () => {
+  it("prepares agent-native mandates and exposes the issuer on merchant purchase ports", async () => {
     await withWorkspace(async () => {
       const noIssuer = await Wallet.create(createOptions({ overwrite: true }));
       await expect(noIssuer.prepareMandate(intent)).rejects.toThrow(/no agent-native payment instrument/);
@@ -623,6 +623,7 @@ describe("Wallet decision, payment, and maintenance", () => {
       await expect(wallet.prepareMandate(intent, {
         instrumentId: instrument.id,
         idempotencyKey: "credential_key",
+        context: { x402: { requirementHash: "req_hash" } },
         clock: () => purchaseClock
       })).resolves.toMatchObject({
         id: "spt_wallet_test",
@@ -633,6 +634,7 @@ describe("Wallet decision, payment, and maintenance", () => {
         nonce: "credential_key",
         merchant_id: "coffee.example",
         instrument_type: "shared_payment_token",
+        context: { x402: { requirementHash: "req_hash" } },
         payment: { amount: 450, currency: "USD", checkout_id: "intent_coffee" }
       });
       await expect(wallet.prepareMandate(intent, { instrumentId: "missing" }))

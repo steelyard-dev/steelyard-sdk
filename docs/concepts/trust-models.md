@@ -20,7 +20,7 @@ sdJwtKbVerifier({
   trustModel: {
     kind: "digital_payment_credential",
     resolveIssuerKey: async ({ issuer, kid, alg, claims }) => {
-      return await lookupTrustedPaymentCredentialIssuerKey({ issuer, kid, alg, claims });
+      return await lookupTrustedPaymentMandateIssuerKey({ issuer, kid, alg, claims });
     }
   },
   expectedAudience: (checkout) => "https://coffee.example/.well-known/ucp",

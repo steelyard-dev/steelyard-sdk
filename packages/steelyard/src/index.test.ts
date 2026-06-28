@@ -7,7 +7,11 @@ import {
   createPolicyEngine,
   referenceMandate,
   stripeSpt,
-  vaultedCard
+  vaultedCard,
+  x402Fetch,
+  x402Paywall,
+  x402Payments,
+  exactUsdc
 } from "./index.js";
 
 describe("steelyard front-door exports", () => {
@@ -20,5 +24,9 @@ describe("steelyard front-door exports", () => {
     expect(referenceMandate).toBeTypeOf("function");
     expect(stripeSpt).toBeTypeOf("function");
     expect(vaultedCard).toBeTypeOf("function");
+    expect(x402Fetch).toBeTypeOf("function");
+    expect(x402Payments).toBeTypeOf("function");
+    expect(x402Paywall).toBeTypeOf("function");
+    expect(exactUsdc).toBeTypeOf("function");
   });
 });

@@ -1,6 +1,8 @@
 import { defineConfig } from "vitest/config";
 import { fileURLToPath } from "node:url";
 
+const targetedRun = process.argv.some((arg) => /^src\/.*\.test\.ts$/u.test(arg));
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -13,7 +15,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     coverage: {
       provider: "v8",
-      thresholds: {
+      thresholds: targetedRun ? undefined : {
         lines: 95,
         functions: 90,
         branches: 88,

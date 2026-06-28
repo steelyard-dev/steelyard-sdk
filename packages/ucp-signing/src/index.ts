@@ -53,7 +53,6 @@ export type {
   Ap2CheckoutMandateClaims,
   Ap2CheckoutMandateDisclosures,
   Ap2CheckoutMandateSigner,
-  Ap2DigitalPaymentCredentialTrustModel,
   Ap2MandateEnvelope,
   Ap2MandateFailureReason,
   Ap2MandateIssuerSigner,
