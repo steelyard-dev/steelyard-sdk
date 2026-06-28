@@ -40,7 +40,7 @@ import { ucpDriver, type UcpAp2MandateOptions, type UcpAuthOptions } from "./ucp
 
 export { createUcpBuyerProfile, createUcpBuyerProfileHandler } from "./profile.js";
 export type { UcpBuyerProfileOptions } from "./profile.js";
-export { AcpNoCompatibleHandler, AcpPaymentIssuerMissing, AcpUnsupportedPaymentIssuer, verifyAcpWebhook } from "./acp.js";
+export { AcpNoCompatibleHandler, AcpPaymentMandateIssuerMissing, AcpUnsupportedPaymentMandateIssuer, verifyAcpWebhook } from "./acp.js";
 export type { AcpAuthOptions, AcpWebhookVerifyArgs } from "./acp.js";
 export { Ap2MerchantAuthorizationInvalid, Ap2SessionInconsistent, UcpAuthMissing, UcpResponseSignatureInvalid } from "./ucp.js";
 export type { UcpAp2MandateOptions, UcpAuthOptions, UcpAuthPreference, UcpHmsSigningOptions } from "./ucp.js";
@@ -128,7 +128,7 @@ export class NoCompatiblePaymentHandlerError extends Error {
     super(
       opts.instrumentType
         ? `${opts.protocol.toUpperCase()} checkout has no compatible payment handler for ${opts.instrumentType}`
-        : `${opts.protocol.toUpperCase()} checkout requires a compatible payment issuer`
+        : `${opts.protocol.toUpperCase()} checkout requires a compatible payment mandate issuer`
     );
     this.name = "NoCompatiblePaymentHandlerError";
     this.protocol = opts.protocol;
@@ -752,7 +752,7 @@ function assertCompatiblePaymentHandler(
   port: WalletDriverPort
 ): void {
   if (!handlers.length || config.delegatePaymentUrl) return;
-  const issuer = port.paymentIssuer;
+  const issuer = port.paymentMandateIssuer;
   if (!issuer || !handlers.some((handler) => handlerSupportsInstrument(handler, issuer.instrumentType))) {
     throw new NoCompatiblePaymentHandlerError({ protocol, instrumentType: issuer?.instrumentType });
   }

@@ -5,7 +5,8 @@ import {
   Ap2MandateScopeIncomplete,
   STRIPE_TEST_NETWORK_BUSINESS_PROFILE,
   StripeSptScopeMismatch,
-  createStripeSptIssuer
+  createStripeSptPaymentMandateIssuer,
+  stripeSpt
 } from "./buyer.js";
 
 const now = new Date("2026-06-16T12:00:00.000Z");
@@ -20,10 +21,10 @@ const mandate = {
   }
 };
 
-describe("createStripeSptIssuer", () => {
+describe("createStripeSptPaymentMandateIssuer", () => {
   it("mints an SPT scoped to the AP2 payment mandate draft (SI1, SI2, SI4)", async () => {
     const calls: { url: string; init: RequestInit }[] = [];
-    const issuer = createStripeSptIssuer({
+    const issuer = createStripeSptPaymentMandateIssuer({
       apiKey: "sk_test_unit",
       clock: () => now,
       fetch: async (url, init) => {
@@ -37,8 +38,8 @@ describe("createStripeSptIssuer", () => {
       }
     });
 
-    const first = await issuer.mintForMandate(mandate);
-    const second = await issuer.mintForMandate(mandate);
+    const first = await issuer.issueMandate(mandate);
+    const second = await issuer.issueMandate(mandate);
 
     expect(first).toMatchObject({
       id: "spt_123",
@@ -56,42 +57,42 @@ describe("createStripeSptIssuer", () => {
   });
 
   it("rejects live and restricted keys without a bypass flag (SI3)", () => {
-    expect(() => createStripeSptIssuer({ apiKey: "sk_live_unit" })).toThrow(StripeLiveDisabledError);
-    expect(() => createStripeSptIssuer({ apiKey: "rk_test_unit" })).toThrow(StripeLiveDisabledError);
+    expect(() => createStripeSptPaymentMandateIssuer({ apiKey: "sk_live_unit" })).toThrow(StripeLiveDisabledError);
+    expect(() => createStripeSptPaymentMandateIssuer({ apiKey: "rk_test_unit" })).toThrow(StripeLiveDisabledError);
     process.env.STEELYARD_TEST_STRIPE_LIVE_OK = "1";
-    expect(() => createStripeSptIssuer({ apiKey: "sk_live_unit" })).toThrow(StripeLiveDisabledError);
+    expect(() => createStripeSptPaymentMandateIssuer({ apiKey: "sk_live_unit" })).toThrow(StripeLiveDisabledError);
     delete process.env.STEELYARD_TEST_STRIPE_LIVE_OK;
   });
 
   it("fails before Stripe when mandate scope is incomplete (SI2)", async () => {
-    const issuer = createStripeSptIssuer({
+    const issuer = createStripeSptPaymentMandateIssuer({
       apiKey: "sk_test_unit",
       clock: () => now,
       fetch: async () => jsonResponse({ id: "spt_123" })
     });
 
-    await expect(issuer.mintForMandate({ ...mandate, nonce: "" })).rejects.toThrow(Ap2MandateScopeIncomplete);
-    await expect(issuer.mintForMandate({ ...mandate, iat: Number.NaN })).rejects.toThrow(Ap2MandateScopeIncomplete);
-    await expect(issuer.mintForMandate({ ...mandate, payment: undefined as never })).rejects.toThrow(
+    await expect(issuer.issueMandate({ ...mandate, nonce: "" })).rejects.toThrow(Ap2MandateScopeIncomplete);
+    await expect(issuer.issueMandate({ ...mandate, iat: Number.NaN })).rejects.toThrow(Ap2MandateScopeIncomplete);
+    await expect(issuer.issueMandate({ ...mandate, payment: undefined as never })).rejects.toThrow(
       Ap2MandateScopeIncomplete
     );
     await expect(
-      issuer.mintForMandate({ ...mandate, payment: { ...mandate.payment, amount: -1 } })
+      issuer.issueMandate({ ...mandate, payment: { ...mandate.payment, amount: -1 } })
     ).rejects.toThrow(Ap2MandateScopeIncomplete);
     await expect(
-      issuer.mintForMandate({ ...mandate, payment: { ...mandate.payment, currency: "usd" } })
+      issuer.issueMandate({ ...mandate, payment: { ...mandate.payment, currency: "usd" } })
     ).rejects.toThrow(Ap2MandateScopeIncomplete);
     await expect(
-      issuer.mintForMandate({ ...mandate, payment: { ...mandate.payment, checkout_id: "" } })
+      issuer.issueMandate({ ...mandate, payment: { ...mandate.payment, checkout_id: "" } })
     ).rejects.toThrow(Ap2MandateScopeIncomplete);
     await expect(
-      issuer.mintForMandate({ ...mandate, payment: { ...mandate.payment, expires_at: "not-a-date" } })
+      issuer.issueMandate({ ...mandate, payment: { ...mandate.payment, expires_at: "not-a-date" } })
     ).rejects.toThrow(Ap2MandateScopeIncomplete);
     await expect(
-      issuer.mintForMandate({ ...mandate, payment: { ...mandate.payment, expires_at: now.toISOString() } })
+      issuer.issueMandate({ ...mandate, payment: { ...mandate.payment, expires_at: now.toISOString() } })
     ).rejects.toThrow(Ap2MandateScopeIncomplete);
     await expect(
-      issuer.mintForMandate({
+      issuer.issueMandate({
         ...mandate,
         payment: { ...mandate.payment, expires_at: new Date(now.getTime() + 25 * 60 * 60_000).toISOString() }
       })
@@ -107,13 +108,28 @@ describe("createStripeSptIssuer", () => {
     ];
 
     for (const response of cases) {
-      const issuer = createStripeSptIssuer({
+      const issuer = createStripeSptPaymentMandateIssuer({
         apiKey: "sk_test_unit",
         clock: () => now,
         fetch: async () => jsonResponse({ id: "spt_123", ...response })
       });
-      await expect(issuer.mintForMandate(mandate)).rejects.toThrow(StripeSptScopeMismatch);
+      await expect(issuer.issueMandate(mandate)).rejects.toThrow(StripeSptScopeMismatch);
     }
+  });
+
+  it("wraps Stripe SPT as an agent-native wallet instrument", () => {
+    const instrument = stripeSpt({
+      apiKey: "sk_test_unit",
+      clock: () => now,
+      fetch: async () => jsonResponse({ id: "spt_123" })
+    });
+
+    expect(instrument).toMatchObject({
+      mode: "agent-native",
+      type: "shared_payment_token",
+      label: "Stripe SPT"
+    });
+    expect(instrument.issuer.instrumentType).toBe("shared_payment_token");
   });
 });
 

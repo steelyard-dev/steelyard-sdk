@@ -4,9 +4,9 @@
 Wallet users normally do not need this page.
 
 ```ts
-import { BuyerPolicy } from "@steelyard/buyer/policy";
+import { WalletRules } from "@steelyard/buyer/policy";
 
-const policy = await BuyerPolicy.load();
+const policy = await WalletRules.load();
 const decision = await policy.evaluate(intent, { vault });
 ```
 

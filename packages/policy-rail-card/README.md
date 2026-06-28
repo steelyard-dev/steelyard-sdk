@@ -1,6 +1,6 @@
 # @steelyard/policy-rail-card
 
-Stripe Issuing virtual-card rail adapter for `@steelyard/policy`.
+Stripe Issuing virtual-card policy rail adapter for `@steelyard/policy`.
 
 ## Stripe Issuing Prerequisites
 
@@ -20,10 +20,12 @@ also uses Stripe Issuing test helpers, so test keys need access to
 
 ## Sandbox and Production
 
-The adapter is constructed with an explicit `env` tag:
+The rail is constructed with an explicit `env` tag:
 
 ```ts
-const adapter = new CardRailAdapter({
+import { virtualCardRail } from "@steelyard/policy-rail-card";
+
+const rail = virtualCardRail({
   stripe,
   cardholderId: process.env.STRIPE_ISSUING_CARDHOLDER!,
   env: "sandbox",
@@ -31,9 +33,13 @@ const adapter = new CardRailAdapter({
 });
 ```
 
-The policy engine refuses to mint when an intent environment and adapter
+The policy engine refuses to mint when an intent environment and rail adapter
 environment do not match. Use separate data directories, Stripe keys, and
 cardholder ids for sandbox and production.
+
+The adapter boundary converts Stripe Issuing concepts into the policy engine's
+`PolicyRailAdapter` contract: `mint`, `observe`, `revoke`, and
+`ackSettlement`.
 
 ## Caveats
 
@@ -53,11 +59,11 @@ adapter:
 
 ```ts
 import Stripe from "stripe";
-import { CardRailAdapter, WebhookEventBus } from "@steelyard/policy-rail-card";
+import { virtualCardRail, WebhookEventBus } from "@steelyard/policy-rail-card";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookBus = new WebhookEventBus();
-const adapter = new CardRailAdapter({
+const rail = virtualCardRail({
   stripe,
   cardholderId: process.env.STRIPE_ISSUING_CARDHOLDER!,
   env: "production",

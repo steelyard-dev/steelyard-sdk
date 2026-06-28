@@ -4,7 +4,7 @@
 // coffee-shop example does (examples/coffee-shop/src/parity.test.ts), but through the
 // one-call helper and an inline manifest.
 
-import type { Server } from "node:http";
+import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 import { Steelyard, type Merchant } from "@steelyard/buyer/client";
 import {
@@ -13,7 +13,7 @@ import {
   validateCommerceManifest,
   type CommerceManifestDoc
 } from "@steelyard/core";
-import { serveCommerce } from "./serve.js";
+import { createCommerceReadHandler, serveCommerce } from "./serve.js";
 
 const manifest = defineCommerce({
   identity: { name: "Test Shop", domain: "test.example", currencies: ["USD"] },
@@ -45,6 +45,15 @@ function isMerchant(value: unknown): value is Merchant {
 }
 
 describe("serveCommerce", () => {
+  it("exports createCommerceReadHandler as the read-only router name", async () => {
+    const base = await listen(createServer(createCommerceReadHandler(manifest)));
+
+    const wk = await fetch(`${base}${COMMERCE_MANIFEST_PATH}`);
+    expect(wk.status).toBe(200);
+    const doc = (await wk.json()) as CommerceManifestDoc;
+    expect(validateCommerceManifest(doc).valid).toBe(true);
+  });
+
   it("serves identical offers across MCP, ACP, and UCP from one manifest", async () => {
     const base = await listen(serveCommerce(manifest));
 

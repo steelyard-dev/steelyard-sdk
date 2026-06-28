@@ -60,17 +60,17 @@ export class AcpNoCompatibleHandler extends Error {
   }
 }
 
-export class AcpPaymentIssuerMissing extends Error {
+export class AcpPaymentMandateIssuerMissing extends Error {
   constructor() {
-    super("ACP direct SPT checkout requires port.paymentIssuer");
-    this.name = "AcpPaymentIssuerMissing";
+    super("ACP direct SPT checkout requires port.paymentMandateIssuer");
+    this.name = "AcpPaymentMandateIssuerMissing";
   }
 }
 
-export class AcpUnsupportedPaymentIssuer extends Error {
+export class AcpUnsupportedPaymentMandateIssuer extends Error {
   constructor(readonly instrumentType: string) {
     super(`ACP direct SPT checkout requires a shared_payment_token issuer; got ${instrumentType}`);
-    this.name = "AcpUnsupportedPaymentIssuer";
+    this.name = "AcpUnsupportedPaymentMandateIssuer";
   }
 }
 
@@ -119,13 +119,13 @@ export async function purchase(intent: PurchaseIntent, opts: AcpDriverOpts): Pro
   const handlers = acpHandlers(ready);
   const selected = selectedAcpHandler(handlers);
   if (!selected) throw new AcpNoCompatibleHandler();
-  if (!opts.port.paymentIssuer) throw new AcpPaymentIssuerMissing();
-  if (opts.port.paymentIssuer.instrumentType !== "shared_payment_token") {
-    throw new AcpUnsupportedPaymentIssuer(opts.port.paymentIssuer.instrumentType);
+  if (!opts.port.paymentMandateIssuer) throw new AcpPaymentMandateIssuerMissing();
+  if (opts.port.paymentMandateIssuer.instrumentType !== "shared_payment_token") {
+    throw new AcpUnsupportedPaymentMandateIssuer(opts.port.paymentMandateIssuer.instrumentType);
   }
   const checkoutId = stringValue(ready.id);
   const expiresAt = new Date(clock().getTime() + 15 * 60_000).toISOString();
-  const spt = await opts.port.paymentIssuer.mintForMandate({
+  const spt = await opts.port.paymentMandateIssuer.issueMandate({
     iat: Math.floor(clock().getTime() / 1000),
     nonce: `acp:${checkoutId}:${key}`,
     payment: {

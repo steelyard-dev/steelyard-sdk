@@ -2,7 +2,7 @@
 import type { EventEmitter } from "node:events";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { EcbFxQuoteService, Engine } from "@steelyard/policy";
+import { EcbFxQuoteService, PolicyEngine } from "@steelyard/policy";
 import type { CliIO, CommandResult } from "../../io.js";
 import { writeLine } from "../../io.js";
 
@@ -18,7 +18,7 @@ export async function policyRunCommand(opts: PolicyRunOptions, io: CliIO): Promi
   const dataDir = resolvePath(io, opts.dataDir ?? io.env.STEELYARD_DATA_DIR ?? "~/.steelyard");
   const socketPath = resolvePath(io, `${dataDir}/policy.sock`);
   const clock = { now: () => new Date() };
-  const engine = new Engine({
+  const engine = new PolicyEngine({
     dataDir,
     clock,
     fx: new EcbFxQuoteService({ now: clock.now }),

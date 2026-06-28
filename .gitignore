@@ -54,3 +54,4 @@ pnpm-debug.log*
 /tmp/
 *.tmp
 VERIFY.md
+.gstack/

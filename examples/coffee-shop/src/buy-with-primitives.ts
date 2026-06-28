@@ -2,7 +2,7 @@ import type { PurchaseIntent } from "@steelyard/core";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BuyerPolicy } from "@steelyard/buyer/policy";
+import { WalletRules } from "@steelyard/buyer/policy";
 import { BuyerVault, passwordKeystore } from "@steelyard/buyer/vault";
 
 if (process.env.STEELYARD_EXAMPLE_DRY_RUN === "1") {
@@ -12,7 +12,7 @@ if (process.env.STEELYARD_EXAMPLE_DRY_RUN === "1") {
     path: process.env.STEELYARD_VAULT_PATH ?? join(process.env.HOME ?? ".", ".steelyard", "vault.box"),
     keystore: passwordKeystore({ password: process.env.STEELYARD_PASSWORD ?? "" })
   });
-  const policy = await BuyerPolicy.load();
+  const policy = await WalletRules.load();
   const intent = exampleIntent();
   const decision = await policy.evaluate(intent, { vault });
   if (decision.status !== "allowed") {
@@ -52,7 +52,7 @@ rules:
     can: buy
     where: { merchant_domain: coffee.example, currency: USD, amount: { lte: 1000 } }
 `);
-    const policy = await BuyerPolicy.load({ paths: [join(steelyard, "policy.yml")] });
+    const policy = await WalletRules.load({ paths: [join(steelyard, "policy.yml")] });
     const decision = await policy.evaluate(exampleIntent(), { vault });
     if (decision.status !== "allowed") throw new Error(`expected allowed decision, got ${decision.status}`);
     await vault.close();

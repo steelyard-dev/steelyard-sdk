@@ -1,11 +1,11 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import type {
+  PaymentMandateIssuer,
   PaymentCapability,
-  PaymentIssuerMandateDraft,
+  PaymentMandateRequest,
   PspAdapter,
   PspCaptureArgs,
   PspCaptureResult,
-  WalletPaymentIssuer
 } from "@steelyard/psp";
 
 export const TEMPLATE_HANDLER_ID = "template";
@@ -48,10 +48,10 @@ export function createTemplatePsp(): PspAdapter {
   };
 }
 
-export function createTemplateIssuer(): WalletPaymentIssuer {
+export function createTemplateIssuer(): PaymentMandateIssuer {
   return {
     instrumentType: TEMPLATE_INSTRUMENT_TYPE,
-    async mintForMandate(mandate) {
+    async issueMandate(mandate) {
       const scope = scopeFromDraft(mandate);
       return {
         id: `${TEMPLATE_TOKEN_PREFIX}${encode(JSON.stringify(scope))}`,
@@ -98,7 +98,7 @@ function validateCapture(args: PspCaptureArgs): PspCaptureResult {
   return { ok: true, psp_payment_id: "validated", status: "captured" };
 }
 
-function scopeFromDraft(mandate: PaymentIssuerMandateDraft): TemplateScope {
+function scopeFromDraft(mandate: PaymentMandateRequest): TemplateScope {
   if (!mandate.merchant_id) throw new Error("mandate.merchant_id is required");
   if (!mandate.handler_id) throw new Error("mandate.handler_id is required");
   if (!mandate.transaction_id) throw new Error("mandate.transaction_id is required");

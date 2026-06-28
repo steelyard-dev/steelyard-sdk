@@ -24,6 +24,8 @@ export type ApprovalCallbackResult =
         | "policy_snapshot_stale";
     };
 
+export type WebhookApprovalCallbackResult = ApprovalCallbackResult;
+
 export interface WebhookApprovalChannelOptions {
   url: string;
   hmac_secret: string;

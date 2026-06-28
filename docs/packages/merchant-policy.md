@@ -32,7 +32,7 @@ error. If the file is deleted, evaluation throws `MerchantPolicyMissing`.
 Pass the policy into checkout assembly:
 
 ```ts
-const checkout = createMerchantCheckout(manifest, {
+const checkout = createCheckoutServer(manifest, {
   protocols: ["acp", "ucp"],
   policy,
   store,

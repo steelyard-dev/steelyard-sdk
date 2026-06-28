@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import type { PaymentIssuerMandateDraft, PspCaptureArgs } from "@steelyard/psp";
-import { runIssuerConformance, runPspConformance } from "@steelyard/psp/conformance";
+import type { PaymentMandateRequest, PspCaptureArgs } from "@steelyard/psp";
+import { runMandateIssuerConformance, runPspConformance } from "@steelyard/psp/conformance";
 import { describe, expect, it } from "vitest";
 import {
   TEMPLATE_HANDLER_ID,
@@ -15,7 +15,7 @@ describe("template PSP adapter", () => {
   it("passes the Steelyard PSP and issuer conformance kit", async () => {
     const issuer = createTemplateIssuer();
     const draft = mandateDraft();
-    const handle = await issuer.mintForMandate(draft);
+    const handle = await issuer.issueMandate(draft);
     const success = captureArgs({ vault_token: handle.id });
 
     const pspReport = await runPspConformance(createTemplatePsp(), {
@@ -29,7 +29,7 @@ describe("template PSP adapter", () => {
     });
     expect(pspReport.failed).toBe(0);
 
-    const issuerReport = await runIssuerConformance(issuer, {
+    const issuerReport = await runMandateIssuerConformance(issuer, {
       draft,
       incompleteDraft: { ...draft, merchant_id: undefined }
     });
@@ -37,7 +37,7 @@ describe("template PSP adapter", () => {
   });
 });
 
-function mandateDraft(): PaymentIssuerMandateDraft {
+function mandateDraft(): PaymentMandateRequest {
   return {
     iat: Math.floor(Date.now() / 1000),
     nonce: "nonce_template",

@@ -14,7 +14,7 @@ const merchant = await Steelyard.connect("https://coffee.example/acp/feed", {
 
 if ("error" in merchant) throw new Error(merchant.error_detail ?? merchant.error);
 
-const receipt = await wallet.pay(intent, { merchant });
+const receipt = await wallet.purchase(intent, { merchant });
 ```
 
 ## First setup
@@ -64,11 +64,11 @@ switch (decision.status) {
 
 ## Purchase
 
-`pay()` calls `decide()` again as a safety check. Denied intents throw. Approval
-thresholds require an `approval` proof.
+`purchase()` calls `decide()` again as a safety check. Denied intents throw.
+Approval thresholds require an `approval` proof.
 
 ```ts
-const receipt = await wallet.pay(intent, {
+const receipt = await wallet.purchase(intent, {
   merchant,
   idempotencyKey: "purchase_123",
   approval: { kind: "manual", token: "approval_123" }
@@ -81,9 +81,10 @@ When a `merchant` option is supplied, the wallet reserves spend in the encrypted
 ledger, calls ACP or UCP checkout, settles the reservation with the receipt, and
 persists that receipt.
 
-Calling `wallet.pay(intent)` without a `merchant` option keeps the v0.2
-compatibility behavior: it returns a `Payment` object that can reveal raw card
-details inside `withRawCard()`.
+For browser-manual or browser-legacy checkout, use
+`wallet.createBrowserManualSession(intent)`. It returns a
+`BrowserManualSession` that can reveal raw card details only inside
+`revealCard()`.
 
 ## Maintenance
 

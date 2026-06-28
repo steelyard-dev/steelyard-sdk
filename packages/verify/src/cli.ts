@@ -209,7 +209,7 @@ function addV07AdapterConformanceCases(cases: VerifyCase[]): void {
   const entries: Array<[string, string, string[], (ctx: VerifyContext) => Promise<void>]> = [
     [
       "V07-NC-01",
-      "UCP payment handlers derive from neutral PSP capabilities",
+      "UCP payment handlers derive from PSP accepted instruments",
       ["packages/protocol/src/ucp/ucp.test.ts", "packages/merchant/src/checkout/server.test.ts", "NC1", "MV2", "AD3"],
       async (ctx) => {
         await runFocusedVitest(ctx, "v06-protocol-ucp", "@steelyard/protocol", "src/ucp/ucp.test.ts");
@@ -233,7 +233,7 @@ function addV07AdapterConformanceCases(cases: VerifyCase[]): void {
     ],
     [
       "V07-AG-01",
-      "ACP rejects non-SPT wallet issuers before minting",
+      "ACP rejects non-SPT payment mandate issuers before minting",
       ["packages/buyer/src/client/checkout-drivers.test.ts", "AG1"],
       (ctx) => runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard/buyer", "src/client/checkout-drivers.test.ts")
     ],
@@ -773,10 +773,45 @@ async function assertEcdsaRawSignatureWidths(): Promise<void> {
   const p384 = await ecdsaSignRaw({ algorithm: "ES384", privateKeyJwk: rfc6979P384.privateJwk, data });
   assertEqual(p256.byteLength, 64, "ES256 signature must be 64 raw bytes");
   assertEqual(p384.byteLength, 96, "ES384 signature must be 96 raw bytes");
-  assert(p256[0] !== 0x30, "ES256 signature must not be DER-encoded");
-  assert(p384[0] !== 0x30, "ES384 signature must not be DER-encoded");
+  assert(!looksLikeDerEcdsaSignature(p256), "ES256 signature must not be DER-encoded");
+  assert(!looksLikeDerEcdsaSignature(p384), "ES384 signature must not be DER-encoded");
   assert(await ecdsaVerifyRaw({ algorithm: "ES256", publicKeyJwk: rfc6979P256.publicJwk, data, signature: p256 }), "ES256 signature must verify");
   assert(await ecdsaVerifyRaw({ algorithm: "ES384", publicKeyJwk: rfc6979P384.publicJwk, data, signature: p384 }), "ES384 signature must verify");
+}
+
+function looksLikeDerEcdsaSignature(value: Uint8Array): boolean {
+  const bytes = Buffer.from(value);
+  if (bytes.byteLength < 8 || bytes[0] !== 0x30) return false;
+  const sequence = readDerLengthPrefix(bytes, 1);
+  if (!sequence || sequence.offset + sequence.length !== bytes.byteLength) return false;
+  const r = readDerIntegerPrefix(bytes, sequence.offset);
+  if (!r) return false;
+  const s = readDerIntegerPrefix(bytes, r.offset);
+  return Boolean(s && s.offset === bytes.byteLength);
+}
+
+function readDerIntegerPrefix(bytes: Buffer, offset: number): { offset: number } | undefined {
+  if (bytes[offset] !== 0x02) return undefined;
+  const length = readDerLengthPrefix(bytes, offset + 1);
+  if (!length) return undefined;
+  const end = length.offset + length.length;
+  if (length.length === 0 || end > bytes.byteLength) return undefined;
+  return { offset: end };
+}
+
+function readDerLengthPrefix(bytes: Buffer, offset: number): { length: number; offset: number } | undefined {
+  const first = bytes[offset];
+  if (first === undefined) return undefined;
+  if ((first & 0x80) === 0) return { length: first, offset: offset + 1 };
+  const size = first & 0x7f;
+  if (size === 0 || size > 4 || offset + size >= bytes.byteLength) return undefined;
+  let length = 0;
+  for (let index = 0; index < size; index += 1) {
+    const next = bytes[offset + 1 + index];
+    if (next === undefined) return undefined;
+    length = (length << 8) | next;
+  }
+  return { length, offset: offset + 1 + size };
 }
 
 async function assertProfileFetchRejectionModes(): Promise<void> {
@@ -823,7 +858,8 @@ async function assertMigrationDocs(ctx: VerifyContext): Promise<void> {
   assertIncludes(migration, "PurchaseIntent.amount", "migration guide must describe amount semantics");
   assertIncludes(migration, "spendInWindow()", "migration guide must describe spendInWindow()");
   assertIncludes(migration, "listSpend()", "migration guide must describe listSpend()");
-  assertIncludes(migration, "Wallet.pay()", "migration guide must describe Wallet.pay()");
+  assertIncludes(migration, "wallet.purchase()", "migration guide must describe wallet.purchase()");
+  assertIncludes(migration, "createBrowserManualSession", "migration guide must describe browser-manual sessions");
   assertIncludes(readme, "const intent", "README must include inline intent example");
 }
 
@@ -838,7 +874,7 @@ async function assertV07PaymentAdapterDocs(ctx: VerifyContext): Promise<void> {
   assertIncludes(adapters, "UCP payment negotiation", "payment-adapters doc must describe UCP negotiation");
   assertIncludes(adapters, "referencePsp()", "payment-adapters doc must describe referencePsp()");
   assertIncludes(adapters, "ACP checkout is intentionally narrower", "payment-adapters doc must describe ACP boundary");
-  assertIncludes(readme, "v0.7 generalizes UCP payment wiring", "README must describe v0.7 payment adapter scope");
+  assertIncludes(readme, "Agent-Native Payments", "README must describe agent-native payment adapter scope");
   assertIncludes(readme, "intentionally direct Stripe SPT-only", "README must describe ACP Stripe-only boundary");
   assertIncludes(nav, "concepts/payment-adapters.md", "MkDocs nav must expose payment-adapters doc");
 }

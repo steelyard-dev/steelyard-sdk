@@ -180,10 +180,10 @@ export class UnknownPaymentHandlerError extends MerchantCheckoutConfigError {
   }
 }
 
-export function createMerchantCheckout(manifest: Manifest, opts: MerchantCheckoutOpts): MerchantCheckout {
+export function createCheckoutServer(manifest: Manifest, opts: MerchantCheckoutOpts): MerchantCheckout {
   const protocols = new Set(opts.protocols);
   if (!protocols.has("acp") && !protocols.has("ucp")) {
-    throw new MerchantCheckoutConfigError("createMerchantCheckout requires at least one protocol");
+    throw new MerchantCheckoutConfigError("createCheckoutServer requires at least one protocol");
   }
   if (protocols.has("ucp") && opts.steelyardMandate && !opts.mandateVerifier) {
     throw new MerchantCheckoutConfigError("mandateVerifier is required when steelyardMandate is enabled");

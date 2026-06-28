@@ -9,7 +9,7 @@ above a threshold:
 await wallet.setApprovalAbove({ USD: 25 });
 ```
 
-If a purchase crosses that threshold, `wallet.pay()` throws
+If a purchase crosses that threshold, `wallet.purchase()` throws
 `WalletApprovalRequired` unless the caller supplies an approval proof or resume
 token.
 

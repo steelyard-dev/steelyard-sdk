@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { RailAdapter } from "@steelyard/policy";
-import { CardRailAdapter } from "../src/adapter.js";
+import type { PolicyRailAdapter } from "@steelyard/policy";
+import { VirtualCardPolicyRailAdapter } from "../src/adapter.js";
 import { WebhookEventBus } from "../src/observe.js";
 import { mintCard } from "../src/mint.js";
 
@@ -93,10 +93,10 @@ describe("mintCard", () => {
   });
 });
 
-describe("CardRailAdapter", () => {
+describe("VirtualCardPolicyRailAdapter", () => {
   it("delegates mint to mintCard with configured Stripe dependencies", async () => {
     const stripe = { issuing: { cards: { create: vi.fn(async () => ({ id: "ic_adapter" })) } } };
-    const adapter: RailAdapter = new CardRailAdapter({
+    const adapter: PolicyRailAdapter = new VirtualCardPolicyRailAdapter({
       stripe: stripe as unknown as Parameters<typeof mintCard>[0]["stripe"],
       cardholderId: "ich_user",
       env: "production",

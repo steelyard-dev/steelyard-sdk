@@ -11,9 +11,9 @@ the public part is published through `buildUcpDiscovery()` as top-level
 `signing_keys[]`.
 
 ```ts
-import { createMerchantCheckout } from "@steelyard/merchant/checkout";
+import { createCheckoutServer } from "@steelyard/merchant/checkout";
 
-const checkout = createMerchantCheckout(manifest, {
+const checkout = createCheckoutServer(manifest, {
   protocols: ["ucp"],
   store,
   idempotency,

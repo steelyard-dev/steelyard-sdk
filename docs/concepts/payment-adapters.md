@@ -8,8 +8,8 @@ npm install @steelyard/psp
 ```
 
 ```ts
-import type { PspAdapter, WalletPaymentIssuer } from "@steelyard/psp";
-import { runPspConformance, runIssuerConformance } from "@steelyard/psp/conformance";
+import type { PaymentMandateIssuer, PspAdapter } from "@steelyard/psp";
+import { runPspConformance, runMandateIssuerConformance } from "@steelyard/psp/conformance";
 ```
 
 ## Adapter Shape
@@ -35,8 +35,8 @@ export const myPsp: PspAdapter = {
 };
 ```
 
-The buyer side implements `WalletPaymentIssuer`: declare one `instrumentType`
-and mint a scoped handle from `PaymentIssuerMandateDraft`. The issuer's
+The buyer side implements `PaymentMandateIssuer`: declare one `instrumentType`
+and mint a scoped `PaymentMandate` from `PaymentMandateRequest`. The issuer's
 `instrumentType` must match one of the merchant adapter's advertised
 `capabilities[].instrumentType` values.
 
@@ -54,7 +54,7 @@ The conformance kit has no test-framework dependency. Use it from Vitest, Jest,
 const pspReport = await runPspConformance(myPsp, fixtures);
 if (pspReport.failed > 0) throw new Error(JSON.stringify(pspReport.cases, null, 2));
 
-const issuerReport = await runIssuerConformance(myIssuer, fixtures);
+const issuerReport = await runMandateIssuerConformance(myIssuer, fixtures);
 if (issuerReport.failed > 0) throw new Error(JSON.stringify(issuerReport.cases, null, 2));
 ```
 
@@ -64,8 +64,8 @@ failure fixtures, and optional mandate/instrument mismatch fixtures. It does not
 construct AP2 SD-JWT mandates; if your adapter supports AP2 mandate capture,
 provide a sample mandate in the fixtures.
 
-`runIssuerConformance()` checks that `instrumentType` is declared, minted handles
-do not widen amount/currency/expiry scope, and incomplete mandate drafts are
+`runMandateIssuerConformance()` checks that `instrumentType` is declared, issued mandates
+do not widen amount/currency/expiry scope, and incomplete mandate requests are
 rejected.
 
 See `examples/psp-adapter-template/` for a standalone-shaped adapter package
@@ -115,12 +115,12 @@ Known adapters:
 ## Current Boundaries
 
 UCP is the adapter-neutral checkout path: it drives **UCP payment negotiation**,
-where merchants advertise payment capabilities and buyers match a wallet issuer by
-`instrumentType`. New PSP integrations start with a UCP capability declaration, a
-buyer issuer with a distinct `instrumentType`, and a merchant adapter that verifies
-the handle before capture. The in-repo `referencePsp()` and
-`createReferencePaymentIssuer()` are the canonical example of a non-Stripe adapter on
-this path.
+where merchants advertise accepted instruments and buyers match an agent-native
+wallet instrument by `instrumentType`. New PSP integrations start with a UCP
+`capabilities` declaration, a `PaymentMandateIssuer` with a distinct
+`instrumentType`, and a merchant adapter that verifies the `PaymentMandate`
+before capture. The in-repo `referencePsp()` and `referenceMandate()` are the
+canonical example of a non-Stripe adapter on this path.
 
 ACP checkout is intentionally narrower. The ACP driver accepts only a
 `shared_payment_token` issuer and sends direct Stripe-style SPT `payment_data`.

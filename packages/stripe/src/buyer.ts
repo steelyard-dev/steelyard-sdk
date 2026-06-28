@@ -1,5 +1,11 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import { systemClock, type PaymentIssuerMandateDraft, type SptHandle, type WalletPaymentIssuer } from "@steelyard/core";
+import {
+  systemClock,
+  type AgentNativeInstrument,
+  type PaymentMandateIssuer,
+  type PaymentMandateRequest,
+  type SptHandle
+} from "@steelyard/core";
 import {
   STRIPE_API_VERSION,
   assertStripeTestSecretKey,
@@ -9,7 +15,7 @@ import {
 export const STRIPE_TEST_NETWORK_BUSINESS_PROFILE =
   "profile_test_61TU90nIeGjU7NNVXA6TU90m7ISQWsBxpcx9lASWWXTk";
 
-export interface StripeSptIssuerOptions {
+export interface StripeSptPaymentMandateIssuerOptions {
   apiKey: string;
   paymentMethod?: string;
   sellerProfile?: string;
@@ -19,7 +25,7 @@ export interface StripeSptIssuerOptions {
   clock?: () => Date;
 }
 
-export type StripeSptIssuer = WalletPaymentIssuer;
+export type StripeSptPaymentMandateIssuer = PaymentMandateIssuer;
 
 export class Ap2MandateScopeIncomplete extends Error {
   constructor(message: string) {
@@ -35,7 +41,7 @@ export class StripeSptScopeMismatch extends Error {
   }
 }
 
-export function createStripeSptIssuer(opts: StripeSptIssuerOptions): StripeSptIssuer {
+export function createStripeSptPaymentMandateIssuer(opts: StripeSptPaymentMandateIssuerOptions): StripeSptPaymentMandateIssuer {
   assertStripeTestSecretKey(opts.apiKey);
   const paymentMethod = opts.paymentMethod ?? "pm_card_visa";
   const sellerProfile = opts.sellerProfile ?? STRIPE_TEST_NETWORK_BUSINESS_PROFILE;
@@ -44,7 +50,7 @@ export function createStripeSptIssuer(opts: StripeSptIssuerOptions): StripeSptIs
 
   return {
     instrumentType: "shared_payment_token",
-    async mintForMandate(mandate: PaymentIssuerMandateDraft): Promise<SptHandle> {
+    async issueMandate(mandate: PaymentMandateRequest): Promise<SptHandle> {
       const scope = mandateScope(mandate, clock);
       const idempotencyKey = await mandateIdempotencyKey(mandate);
       const result = await mintSharedPaymentToken({
@@ -77,8 +83,17 @@ export function createStripeSptIssuer(opts: StripeSptIssuerOptions): StripeSptIs
   };
 }
 
+export function stripeSpt(opts: StripeSptPaymentMandateIssuerOptions): AgentNativeInstrument {
+  return {
+    mode: "agent-native",
+    type: "shared_payment_token",
+    label: "Stripe SPT",
+    issuer: createStripeSptPaymentMandateIssuer(opts)
+  };
+}
+
 function mandateScope(
-  mandate: PaymentIssuerMandateDraft,
+  mandate: PaymentMandateRequest,
   clock: () => Date
 ): { currency: string; maxAmount: number; expiresAt: number } {
   if (!Number.isSafeInteger(mandate.iat)) throw new Ap2MandateScopeIncomplete("mandate.iat is required");
@@ -118,7 +133,7 @@ function assertReturnedScope(
   }
 }
 
-async function mandateIdempotencyKey(mandate: PaymentIssuerMandateDraft): Promise<string> {
+async function mandateIdempotencyKey(mandate: PaymentMandateRequest): Promise<string> {
   return `spt_${await sha256Hex(`${mandate.iat}:${mandate.nonce}`)}`;
 }
 

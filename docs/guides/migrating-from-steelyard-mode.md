@@ -26,7 +26,7 @@ Keep Steelyard mode enabled only for partners that have not moved to AP2:
 ```ts
 const ap2NonceStore = fileNonceStore({ dir: "/var/lib/steelyard/ap2-nonces" });
 
-const checkout = createMerchantCheckout(manifest, {
+const checkout = createCheckoutServer(manifest, {
   protocols: ["ucp"],
   store,
   idempotency,

@@ -29,7 +29,7 @@ export interface RailCapabilities {
   availability_signal_source: string;
 }
 
-export interface RailAdapter {
+export interface PolicyRailAdapter {
   readonly name: RailName;
   readonly enforcement_level: EnforcementLevel;
   readonly loss_ceiling_source: LossCeilingSource;

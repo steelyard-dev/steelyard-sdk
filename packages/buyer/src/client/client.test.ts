@@ -5,7 +5,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
 import { buildAcpDiscovery, buildAcpFeed } from "@steelyard/protocol/acp";
-import { defineCommerce, type EcJwk, type PaymentIssuerMandateDraft, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
+import { defineCommerce, type EcJwk, type PaymentMandateRequest, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
 import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
 import {
   STEELYARD_CHECKOUT_MANDATE_V01,
@@ -414,12 +414,12 @@ describe("Steelyard.connect", () => {
 
   it("routes ACP merchant.purchase through the checkout driver", async () => {
     const { base, requests } = await startAcpCheckoutServer();
-    const minted: PaymentIssuerMandateDraft[] = [];
+    const minted: PaymentMandateRequest[] = [];
     const port = {
       ...testPort(),
-      paymentIssuer: {
+      paymentMandateIssuer: {
         instrumentType: "shared_payment_token" as const,
-        async mintForMandate(mandate: PaymentIssuerMandateDraft) {
+        async issueMandate(mandate: PaymentMandateRequest) {
           minted.push(mandate);
           return {
             id: "spt_123",

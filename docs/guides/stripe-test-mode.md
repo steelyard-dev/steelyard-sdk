@@ -12,7 +12,7 @@ const psp = stripePsp({
 });
 ```
 
-Then pass `psp` into `createMerchantCheckout()`.
+Then pass `psp` into `createCheckoutServer()`.
 
 ## Manual smoke script
 

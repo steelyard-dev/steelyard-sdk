@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { PurchaseIntent } from "@steelyard/core";
 import type { BuyerVault } from "../vault/index.js";
-import { BuyerPolicy, _resetPermissiveWarningForTests } from "./load.js";
+import { WalletRules, _resetPermissiveWarningForTests } from "./load.js";
 
 const originalCwd = process.cwd();
 
@@ -21,19 +21,19 @@ afterEach(() => {
   _resetPermissiveWarningForTests();
 });
 
-describe("BuyerPolicy.load", () => {
+describe("WalletRules.load", () => {
   it("throws when no policy file exists unless permissive mode is explicit", async () => {
     const missing = ["/tmp/steelyard-missing-policy.yml"];
-    await expect(BuyerPolicy.load({ paths: missing })).rejects.toThrow(/no policy file found/);
+    await expect(WalletRules.load({ paths: missing })).rejects.toThrow(/no policy file found/);
 
     const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-    const policy = await BuyerPolicy.load({ paths: missing, allowMissingPolicy: true });
+    const policy = await WalletRules.load({ paths: missing, allowMissingPolicy: true });
 
     expect(policy.isPermissive).toBe(true);
     await expect(policy.evaluate(intent)).resolves.toEqual({ status: "allowed", rule: "no-policy-permissive" });
     expect(stderr).toHaveBeenCalledTimes(1);
 
-    await BuyerPolicy.load({ paths: missing, allowMissingPolicy: true });
+    await WalletRules.load({ paths: missing, allowMissingPolicy: true });
     expect(stderr).toHaveBeenCalledTimes(1);
   });
 
@@ -51,7 +51,7 @@ limits:
   daily: { USD: 1000 }
 `);
 
-    const policy = await BuyerPolicy.load({ paths: [join(dir, "missing.yml"), policyPath] });
+    const policy = await WalletRules.load({ paths: [join(dir, "missing.yml"), policyPath] });
 
     expect(policy.isPermissive).toBe(false);
     expect(policy.rules.map((rule) => rule.name)).toEqual(["allow coffee"]);
@@ -67,7 +67,7 @@ limits:
     await writeFile(join(dir, ".steelyard", "policy.yml"), 'version: "0.1"\ndefault: allow\n');
     process.chdir(dir);
 
-    const project = await BuyerPolicy.loadProject();
+    const project = await WalletRules.loadProject();
 
     await expect(project.evaluate(intent)).resolves.toEqual({ status: "allowed", rule: "default" });
   });

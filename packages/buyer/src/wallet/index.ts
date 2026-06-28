@@ -2,18 +2,24 @@ import type {
   ApprovalResume,
   ApprovalProof,
   BillingAddress,
+  BrowserManualInstrument,
   CardMetadata,
+  PaymentMandateIssuer,
   Decision,
   EcJwk,
   HmsAlgorithm,
   JsonWebKey,
+  PaymentMandate,
+  PaymentInstrument,
+  PaymentInstrumentRecord,
+  PaymentMandateRequest,
+  PaymentMode,
   PurchaseIntent,
   Receipt,
   SimpleCard,
   SimpleLimits,
   SpendReceipt,
-  WalletDriverPort,
-  WalletPaymentIssuer
+  WalletDriverPort
 } from "@steelyard/core";
 import { newIdempotencyKey, systemClock } from "@steelyard/core";
 import { randomUUID } from "node:crypto";
@@ -21,7 +27,7 @@ import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { parseDocument, stringify } from "yaml";
-import { BuyerPolicy } from "../policy/index.js";
+import { WalletRules } from "../policy/index.js";
 import { normalizeCurrency, normalizeMerchantDomain } from "../policy/normalize.js";
 import {
   BuyerVault,
@@ -40,16 +46,21 @@ import { openVaultBox, sealVaultBox } from "../vault/crypto.js";
 import { packVaultBox, unpackVaultBox } from "../vault/format.js";
 import { parseVaultHeader, type VaultHeader } from "../vault/header.js";
 import { isPasswordKeystore, passwordKeystoreWithParams } from "../vault/keystore.js";
+import {
+  REFERENCE_PAYMENT_HANDLER_ID,
+  REFERENCE_PAYMENT_INSTRUMENT_TYPE
+} from "../reference-payment.js";
 
 export {
   REFERENCE_PAYMENT_HANDLER_ID,
   REFERENCE_PAYMENT_INSTRUMENT_TYPE,
   REFERENCE_PAYMENT_TOKEN_PREFIX,
-  ReferencePaymentIssuerError,
-  ReferencePaymentIssuerInProductionError,
-  createReferencePaymentIssuer
+  ReferencePaymentMandateIssuerError,
+  ReferencePaymentMandateIssuerInProductionError,
+  createReferencePaymentMandateIssuer,
+  referenceMandate
 } from "../reference-payment.js";
-export type { ReferencePaymentIssuer, ReferencePaymentIssuerOptions } from "../reference-payment.js";
+export type { ReferencePaymentMandateIssuer, ReferencePaymentMandateIssuerOptions } from "../reference-payment.js";
 
 const WALLET_RULE_NAME = "steelyard.wallet.allowed_merchants";
 const DEFAULT_POLICY = "deny";
@@ -65,13 +76,13 @@ export interface WalletCreateOptions {
   project?: boolean;
   overwrite?: boolean;
   mandateKey?: boolean;
-  paymentIssuer?: WalletPaymentIssuer;
+  paymentMandateIssuer?: PaymentMandateIssuer;
 }
 
 export interface WalletOpenOptions {
   password?: string;
   project?: boolean;
-  paymentIssuer?: WalletPaymentIssuer;
+  paymentMandateIssuer?: PaymentMandateIssuer;
 }
 
 export interface PaymentMetadata {
@@ -81,20 +92,53 @@ export interface PaymentMetadata {
   name: string;
 }
 
-interface PaymentVault {
+interface BrowserManualVault {
   revealCard(id: string): Promise<{ pan: string; exp: string; name_on_card: string }>;
   recordSpend(receipt: SpendReceipt): Promise<void>;
 }
 
-export interface LegacyPayOptions {
+export interface BrowserManualSessionOptions {
   approval?: ApprovalProof;
+  instrumentId?: string;
 }
 
-export interface PayOptions extends LegacyPayOptions {
+export interface PurchaseOptions extends BrowserManualSessionOptions {
   merchant: Merchant;
   resume?: ApprovalResume;
   idempotencyKey?: string;
   clock?: () => Date;
+}
+
+export interface PrepareMandateOptions {
+  instrumentId?: string;
+  handlerId?: string;
+  transactionId?: string;
+  idempotencyKey?: string;
+  ttlMs?: number;
+  clock?: () => Date;
+}
+
+export interface ChooseInstrumentOptions {
+  mode?: PaymentMode;
+  type?: string;
+  instrumentId?: string;
+}
+
+export interface VaultedCardOptions extends SimpleCard {
+  cvc?: string;
+  merchants?: string[];
+  default?: boolean;
+  label?: string;
+}
+
+export function vaultedCard(card: VaultedCardOptions): BrowserManualInstrument {
+  const { label, ...storedCard } = card;
+  return {
+    mode: "browser-manual",
+    type: "vaulted_card",
+    ...(label ? { label } : {}),
+    card: storedCard
+  };
 }
 
 export class WalletNotAllowed extends Error {
@@ -163,10 +207,10 @@ export class KeystoreUnavailable extends Error {
 
 export { MandateKeyMissing, ResumeExpired, WalletAmountExceeded };
 
-export class Payment {
+export class BrowserManualSession {
   readonly metadata: PaymentMetadata;
   readonly billing: { email?: string; address: BillingAddress };
-  #vault: PaymentVault;
+  #vault: BrowserManualVault;
   #intent: PurchaseIntent;
   #cardId: string;
   #rule?: string;
@@ -174,7 +218,7 @@ export class Payment {
   #settled = false;
 
   constructor(opts: {
-    vault: PaymentVault;
+    vault: BrowserManualVault;
     intent: PurchaseIntent;
     card: CardMetadata;
     billing: { email?: string; address: BillingAddress };
@@ -195,7 +239,11 @@ export class Payment {
     this.billing = { ...opts.billing, address: { ...opts.billing.address } };
   }
 
-  async withRawCard<T>(fn: (card: { number: string; exp: string; name: string }) => Promise<T> | T): Promise<T> {
+  async revealCard<T>(fn: (card: { number: string; exp: string; name: string }) => Promise<T> | T): Promise<T> {
+    return this.withRawCard(fn);
+  }
+
+  private async withRawCard<T>(fn: (card: { number: string; exp: string; name: string }) => Promise<T> | T): Promise<T> {
     const raw = await this.#vault.revealCard(this.#cardId);
     const released = { number: raw.pan, exp: raw.exp, name: raw.name_on_card };
     try {
@@ -232,21 +280,22 @@ export class Payment {
 
 export class Wallet {
   #vault: BuyerVault;
-  #policy: BuyerPolicy;
+  #policy: WalletRules;
   #policyPath: string;
   #vaultPath: string;
   #password?: string;
   #project: boolean;
-  #paymentIssuer?: WalletPaymentIssuer;
+  #paymentMandateIssuer?: PaymentMandateIssuer;
+  #paymentMandateIssuerRecord?: PaymentInstrumentRecord;
 
   private constructor(opts: {
     vault: BuyerVault;
-    policy: BuyerPolicy;
+    policy: WalletRules;
     policyPath: string;
     vaultPath: string;
     password?: string;
     project: boolean;
-    paymentIssuer?: WalletPaymentIssuer;
+    paymentMandateIssuer?: PaymentMandateIssuer;
   }) {
     this.#vault = opts.vault;
     this.#policy = opts.policy;
@@ -254,7 +303,10 @@ export class Wallet {
     this.#vaultPath = opts.vaultPath;
     this.#password = opts.password;
     this.#project = opts.project;
-    this.#paymentIssuer = opts.paymentIssuer;
+    this.#paymentMandateIssuer = opts.paymentMandateIssuer;
+    this.#paymentMandateIssuerRecord = opts.paymentMandateIssuer
+      ? mandateInstrumentRecord(opts.paymentMandateIssuer, { default: true })
+      : undefined;
   }
 
   static async create(opts: WalletCreateOptions): Promise<Wallet> {
@@ -311,7 +363,7 @@ export class Wallet {
         vaultPath: paths.vaultPath,
         password: opts.password,
         project: !!opts.project,
-        paymentIssuer: opts.paymentIssuer
+        paymentMandateIssuer: opts.paymentMandateIssuer
       });
     } catch (error) {
       await Promise.all(created.map((path) => rm(path, { force: true })));
@@ -346,7 +398,7 @@ export class Wallet {
       vaultPath: paths.vaultPath,
       password: opts.password,
       project: !!opts.project,
-      paymentIssuer: opts.paymentIssuer
+      paymentMandateIssuer: opts.paymentMandateIssuer
     });
   }
 
@@ -358,24 +410,79 @@ export class Wallet {
     return this.#policy.evaluate(intent, { vault: this.#vault });
   }
 
-  async pay(intent: PurchaseIntent, opts: PayOptions): Promise<Receipt>;
-  async pay(intent: PurchaseIntent, opts?: LegacyPayOptions): Promise<Payment>;
-  async pay(intent: PurchaseIntent, opts: LegacyPayOptions | PayOptions = {}): Promise<Payment | Receipt> {
-    if (isMerchantPayOptions(opts)) return this.purchaseWithMerchant(intent, opts);
-    return this.prepareLegacyPayment(intent, opts);
+  async purchase(intent: PurchaseIntent, opts: PurchaseOptions): Promise<Receipt> {
+    return this.purchaseWithMerchant(intent, opts);
   }
 
-  private async prepareLegacyPayment(intent: PurchaseIntent, opts: LegacyPayOptions = {}): Promise<Payment> {
+  async createBrowserManualSession(
+    intent: PurchaseIntent,
+    opts: BrowserManualSessionOptions = {}
+  ): Promise<BrowserManualSession> {
+    return this.prepareBrowserManualSession(intent, opts);
+  }
+
+  async prepareMandate(intent: PurchaseIntent, opts: PrepareMandateOptions = {}): Promise<PaymentMandate> {
+    const issuer = this.paymentMandateIssuerFor(opts.instrumentId);
+    const clock = opts.clock ?? systemClock;
+    const now = clock();
+    const nonce = opts.idempotencyKey ?? newIdempotencyKey();
+    const handlerId = opts.handlerId ?? defaultHandlerIdForIssuer(issuer);
+    const draft: PaymentMandateRequest = {
+      iat: Math.floor(now.getTime() / 1000),
+      nonce,
+      merchant_id: normalizeMerchantDomain(intent.merchant.domain),
+      ...(handlerId ? { handler_id: handlerId } : {}),
+      instrument_type: issuer.instrumentType,
+      transaction_id: opts.transactionId ?? nonce,
+      payment: {
+        amount: intent.amount,
+        currency: normalizeCurrency(intent.currency),
+        checkout_id: intent.intent_id ?? nonce,
+        expires_at: new Date(now.getTime() + (opts.ttlMs ?? 5 * 60 * 1000)).toISOString()
+      }
+    };
+    return issuer.issueMandate(draft);
+  }
+
+  async chooseInstrument(
+    _intent: PurchaseIntent,
+    opts: ChooseInstrumentOptions = {}
+  ): Promise<PaymentInstrumentRecord> {
+    const instruments = await this.listInstruments();
+    const filtered = instruments.filter((instrument) => {
+      if (opts.instrumentId && instrument.id !== opts.instrumentId) return false;
+      if (opts.mode && instrument.mode !== opts.mode) return false;
+      if (opts.type && instrument.type !== opts.type) return false;
+      return true;
+    });
+    const choice = filtered.find((instrument) => instrument.default) ?? filtered[0];
+    if (!choice) throw new Error("no matching payment instrument");
+    return { ...choice };
+  }
+
+  async ensureUcpSigningKey(opts: { algorithm?: HmsAlgorithm } = {}): Promise<UcpSigningKeyMetadata> {
+    if (await this.#vault.hasUcpSigningKey()) {
+      const jwk = await this.#vault.exportUcpSigningPublicKey();
+      if (!jwk.kid) throw new Error("UCP signing key is missing a kid");
+      return { kid: jwk.kid };
+    }
+    return this.#vault.createUcpSigningKey({ algorithm: opts.algorithm ?? "ES256" });
+  }
+
+  private async prepareBrowserManualSession(
+    intent: PurchaseIntent,
+    opts: BrowserManualSessionOptions = {}
+  ): Promise<BrowserManualSession> {
     const decision = await this.decide(intent);
     if (decision.status === "denied") throw new WalletNotAllowed(decision);
     if (decision.status === "approval_required" && !validApproval(opts.approval)) {
       throw new WalletApprovalRequired(decision);
     }
 
-    const card = await this.#vault.pickCard({ merchant: intent.merchant.domain });
+    const card = await this.cardForIntent(intent, opts.instrumentId);
     if (!card) throw new NoCardForMerchant(intent.merchant.domain);
     const billing = await this.#vault.billing();
-    return new Payment({
+    return new BrowserManualSession({
       vault: this.#vault,
       intent,
       card,
@@ -385,7 +492,7 @@ export class Wallet {
     });
   }
 
-  private async purchaseWithMerchant(intent: PurchaseIntent, opts: PayOptions): Promise<Receipt> {
+  private async purchaseWithMerchant(intent: PurchaseIntent, opts: PurchaseOptions): Promise<Receipt> {
     const clock = opts.clock ?? systemClock;
     const decision = await this.decide(intent);
     if (decision.status === "denied") throw new WalletNotAllowed(decision);
@@ -406,7 +513,7 @@ export class Wallet {
 
     let receipt: Receipt;
     try {
-      const port = await this.buildDriverPort(intent);
+      const port = await this.buildDriverPort(intent, { instrumentId: opts.instrumentId });
       receipt = await opts.merchant.purchase(intent, {
         port,
         approval: opts.approval,
@@ -461,14 +568,62 @@ export class Wallet {
     return receipt;
   }
 
-  async addCard(card: SimpleCard & { merchants?: string[]; default?: boolean }): Promise<void> {
+  async addInstrument(instrument: PaymentInstrument): Promise<PaymentInstrumentRecord> {
+    if (instrument.mode === "agent-native") {
+      const record = mandateInstrumentRecord(instrument.issuer, {
+        label: instrument.label,
+        default: true
+      });
+      this.#paymentMandateIssuer = instrument.issuer;
+      this.#paymentMandateIssuerRecord = record;
+      return { ...record };
+    }
+
     const stored = await this.#vault.addCard({
-      name_on_card: card.name,
-      pan: card.number,
-      exp: card.exp,
-      tags: [...(card.merchants ?? []).map(normalizeMerchantDomain), ...(card.default ? ["default"] : [])]
+      name_on_card: instrument.card.name,
+      pan: instrument.card.number,
+      exp: instrument.card.exp,
+      tags: [
+        ...(instrument.card.merchants ?? []).map(normalizeMerchantDomain),
+        ...(instrument.card.default ? ["default"] : [])
+      ]
     });
-    if (card.default) await this.setDefaultCard(stored.id);
+    if (instrument.card.default) await this.setDefaultCard(stored.id);
+    return cardInstrumentRecord(stored, {
+      label: instrument.label,
+      agentNativeDefault: this.#paymentMandateIssuerRecord?.default === true
+    });
+  }
+
+  async listInstruments(): Promise<PaymentInstrumentRecord[]> {
+    const cards = await this.#vault.listCards();
+    const agentNativeDefault = this.#paymentMandateIssuerRecord?.default === true;
+    return [
+      ...(this.#paymentMandateIssuerRecord ? [{ ...this.#paymentMandateIssuerRecord }] : []),
+      ...cards.map((card) => cardInstrumentRecord(card, { agentNativeDefault }))
+    ];
+  }
+
+  async removeInstrument(id: string): Promise<void> {
+    if (this.#paymentMandateIssuerRecord?.id === id) {
+      this.#paymentMandateIssuer = undefined;
+      this.#paymentMandateIssuerRecord = undefined;
+      return;
+    }
+    await this.#vault.removeCard(id);
+  }
+
+  async setDefaultInstrument(id: string): Promise<void> {
+    if (this.#paymentMandateIssuerRecord?.id === id) {
+      this.#paymentMandateIssuerRecord = { ...this.#paymentMandateIssuerRecord, default: true };
+      return;
+    }
+    if (this.#paymentMandateIssuerRecord) this.#paymentMandateIssuerRecord = { ...this.#paymentMandateIssuerRecord, default: false };
+    await this.setDefaultCard(id);
+  }
+
+  async addCard(card: SimpleCard & { merchants?: string[]; default?: boolean }): Promise<void> {
+    await this.addInstrument(vaultedCard(card));
   }
 
   async removeCard(id: string): Promise<void> {
@@ -614,13 +769,33 @@ export class Wallet {
     this.#policy = await loadWalletPolicy(this.#project);
   }
 
-  private async buildDriverPort(intent: PurchaseIntent): Promise<WalletDriverPort> {
-    const card = await this.#vault.pickCard({ merchant: intent.merchant.domain });
+  private paymentMandateIssuerFor(instrumentId?: string): PaymentMandateIssuer {
+    if (!this.#paymentMandateIssuer || !this.#paymentMandateIssuerRecord) {
+      throw new Error("no agent-native payment instrument configured");
+    }
+    if (instrumentId && instrumentId !== this.#paymentMandateIssuerRecord.id) {
+      throw new Error(`agent-native payment instrument not found: ${instrumentId}`);
+    }
+    return this.#paymentMandateIssuer;
+  }
+
+  private async cardForIntent(intent: PurchaseIntent, instrumentId?: string): Promise<CardMetadata | null> {
+    if (!instrumentId || this.#paymentMandateIssuerRecord?.id === instrumentId) {
+      return this.#vault.pickCard({ merchant: intent.merchant.domain });
+    }
+    return (await this.#vault.listCards()).find((card) => card.id === instrumentId) ?? null;
+  }
+
+  private async buildDriverPort(
+    intent: PurchaseIntent,
+    opts: { instrumentId?: string } = {}
+  ): Promise<WalletDriverPort> {
+    const card = await this.cardForIntent(intent, opts.instrumentId);
     if (!card) throw new NoCardForMerchant(intent.merchant.domain);
     const billing = await this.#vault.billing();
     return {
       billing,
-      ...(this.#paymentIssuer ? { paymentIssuer: this.#paymentIssuer } : {}),
+      ...(this.#paymentMandateIssuer ? { paymentMandateIssuer: this.#paymentMandateIssuer } : {}),
       withRawCard: async (fn) => {
         const raw = await this.#vault.revealCard(card.id);
         const released = { ...raw };
@@ -650,14 +825,59 @@ type WalletPolicyObject = {
   limits?: Record<string, Record<string, number>>;
 };
 
+function mandateInstrumentRecord(
+  issuer: PaymentMandateIssuer,
+  opts: { label?: string; default?: boolean } = {}
+): PaymentInstrumentRecord {
+  return {
+    id: `agent-native_${instrumentIdPart(issuer.instrumentType)}`,
+    mode: "agent-native",
+    type: issuer.instrumentType,
+    label: opts.label ?? readableInstrumentLabel(issuer.instrumentType),
+    created_at: systemClock().toISOString(),
+    ...(opts.default !== undefined ? { default: opts.default } : {})
+  };
+}
+
+function cardInstrumentRecord(
+  card: CardMetadata,
+  opts: { label?: string; agentNativeDefault?: boolean } = {}
+): PaymentInstrumentRecord {
+  return {
+    id: card.id,
+    mode: "browser-manual",
+    type: "vaulted_card",
+    label: opts.label ?? `${card.brand} ****${card.last4}`,
+    created_at: systemClock().toISOString(),
+    default: !opts.agentNativeDefault && card.tags.includes("default")
+  };
+}
+
+function defaultHandlerIdForIssuer(issuer: PaymentMandateIssuer): string | undefined {
+  if (issuer.instrumentType === REFERENCE_PAYMENT_INSTRUMENT_TYPE) return REFERENCE_PAYMENT_HANDLER_ID;
+  return undefined;
+}
+
+function readableInstrumentLabel(type: string): string {
+  return type
+    .split(/[_\s-]+/u)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function instrumentIdPart(type: string): string {
+  return type.replace(/[^A-Za-z0-9_-]+/g, "_");
+}
+
 function walletPaths(project: boolean): { vaultPath: string; policyPath: string } {
   const root = project ? resolve(".steelyard") : join(homedir(), ".steelyard");
   return { vaultPath: join(root, "vault.box"), policyPath: join(root, "policy.yml") };
 }
 
-async function loadWalletPolicy(project: boolean): Promise<BuyerPolicy> {
+async function loadWalletPolicy(project: boolean): Promise<WalletRules> {
   const paths = project ? [walletPaths(true).policyPath, walletPaths(false).policyPath] : [walletPaths(false).policyPath];
-  return BuyerPolicy.load({ paths });
+  return WalletRules.load({ paths });
 }
 
 function keystoreForHeader(header: VaultHeader, password: string | undefined) {
@@ -781,10 +1001,6 @@ function validApproval(approval: ApprovalProof | undefined): boolean {
   return !!approval && typeof approval.source === "string" && !Number.isNaN(new Date(approval.ts).getTime());
 }
 
-function isMerchantPayOptions(opts: LegacyPayOptions | PayOptions): opts is PayOptions {
-  return "merchant" in opts && !!opts.merchant;
-}
-
 function isResumableApprovalError(error: unknown): error is WalletApprovalRequired & { resume: ApprovalResume } {
   return error instanceof WalletApprovalRequired && error.kind !== "policy" && !!error.resume;
 }
@@ -817,6 +1033,12 @@ export type {
   BillingAddress,
   CardMetadata,
   Decision,
+  BrowserManualInstrument,
+  PaymentMandateIssuer,
+  PaymentMandate,
+  PaymentInstrument,
+  PaymentInstrumentRecord,
+  PaymentMode,
   PurchaseIntent,
   SpendReceipt,
   SimpleCard,

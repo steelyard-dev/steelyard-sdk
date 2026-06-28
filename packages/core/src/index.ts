@@ -77,13 +77,18 @@ export type {
   Receipt,
   Total,
   WalletDriverPort,
-  PaymentIssuerMandateDraft,
+  PaymentMandateRequest,
   KnownInstrument,
   PaymentCapability,
-  PaymentHandle,
+  PaymentMandate,
+  PaymentInstrument,
+  PaymentInstrumentRecord,
+  PaymentMode,
   PaymentScopeProof,
-  SptHandle,
-  WalletPaymentIssuer
+  AgentNativeInstrument,
+  BrowserManualInstrument,
+  PaymentMandateIssuer,
+  SptHandle
 } from "./purchase.js";
 export type {
   AcpCheckoutSessionStatus,

@@ -4,7 +4,7 @@ import type { EcJwk } from "@steelyard/core";
 import { buildAcpFeed } from "@steelyard/protocol/acp";
 import { buildUcpDiscovery } from "@steelyard/protocol/ucp";
 import {
-  createMerchantCheckout,
+  createCheckoutServer,
   memoryCheckoutSessionStore,
   memoryIdempotencyStore,
   type MerchantCheckoutOpts
@@ -55,7 +55,7 @@ export async function startCoffeeShopCheckoutServer(opts: {
   acpBearerToken?: string;
 } = {}): Promise<RunningCoffeeShopCheckout> {
   let baseUrl = "";
-  let checkout: ReturnType<typeof createMerchantCheckout> | undefined;
+  let checkout: ReturnType<typeof createCheckoutServer> | undefined;
   const steelyardMandate = opts.steelyardMandate ?? true;
   const ucpAuthMode = opts.ucpAuthMode ?? "hms-and-bearer";
   const ap2Enabled = opts.ap2 === true;
@@ -109,7 +109,7 @@ export async function startCoffeeShopCheckoutServer(opts: {
       alwaysOk: { subject_id: "buyer_example", key_id: "mk_example" }
     })
     : opts.mandateVerifier;
-  checkout = createMerchantCheckout(coffeeShopManifest, {
+  checkout = createCheckoutServer(coffeeShopManifest, {
     protocols: ["acp", "ucp"],
     store: memoryCheckoutSessionStore(),
     idempotency: memoryIdempotencyStore(),
@@ -165,7 +165,7 @@ export async function startMockDelegatePaymentServer(opts: {
     const idempotencyKey = header(req, "idempotency-key") ?? `delegate_${clock().getTime()}`;
     const credential = stringValue(payment.number, stringValue(payment.pan, "mock-card"));
     sendJson(res, 200, {
-      id: mockVaultToken({ idempotencyKey, paymentCredential: credential }),
+      id: mockVaultToken({ idempotencyKey, paymentMandate: credential }),
       created: clock().toISOString(),
       metadata: { source: "coffee-shop-example" }
     });

@@ -24,7 +24,7 @@ engine requires a `caller_token` generated at startup in
 credentials, the engine also checks same-uid peers; otherwise it documents the
 weaker filesystem-token fallback.
 
-## Running the Engine
+## Running the Policy Engine
 
 Policy defaults to `~/.steelyard/policy.yaml`, and data defaults to
 `~/.steelyard`:

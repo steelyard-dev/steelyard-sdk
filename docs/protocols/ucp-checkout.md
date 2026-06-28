@@ -23,7 +23,7 @@ const discovery = buildUcpDiscovery(manifest, {
 ## Route shape
 
 `buildUcpDiscovery()` advertises the REST shopping service at `/api`.
-`createMerchantCheckout()` accepts both the spec-facing `/api/checkout*` routes
+`createCheckoutServer()` accepts both the spec-facing `/api/checkout*` routes
 and the namespaced `/ucp/api/checkout*` routes.
 
 Catalog routes stay at `/api/catalog/search`, `/api/catalog/lookup`, and
@@ -55,7 +55,7 @@ See [UCP AP2 Mandates](ap2-mandates.md) and
 [Payment Mandates](../concepts/payment-mandates.md).
 
 Legacy Steelyard mandates are still opt-in for pre-AP2 interop. Set
-`steelyardMandate: true` on `createMerchantCheckout()` and pass a
+`steelyardMandate: true` on `createCheckoutServer()` and pass a
 `mandateVerifier` when the merchant advertises
 `net.steelyard.checkout_mandate.v0_1`. Without that switch, vanilla UCP
 completion proceeds without a legacy mandate.

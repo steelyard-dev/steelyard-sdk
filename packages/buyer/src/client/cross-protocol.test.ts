@@ -3,11 +3,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defineCommerce, type Manifest, type PurchaseIntent, type WalletPaymentIssuer } from "@steelyard/core";
+import { defineCommerce, type Manifest, type PurchaseIntent, type PaymentMandateIssuer } from "@steelyard/core";
 import { buildAcpFeed } from "@steelyard/protocol/acp";
 import { buildUcpDiscovery } from "@steelyard/protocol/ucp";
 import {
-  createMerchantCheckout,
+  createCheckoutServer,
   memoryCheckoutSessionStore,
   memoryIdempotencyStore
 } from "@steelyard/merchant/checkout";
@@ -55,7 +55,7 @@ describe("wallet checkout across ACP and UCP", () => {
         },
         limits: { daily: { USD: 100 } },
         allowedMerchants: ["coffee.example"],
-        paymentIssuer: mockPaymentIssuer()
+        paymentMandateIssuer: mockPaymentMandateIssuer()
       });
 
       try {
@@ -67,12 +67,12 @@ describe("wallet checkout across ACP and UCP", () => {
         });
         if ("error" in ucpMerchant) throw new Error(ucpMerchant.error_detail ?? ucpMerchant.error);
 
-        const acpReceipt = await wallet.pay(intent("acp", acpMerchant.url), {
+        const acpReceipt = await wallet.purchase(intent("acp", acpMerchant.url), {
           merchant: acpMerchant,
           idempotencyKey: "cross_protocol_acp",
           clock
         });
-        const ucpReceipt = await wallet.pay(intent("ucp", ucpMerchant.url), {
+        const ucpReceipt = await wallet.purchase(intent("ucp", ucpMerchant.url), {
           merchant: ucpMerchant,
           idempotencyKey: "cross_protocol_ucp",
           clock
@@ -138,7 +138,7 @@ async function startMerchantCheckout(
     }
   };
   let baseUrl = "";
-  let checkout: ReturnType<typeof createMerchantCheckout> | undefined;
+  let checkout: ReturnType<typeof createCheckoutServer> | undefined;
   const server = createServer((req, res) => {
     const path = requestPath(req);
     if (path === "/acp/feed") {
@@ -169,7 +169,7 @@ async function startMerchantCheckout(
     checkout.handler(req, res);
   });
   baseUrl = await listen(server);
-  checkout = createMerchantCheckout(commerce, {
+  checkout = createCheckoutServer(commerce, {
     protocols: ["acp", "ucp"],
     store: memoryCheckoutSessionStore(),
     idempotency: memoryIdempotencyStore(),
@@ -184,10 +184,10 @@ async function startMerchantCheckout(
   return { baseUrl, mandateLog };
 }
 
-function mockPaymentIssuer(): WalletPaymentIssuer {
+function mockPaymentMandateIssuer(): PaymentMandateIssuer {
   return {
     instrumentType: "shared_payment_token",
-    async mintForMandate(mandate) {
+    async issueMandate(mandate) {
       return {
         id: "spt_cross_protocol",
         expires_at: Math.floor(Date.parse(mandate.payment.expires_at) / 1000),
@@ -213,7 +213,7 @@ async function startDelegatePaymentServer(clock: () => Date): Promise<{ delegate
     const payment = record(body.payment_method);
     const credential = stringValue(payment.number, "mock-card");
     sendJson(res, 200, {
-      id: mockVaultToken({ idempotencyKey, paymentCredential: credential }),
+      id: mockVaultToken({ idempotencyKey, paymentMandate: credential }),
       created: clock().toISOString(),
       metadata: {}
     });

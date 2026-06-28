@@ -20,7 +20,7 @@ sdJwtKbVerifier({
   trustModel: {
     kind: "digital_payment_credential",
     resolveIssuerKey: async ({ issuer, kid, alg, claims }) => {
-      return await lookupTrustedCredentialIssuerKey({ issuer, kid, alg, claims });
+      return await lookupTrustedPaymentCredentialIssuerKey({ issuer, kid, alg, claims });
     }
   },
   expectedAudience: (checkout) => "https://coffee.example/.well-known/ucp",
@@ -35,8 +35,8 @@ Returning `null` maps to `agent_missing_key`.
 ## Out Of Scope In v0.5
 
 v0.5 does not ship a full OpenID4VP server-initiated presentation service or a
-credential issuer integration. Production deployments must provide their own
-issuer trust resolver and credential issuance path.
+payment mandate issuer integration. Production deployments must provide their
+own issuer trust resolver and mandate issuance path.
 
 The coffee-shop example uses a configured demo issuer key so the AP2 smoke test
 can run end to end. That is a fixture trust setup, not a general production

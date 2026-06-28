@@ -1,8 +1,8 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import type { EcJwk, PaymentIssuerMandateDraft } from "@steelyard/core";
-import { createReferencePaymentIssuer } from "@steelyard/buyer";
+import type { EcJwk, PaymentMandateRequest } from "@steelyard/core";
+import { createReferencePaymentMandateIssuer } from "@steelyard/buyer";
 import { mockPsp, referencePsp, stripePsp, type PspCaptureArgs } from "@steelyard/merchant/psp";
-import { runIssuerConformance, runPspConformance } from "@steelyard/psp/conformance";
+import { runMandateIssuerConformance, runPspConformance } from "@steelyard/psp/conformance";
 import { describe, expect, it } from "vitest";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
@@ -45,9 +45,9 @@ describe("@steelyard/psp conformance", () => {
   });
 
   it("passes the first-party reference PSP and issuer", async () => {
-    const issuer = createReferencePaymentIssuer({ signingKey: referencePrivateKey, clock: () => now });
+    const issuer = createReferencePaymentMandateIssuer({ signingKey: referencePrivateKey, clock: () => now });
     const draft = mandateDraft();
-    const handle = await issuer.mintForMandate(draft);
+    const handle = await issuer.issueMandate(draft);
     const psp = referencePsp({ signingKey: referencePublicKey, clock: () => now });
     const success = captureArgs({
       vault_token: handle.id,
@@ -68,7 +68,7 @@ describe("@steelyard/psp conformance", () => {
     });
     expect(pspReport.failed).toBe(0);
 
-    const issuerReport = await runIssuerConformance(issuer, {
+    const issuerReport = await runMandateIssuerConformance(issuer, {
       draft,
       incompleteDraft: { ...draft, merchant_id: undefined }
     });
@@ -89,7 +89,7 @@ function captureArgs(overrides: Partial<PspCaptureArgs> = {}): PspCaptureArgs {
   };
 }
 
-function mandateDraft(): PaymentIssuerMandateDraft {
+function mandateDraft(): PaymentMandateRequest {
   return {
     iat: Math.floor(now.getTime() / 1000),
     nonce: "payment_nonce_conformance",

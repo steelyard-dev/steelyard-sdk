@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import Stripe from "stripe";
-import { Engine, InMemoryFxQuoteService, verifyChain } from "@steelyard/policy";
-import { CardRailAdapter } from "../src/adapter.js";
+import { PolicyEngine, InMemoryFxQuoteService, verifyChain } from "@steelyard/policy";
+import { VirtualCardPolicyRailAdapter } from "../src/adapter.js";
 import { WebhookEventBus, type StripeIssuingEvent } from "../src/observe.js";
 
 const POLICY = `
@@ -36,15 +36,15 @@ describe("Stripe Issuing replay fixture", () => {
         }
       }
     };
-    const adapter = new CardRailAdapter({
-      stripe: stripe as unknown as ConstructorParameters<typeof CardRailAdapter>[0]["stripe"],
+    const adapter = new VirtualCardPolicyRailAdapter({
+      stripe: stripe as unknown as ConstructorParameters<typeof VirtualCardPolicyRailAdapter>[0]["stripe"],
       cardholderId: "ich_fixture",
       env: "sandbox",
       webhookBus: bus
     });
     const dataDir = mkdtempSync(join(tmpdir(), "e2e-replay-"));
     const clock = { now: () => new Date("2026-06-28T12:00:00.000Z") };
-    const engine = new Engine({
+    const engine = new PolicyEngine({
       dataDir,
       clock,
       fx: new InMemoryFxQuoteService({}, clock.now),
@@ -89,10 +89,10 @@ const CARDHOLDER = process.env.STRIPE_ISSUING_TEST_CARDHOLDER;
     expect(KEY).toMatch(/^sk_test_/);
     const stripe = new Stripe(KEY!);
     const bus = new WebhookEventBus();
-    const adapter = new CardRailAdapter({ stripe, cardholderId: CARDHOLDER!, env: "sandbox", webhookBus: bus });
+    const adapter = new VirtualCardPolicyRailAdapter({ stripe, cardholderId: CARDHOLDER!, env: "sandbox", webhookBus: bus });
     const dataDir = mkdtempSync(join(tmpdir(), "e2e-sandbox-"));
     const clock = { now: () => new Date() };
-    const engine = new Engine({
+    const engine = new PolicyEngine({
       dataDir,
       clock,
       fx: new InMemoryFxQuoteService({}, clock.now),

@@ -33,6 +33,16 @@ UCP/ACP payment rails remain deferred until their different loss ceilings and
 attestation models can be represented honestly instead of hidden behind a false
 cross-rail abstraction.
 
+The SDK also renames the payment and policy front doors around the developer
+mental model. `Wallet` now manages `PaymentInstrument`s split into
+`agent-native` credentials (`stripeSpt`, `referenceMandate`,
+`PaymentMandateIssuer`, `PaymentMandate`) and `browser-manual` legacy cards
+(`vaultedCard`, `BrowserManualSession`). Checkout, read serving, policy, and
+rails now lead with `createCheckoutServer`, `createCommerceReadHandler`,
+`PolicyEngine`, `createPolicyEngine`, `PolicyRailAdapter`, and
+`virtualCardRail` / `VirtualCardPolicyRailAdapter`; the old policy rail aliases
+were removed before the public API is frozen.
+
 ## 0.10.0 - 2026-06-26
 
 Steelyard v0.10 turns PSP adapters into a public, contributable contract. The new

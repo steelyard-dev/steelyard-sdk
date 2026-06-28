@@ -20,10 +20,10 @@ The package ships ESM and TypeScript declarations. Use
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Engine, InMemoryFxQuoteService, type RailAdapter } from "@steelyard/policy";
+import { PolicyEngine, InMemoryFxQuoteService, type PolicyRailAdapter } from "@steelyard/policy";
 
 const clock = { now: () => new Date() };
-const rail: RailAdapter = {
+const rail: PolicyRailAdapter = {
   name: "virtual_card",
   enforcement_level: "network_enforced",
   loss_ceiling_source: "per_credential",
@@ -41,7 +41,7 @@ const rail: RailAdapter = {
   revoke: async () => {},
   ackSettlement: async () => {}
 };
-const engine = new Engine({
+const engine = new PolicyEngine({
   dataDir: mkdtempSync(join(tmpdir(), "policy-")),
   clock,
   fx: new InMemoryFxQuoteService({}, clock.now),

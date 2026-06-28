@@ -34,7 +34,7 @@ entries.
 `shared_payment_token` is the instrument type for Stripe SPTs. The v0.7
 reference PSP uses `delegated_payment_token`. The buyer flattens all namespaces
 into `merchant.paymentHandlers`, picks the first handler whose
-`available_instruments` match its `paymentIssuer.instrumentType`, and records
+`available_instruments` match its `paymentMandateIssuer.instrumentType`, and records
 the selected handler id in direct UCP payment data or the AP2 payment mandate
 claim `payment.handler`.
 

@@ -19,16 +19,19 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 - `examples/nextjs` demo app: human Stripe Checkout + agent surfaces in one
   Next.js 15 App Router project, generated via the CLI.
 - `@steelyard/policy`: buyer-side policy engine for agent-initiated payments, including YAML policy loading, first-match policy evaluation with deny precedence, reservation ledger, hash-chained audit log, and local IPC server (EN1-EN9, AU1-AU3, LE1-LE5, AD1-AD5, IP1-IP8).
-- `@steelyard/policy-rail-card`: Stripe Issuing virtual-card rail adapter implementing the public `RailAdapter` contract with explicit card-rail caveats and sandbox/prod separation (RA1-RA6).
+- `@steelyard/policy-rail-card`: Stripe Issuing virtual-card rail adapter implementing the public `PolicyRailAdapter` contract with explicit card-rail caveats and sandbox/prod separation (RA1-RA6).
 - `steelyard policy lint`, `steelyard policy run`, and `steelyard policy audit verify` CLI commands for policy validation, foreground engine operation, and audit-chain verification (CL1-CL3).
 - Webhook approval channel with HMAC-signed callbacks, nonce replay protection, policy-snapshot checks, and rolling-window anti-fatigue budget (AP1-AP5).
 - Public policy-engine docs, package READMEs, example policies, lint snapshots, and replayable Stripe Issuing E2E coverage (DX1-DX6).
+- Developer-facing payment names: `PaymentInstrument`, `PaymentMandate`, `PaymentMandateIssuer`, `vaultedCard`, `BrowserManualSession`, `stripeSpt`, `referenceMandate`, and wallet instrument management helpers (`addInstrument`, `listInstruments`, `chooseInstrument`, `prepareMandate`, `purchase`).
 
 ### Changed
 
 - `@steelyard/cli` now depends on `prompts`, `ora`, `picocolors`, `stripe`,
   `@steelyard/next`, and `@steelyard/policy` for the init, checkout, and policy
   command families.
+- Checkout/read/policy names now prefer `createCheckoutServer`, `createCommerceReadHandler`, `PolicyEngine`, `createPolicyEngine`, `PolicyRailAdapter`, `virtualCardRail`, and `VirtualCardPolicyRailAdapter`; the old policy rail aliases were removed before public release.
+- PSP adapters now use `capabilities` as the single capability declaration; the temporary `acceptedInstruments` alias was removed before public release.
 
 ## [0.10.0] - 2026-06-26
 
@@ -44,7 +47,7 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 ## [0.9.0] - 2026-06-26
 
 ### Added
-- New `steelyard` umbrella package: one install (`npm install steelyard`) and one import expose the ~15 symbols most integrators need — `defineCommerce`, the per-protocol handlers, `createMerchantCheckout`, `stripePsp`/`referencePsp`, `createStripeSptIssuer`/`createReferencePaymentIssuer`, `Wallet`, and `Steelyard`/`connect` (UP1, UP2, UP3, UP4).
+- New `steelyard` umbrella package: one install (`npm install steelyard`) and one import expose the ~15 symbols most integrators need — `defineCommerce`, the per-protocol handlers, `createCheckoutServer`, `stripePsp`/`referencePsp`, `createStripeSptIssuer`/`createReferencePaymentIssuer`, `Wallet`, and `Steelyard`/`connect` (UP1, UP2, UP3, UP4).
 - `serveCommerce(manifest)` / `createCommerceHandler(manifest)`: serve a commerce manifest over all five read surfaces (`commerce.json`, `/commerce` HTTP API, `/mcp`, `/acp/feed`, `/.well-known/ucp` + `/api/catalog/*`) from one call, read-only by default with no PSP required, composing the existing protocol handlers behind one path router (SV1, SV2, SV3).
 - Build-your-own quickstart: README and `docs/getting-started.md` now lead with `npm install steelyard` + an eight-line define-and-serve example reaching a live multi-protocol endpoint in under two minutes; the clone-the-demo path is kept as a secondary section (QS1, QS2, QS3).
 

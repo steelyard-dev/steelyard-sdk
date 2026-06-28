@@ -4,7 +4,13 @@ export * from "./auth-hash.js";
 export * from "./audit/sink.js";
 export * from "./approval/budget.js";
 export * from "./approval/channel.js";
-export * from "./approval/webhook.js";
+export { WebhookApprovalChannel, signWebhookBody, verifyCallback } from "./approval/webhook.js";
+export type {
+  ApprovalCallbackBody,
+  ApprovalCallbackDecision,
+  WebhookApprovalCallbackResult,
+  WebhookApprovalChannelOptions
+} from "./approval/webhook.js";
 export * from "./engine.js";
 export * from "./evaluator.js";
 export * from "./fx.js";

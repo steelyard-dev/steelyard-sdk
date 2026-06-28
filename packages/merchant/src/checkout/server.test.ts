@@ -16,7 +16,7 @@ import { ap2MerchantAuthorizationSigner, checkoutWithoutAp2, memoryNonceStore, m
 import type { MerchantPolicy } from "../policy/index.js";
 import type { PspAdapter, PspCaptureArgs, PspCaptureResult } from "../psp/index.js";
 import {
-  createMerchantCheckout,
+  createCheckoutServer,
   memoryCheckoutSessionStore,
   memoryIdempotencyStore,
   MerchantCheckoutConfigError,
@@ -110,11 +110,25 @@ afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
 });
 
-describe("createMerchantCheckout", () => {
+describe("createCheckoutServer", () => {
+  it("exports createCheckoutServer as the checkout-serving factory name", () => {
+    const psp = recordingPsp();
+    const checkout = createCheckoutServer(manifest, {
+      protocols: ["acp"],
+      store: memoryCheckoutSessionStore(),
+      psp: psp.adapter,
+      idempotency: memoryIdempotencyStore(),
+      clock: () => now
+    });
+
+    expect(checkout.handler).toBeTypeOf("function");
+    expect(checkout.routes.acp).toBeDefined();
+  });
+
   it("validates construction options and does not mount a delegate_payment proxy", async () => {
     const psp = recordingPsp();
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: [],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -123,7 +137,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(MerchantCheckoutConfigError);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -132,7 +146,7 @@ describe("createMerchantCheckout", () => {
       })
     ).not.toThrow();
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -142,7 +156,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/mandateVerifier/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -152,7 +166,7 @@ describe("createMerchantCheckout", () => {
       })
     ).not.toThrow();
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -162,7 +176,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/signingKeys/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -180,7 +194,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/activeKid/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -198,7 +212,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/ES256/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -216,7 +230,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/private d/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -240,7 +254,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/must match privateKeyJwk.kid/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -250,7 +264,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/ucp.auth.bearer.verify/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -271,7 +285,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/duplicate/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -292,7 +306,7 @@ describe("createMerchantCheckout", () => {
       })
     ).not.toThrow();
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -302,7 +316,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(UnknownPaymentHandlerError);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -312,7 +326,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/acp.auth.bearer.verify/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: Object.assign(recordingPsp().adapter, { supportedCurrencies: ["EUR"] }),
@@ -321,7 +335,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/USD/);
 
-    const app = createMerchantCheckout(manifest, {
+    const app = createCheckoutServer(manifest, {
       protocols: ["acp"],
       store: memoryCheckoutSessionStore(),
       psp: psp.adapter,
@@ -356,7 +370,7 @@ describe("createMerchantCheckout", () => {
       token === "good" ? { ok: true, subject: "agent_1" } : { ok: false, reason: "bad token" }
     );
     const client = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: recordingPsp().adapter,
@@ -411,7 +425,7 @@ describe("createMerchantCheckout", () => {
     const psp = recordingPsp();
     const signingKeys = [{ kid: "merchant-p256", privateKeyJwk: merchantP256PrivateKey, algorithm: "ES256" as const }];
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -423,7 +437,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/signingKeys/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -442,7 +456,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/merchantAuthorizationSigner/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -464,7 +478,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/mandateVerifier/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -487,7 +501,7 @@ describe("createMerchantCheckout", () => {
       })
     ).toThrow(/nonceStore/);
     expect(() =>
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -515,7 +529,7 @@ describe("createMerchantCheckout", () => {
   it("runs the ACP checkout routes with idempotent policy and PSP capture", async () => {
     const psp = recordingPsp();
     const policy = recordingPolicy();
-    const app = createMerchantCheckout(manifest, {
+    const app = createCheckoutServer(manifest, {
       protocols: ["acp"],
       store: memoryCheckoutSessionStore(),
       psp: psp.adapter,
@@ -586,7 +600,7 @@ describe("createMerchantCheckout", () => {
   it("serializes ACP completion across idempotency and store CAS boundaries", async () => {
     const psp = recordingPsp({ delayMs: 25 });
     const client = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -618,7 +632,7 @@ describe("createMerchantCheckout", () => {
   it("cancels ACP sessions on handler and PSP failures", async () => {
     const handlerMismatch = recordingPsp({ handlerIds: ["stripe"] });
     const mismatchClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: handlerMismatch.adapter,
@@ -642,7 +656,7 @@ describe("createMerchantCheckout", () => {
 
     const unsupportedPsp = recordingPsp({ handlerIds: ["other"] });
     const unsupportedClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: unsupportedPsp.adapter,
@@ -662,7 +676,7 @@ describe("createMerchantCheckout", () => {
 
     const declined = recordingPsp({ result: { ok: false, reason: "declined", message: "declined" } });
     const declinedClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: declined.adapter,
@@ -680,7 +694,7 @@ describe("createMerchantCheckout", () => {
     });
 
     const cancelClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: recordingPsp().adapter,
@@ -698,7 +712,7 @@ describe("createMerchantCheckout", () => {
 
   it("rejects ACP completion payloads outside the direct Stripe SPT discriminator", async () => {
     const client = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: recordingPsp().adapter,
@@ -740,7 +754,7 @@ describe("createMerchantCheckout", () => {
     const psp = recordingPsp();
     const baseVerifier = mockMandateVerifier({ alwaysOk: { subject_id: "buyer_1", key_id: "key_1" } });
     const okClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -853,7 +867,7 @@ describe("createMerchantCheckout", () => {
 
     const referencePsp = recordingPsp({ handlerIds: ["reference"] });
     const referenceClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: referencePsp.adapter,
@@ -892,7 +906,7 @@ describe("createMerchantCheckout", () => {
 
     const failingPsp = recordingPsp();
     const failClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: failingPsp.adapter,
@@ -921,7 +935,7 @@ describe("createMerchantCheckout", () => {
 
     const invalidPsp = recordingPsp();
     const invalidClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: invalidPsp.adapter,
@@ -952,7 +966,7 @@ describe("createMerchantCheckout", () => {
   it("runs vanilla UCP checkout without mandate verification", async () => {
     const psp = recordingPsp();
     const client = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -996,7 +1010,7 @@ describe("createMerchantCheckout", () => {
     const policy = recordingPolicy();
     const bearerVerify = vi.fn(async () => ({ ok: true, subject: "bearer-subject" as const }));
     const client = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -1060,7 +1074,7 @@ describe("createMerchantCheckout", () => {
   it("signs high-value UCP complete responses when HMS is enabled", async () => {
     const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
     const client = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: recordingPsp().adapter,
@@ -1125,7 +1139,7 @@ describe("createMerchantCheckout", () => {
     let verifiedAp2Checkout: Record<string, unknown> | undefined;
     let verifiedAp2SessionId = "";
     const client = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store,
         psp: psp.adapter,
@@ -1306,7 +1320,7 @@ describe("createMerchantCheckout", () => {
     const store = memoryCheckoutSessionStore();
     const buyerProfileUrl = await startBuyerProfile([walletP256PublicKey]);
     const client = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store,
         psp: recordingPsp().adapter,
@@ -1365,7 +1379,7 @@ describe("createMerchantCheckout", () => {
       token === "good" ? { ok: true, subject: "buyer_1" } : { ok: false, reason: "bad token" }
     );
     const bearerClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: recordingPsp().adapter,
@@ -1415,7 +1429,7 @@ describe("createMerchantCheckout", () => {
     });
 
     const hmsOnlyClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: recordingPsp().adapter,
@@ -1446,7 +1460,7 @@ describe("createMerchantCheckout", () => {
     const psp = recordingPsp();
     const policy = recordingPolicy({ status: "denied", reason: "blocked" });
     const client = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: psp.adapter,
@@ -1470,7 +1484,7 @@ describe("createMerchantCheckout", () => {
       matched_rule: "manual_review"
     });
     const approvalClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: recordingPsp().adapter,
@@ -1489,7 +1503,7 @@ describe("createMerchantCheckout", () => {
   it("maps validation and internal server errors to stable HTTP responses", async () => {
     const validationPolicy = recordingPolicy();
     const validationClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["ucp"],
         store: memoryCheckoutSessionStore(),
         psp: recordingPsp().adapter,
@@ -1524,7 +1538,7 @@ describe("createMerchantCheckout", () => {
       })
     } as unknown as MerchantPolicy;
     const crashClient = await listen(
-      createMerchantCheckout(manifest, {
+      createCheckoutServer(manifest, {
         protocols: ["acp"],
         store: memoryCheckoutSessionStore(),
         psp: recordingPsp().adapter,

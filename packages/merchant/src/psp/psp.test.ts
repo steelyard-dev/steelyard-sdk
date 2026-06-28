@@ -57,7 +57,7 @@ describe("mockPsp", () => {
       expect(first).toEqual(replay);
       expect(first).toMatchObject({ ok: true, status: "captured" });
       if (first.ok) expect(first.psp_payment_id).toMatch(/^psp_payment_[a-f0-9]{24}$/);
-      expect(mockVaultToken({ paymentCredential: "pm_1", idempotencyKey: "idem_1", seed: "unit" })).toMatch(
+      expect(mockVaultToken({ paymentMandate: "pm_1", idempotencyKey: "idem_1", seed: "unit" })).toMatch(
         /^vt_test_[a-f0-9]{24}$/
       );
       await expect(psp.cancel({ psp_payment_id: "psp_payment_1", idempotencyKey: "cancel_1" })).resolves.toBeUndefined();
@@ -92,7 +92,7 @@ describe("mockPsp", () => {
       await expect(psp.capture({ ...captureArgs, idempotencyKey: "" })).rejects.toBeInstanceOf(PspConfigError);
       await expect(psp.capture({ ...captureArgs, currency: "usd" })).rejects.toThrow(/currency/);
       await expect(psp.cancel({ psp_payment_id: "", idempotencyKey: "cancel_1" })).rejects.toThrow(/psp_payment_id/);
-      expect(() => mockVaultToken({ paymentCredential: "", idempotencyKey: "idem" })).toThrow(/paymentCredential/);
+      expect(() => mockVaultToken({ paymentMandate: "", idempotencyKey: "idem" })).toThrow(/paymentMandate/);
     });
   });
 

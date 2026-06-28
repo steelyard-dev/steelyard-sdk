@@ -1,7 +1,7 @@
 # Reservations
 
 Reservations are the wallet's local guardrail against double-spend and partial
-failure. Before checkout, `Wallet.pay()` writes a pending reservation to the
+failure. Before checkout, `wallet.purchase()` writes a pending reservation to the
 encrypted ledger. After checkout:
 
 - success settles the reservation with the merchant receipt
@@ -18,7 +18,7 @@ Settled receipts count as captured spend. Released reservations stop counting.
 
 ## Reconciliation
 
-If a merchant charge succeeds but receipt persistence fails, `wallet.pay()`
+If a merchant charge succeeds but receipt persistence fails, `wallet.purchase()`
 throws `ReceiptPersistenceFailed`. The error includes the receipt and
 reservation id. Operators can later call:
 

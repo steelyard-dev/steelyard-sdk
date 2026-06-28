@@ -14,9 +14,10 @@ import type {
   PspCaptureArgs,
   PspPaymentIntent,
   PspPaymentMandate,
-  WalletPaymentIssuer,
+  PaymentMandateIssuer,
   PaymentCapability,
-  PaymentIssuerMandateDraft,
+  PaymentMandate,
+  PaymentMandateRequest,
   SptHandle,
   PspCaptureResult
 } from "@steelyard/psp";
@@ -24,9 +25,9 @@ import type {
 
 Merchant adapters implement `PspAdapter`: declare `capabilities`, answer
 `supportsHandler(handlerId)`, perform `capture(args)`, and make `cancel(args)`
-idempotent. Buyer issuers implement `WalletPaymentIssuer`: declare one
-`instrumentType` and mint a scoped payment handle for a
-`PaymentIssuerMandateDraft`.
+idempotent. Buyer issuers implement `PaymentMandateIssuer`: declare one
+`instrumentType` and mint a scoped `PaymentMandate` for a
+`PaymentMandateRequest`.
 
 `PspPaymentIntent`, `PspPaymentMandate`, `PspCaptureArgs`, and `PspAdapter` are
 owned by this package. Foundational buyer-side contract types are re-exported
@@ -38,10 +39,10 @@ package.
 `@steelyard/psp/conformance` exports framework-agnostic runners:
 
 ```ts
-import { runPspConformance, runIssuerConformance } from "@steelyard/psp/conformance";
+import { runPspConformance, runMandateIssuerConformance } from "@steelyard/psp/conformance";
 
 const pspReport = await runPspConformance(adapter, fixtures);
-const issuerReport = await runIssuerConformance(issuer, fixtures);
+const issuerReport = await runMandateIssuerConformance(issuer, fixtures);
 
 if (pspReport.failed > 0 || issuerReport.failed > 0) {
   throw new Error("adapter conformance failed");

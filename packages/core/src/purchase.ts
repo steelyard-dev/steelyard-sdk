@@ -85,7 +85,7 @@ export interface ApprovalResume {
 export interface WalletDriverPort {
   withRawCard<T>(fn: (card: RawCard) => Promise<T>): Promise<T>;
   billing: BillingPayload;
-  paymentIssuer?: WalletPaymentIssuer;
+  paymentMandateIssuer?: PaymentMandateIssuer;
   signMandate(payload: object): Promise<{ jwt: string; key_id: string }>;
   pairwiseSubject(audience: string): Promise<string>;
   mandatePublicKey(): Promise<{ jwk: JsonWebKey; key_id: string }>;
@@ -95,7 +95,7 @@ export interface WalletDriverPort {
   signWithUcpKey?(args: { data: Uint8Array; algorithm: HmsAlgorithm }): Promise<Uint8Array>;
 }
 
-export interface PaymentIssuerMandateDraft {
+export interface PaymentMandateRequest {
   iat: number;
   nonce: string;
   merchant_id?: string;
@@ -118,12 +118,43 @@ export interface PaymentCapability {
 
 export type KnownInstrument = "shared_payment_token";
 
+export type PaymentMode = "agent-native" | "browser-manual";
+
+export interface PaymentInstrumentRecord {
+  id: string;
+  mode: PaymentMode;
+  type: KnownInstrument | "vaulted_card" | (string & {});
+  label: string;
+  created_at: string;
+  default?: boolean;
+}
+
+export interface AgentNativeInstrument {
+  mode: "agent-native";
+  type: KnownInstrument | (string & {});
+  label?: string;
+  issuer: PaymentMandateIssuer;
+}
+
+export interface BrowserManualInstrument {
+  mode: "browser-manual";
+  type: "vaulted_card";
+  label?: string;
+  card: SimpleCard & {
+    cvc?: string;
+    merchants?: string[];
+    default?: boolean;
+  };
+}
+
+export type PaymentInstrument = AgentNativeInstrument | BrowserManualInstrument;
+
 export interface PaymentScopeProof {
   type: string;
   [key: string]: unknown;
 }
 
-export interface PaymentHandle {
+export interface PaymentMandate {
   id: string;
   expires_at: number;
   max_amount: number;
@@ -131,16 +162,16 @@ export interface PaymentHandle {
   scope_proof: PaymentScopeProof;
 }
 
-export type SptHandle = PaymentHandle & {
+export type SptHandle = PaymentMandate & {
   scope_proof: PaymentScopeProof & {
     type: "stripe_spt_usage_limits";
     idempotency_key: string;
   };
 };
 
-export interface WalletPaymentIssuer {
+export interface PaymentMandateIssuer {
   instrumentType: KnownInstrument | (string & {});
-  mintForMandate(mandate: PaymentIssuerMandateDraft): Promise<PaymentHandle>;
+  issueMandate(mandate: PaymentMandateRequest): Promise<PaymentMandate>;
 }
 
 export interface Total {

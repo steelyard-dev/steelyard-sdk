@@ -16,7 +16,7 @@ import { Counters } from "./ledger/counters.js";
 import { openLedger } from "./ledger/db.js";
 import { ReservationLedger, type Clock, type Reservation } from "./ledger/reservations.js";
 import { fromMajor } from "./money.js";
-import type { IssuedCredential, RailAdapter, RailEnvironment, SettlementEvent } from "./rail/adapter.js";
+import type { IssuedCredential, PolicyRailAdapter, RailEnvironment, SettlementEvent } from "./rail/adapter.js";
 import { RailRegistry } from "./rail/registry.js";
 import type { ResolvedRule } from "./schema/load.js";
 import { loadPolicyFromFile, loadPolicyFromString } from "./schema/load.js";
@@ -27,11 +27,11 @@ const ENGINE_VERSION = "0.0.0";
 const DEFAULT_RESERVATION_TTL_SECONDS = 300;
 const DEFAULT_APPROVAL_BUDGET: ApprovalBudgetOptions = { max: 10, window_ms: 24 * 3600 * 1000 };
 
-export interface EngineOpts {
+export interface PolicyEngineOptions {
   dataDir: string;
   clock: Clock;
   fx: FxQuoteService;
-  rails: RailAdapter[];
+  rails: PolicyRailAdapter[];
   policyYaml?: string;
   policyPath?: string;
   approvalChannel?: ApprovalChannel;
@@ -68,11 +68,15 @@ export type DecisionEnvelope =
       expires_at: string;
     };
 
+export type PolicyDecision = DecisionEnvelope;
+
 export interface ProposeIntentRequest {
   caller_token: string;
   idempotency_key: string;
   intent: Intent;
 }
+
+export type PaymentIntentProposal = ProposeIntentRequest;
 
 export interface ApprovalStatusEnvelope {
   intent_id: string;
@@ -82,6 +86,8 @@ export interface ApprovalStatusEnvelope {
   reason_code?: string;
 }
 
+export type ApprovalStatusResult = ApprovalStatusEnvelope;
+
 export interface ApprovalCallbackRequest {
   approval_prompt_id: string;
   nonce: string;
@@ -89,7 +95,7 @@ export interface ApprovalCallbackRequest {
   policy_hash?: string;
 }
 
-export type EngineApprovalCallbackResult =
+export type PolicyEngineApprovalCallbackResult =
   | { ok: true; status_code: 200; status: "approved" | "denied"; credential?: IssuedCredential }
   | {
       ok: false;
@@ -103,6 +109,8 @@ export type EngineApprovalCallbackResult =
         | "policy_snapshot_stale"
         | "cancelled";
     };
+
+export type ApprovalCallbackResult = PolicyEngineApprovalCallbackResult;
 
 export interface PolicySnapshotMetadata {
   policy_hash: string;
@@ -121,7 +129,7 @@ interface CredentialRecord {
   public_credential_id: string;
   rail_credential_id: string;
   rail: RailName;
-  adapter: RailAdapter;
+  adapter: PolicyRailAdapter;
   snapshot_hash: string;
   released_snapshot: boolean;
   audit_entry_hash?: string;
@@ -162,7 +170,7 @@ interface CredentialIntentRecord extends IntentRecordBase {
 
 type IntentRecord = PendingApprovalRecord | CredentialIntentRecord | { state: "deny"; caller_token: string; intent_id: string };
 
-export class Engine {
+export class PolicyEngine {
   private db?: Database.Database;
   private ledger?: ReservationLedger;
   private counters?: Counters;
@@ -180,7 +188,7 @@ export class Engine {
   private lockHeld = false;
   private ipc?: IpcServer;
 
-  constructor(private readonly opts: EngineOpts) {
+  constructor(private readonly opts: PolicyEngineOptions) {
     this.approvalBudget = new ApprovalBudget(opts.approvalBudget ?? DEFAULT_APPROVAL_BUDGET, opts.clock);
   }
 
@@ -421,7 +429,7 @@ export class Engine {
     return { ok: true };
   }
 
-  async handleApprovalCallback(req: ApprovalCallbackRequest): Promise<EngineApprovalCallbackResult> {
+  async handleApprovalCallback(req: ApprovalCallbackRequest): Promise<PolicyEngineApprovalCallbackResult> {
     if (!req.approval_prompt_id || !req.nonce || (req.decision !== "approve" && req.decision !== "deny")) {
       return { ok: false, status_code: 400, reason: "invalid_body" };
     }
@@ -750,7 +758,7 @@ export class Engine {
   private async mintCredential(args: {
     caller_token: string;
     intent_id: string;
-    railAdapter: RailAdapter;
+    railAdapter: PolicyRailAdapter;
     intent: Intent;
     constraints: CredentialConstraints;
     authorization_hash: string;
@@ -1009,6 +1017,10 @@ export class Engine {
   }
 }
 
+export function createPolicyEngine(opts: PolicyEngineOptions): PolicyEngine {
+  return new PolicyEngine(opts);
+}
+
 function insertReservation(args: {
   db: Database.Database;
   clock: Clock;
@@ -1103,7 +1115,7 @@ function isPendingApprovalRecord(record: IntentRecord): record is PendingApprova
   return "approval_prompt_id" in record;
 }
 
-async function settlementEventsFor(adapter: RailAdapter, railCredentialId: string, eventId: string): Promise<SettlementEvent[]> {
+async function settlementEventsFor(adapter: PolicyRailAdapter, railCredentialId: string, eventId: string): Promise<SettlementEvent[]> {
   const events: SettlementEvent[] = [];
   for await (const event of adapter.observe(railCredentialId)) {
     if (event.event_id === eventId) events.push(event);

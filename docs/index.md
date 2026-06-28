@@ -62,10 +62,10 @@ you target.
   delegate-payment, UCP mandates, UCP HTTP Message Signatures or bearer auth,
   buyer reservations, and persisted receipts.
 - **Adapter-neutral UCP payments.** UCP discovery derives payment handlers from
-  PSP capabilities, supports Stripe SPT and the guarded reference PSP, and
-  validates both through coffee-shop smokes.
+  PSP `capabilities`, supports Stripe SPT and the guarded reference PSP,
+  and validates both through coffee-shop smokes.
 - **Stripe-only ACP payments.** ACP can send direct SPT `payment_data` and
-  rejects non-SPT issuers in this release.
+  rejects non-SPT payment mandate issuers in this release.
 - **MCP checkout is deferred.** MCP remains the read-side runtime substrate in
   this release.
 - **No stubs.** Every package is end-to-end tested against the real protocol

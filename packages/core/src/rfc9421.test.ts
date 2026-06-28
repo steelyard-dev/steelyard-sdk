@@ -232,7 +232,7 @@ describe("ECDSA raw signatures", () => {
       data: Buffer.from("steelyard", "utf8")
     });
     expect(p256).toHaveLength(64);
-    expect(p256[0]).not.toBe(0x30);
+    expect(looksLikeDerEcdsaSignature(p256)).toBe(false);
     await expect(
       ecdsaVerifyRaw({
         algorithm: "ES256",
@@ -248,7 +248,7 @@ describe("ECDSA raw signatures", () => {
       data: Buffer.from("steelyard", "utf8")
     });
     expect(p384).toHaveLength(96);
-    expect(p384[0]).not.toBe(0x30);
+    expect(looksLikeDerEcdsaSignature(p384)).toBe(false);
     await expect(
       ecdsaVerifyRaw({
         algorithm: "ES384",
@@ -384,6 +384,41 @@ function b64urlHex(value: string): string {
 
 function base64urlJson(value: unknown): string {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+function looksLikeDerEcdsaSignature(value: Uint8Array): boolean {
+  const bytes = Buffer.from(value);
+  if (bytes.byteLength < 8 || bytes[0] !== 0x30) return false;
+  const sequence = readDerLengthPrefix(bytes, 1);
+  if (!sequence || sequence.offset + sequence.length !== bytes.byteLength) return false;
+  const r = readDerIntegerPrefix(bytes, sequence.offset);
+  if (!r) return false;
+  const s = readDerIntegerPrefix(bytes, r.offset);
+  return Boolean(s && s.offset === bytes.byteLength);
+}
+
+function readDerIntegerPrefix(bytes: Buffer, offset: number): { offset: number } | undefined {
+  if (bytes[offset] !== 0x02) return undefined;
+  const length = readDerLengthPrefix(bytes, offset + 1);
+  if (!length) return undefined;
+  const end = length.offset + length.length;
+  if (length.length === 0 || end > bytes.byteLength) return undefined;
+  return { offset: end };
+}
+
+function readDerLengthPrefix(bytes: Buffer, offset: number): { length: number; offset: number } | undefined {
+  const first = bytes[offset];
+  if (first === undefined) return undefined;
+  if ((first & 0x80) === 0) return { length: first, offset: offset + 1 };
+  const size = first & 0x7f;
+  if (size === 0 || size > 4 || offset + size >= bytes.byteLength) return undefined;
+  let length = 0;
+  for (let index = 0; index < size; index += 1) {
+    const next = bytes[offset + 1 + index];
+    if (next === undefined) return undefined;
+    length = (length << 8) | next;
+  }
+  return { length, offset: offset + 1 + size };
 }
 
 const rfc6979P256 = {

@@ -2,14 +2,14 @@
 
 Steelyard is a TypeScript SDK for defining commerce once, serving it as static
 `commerce.json`, plain HTTP, MCP, ACP, and UCP, and letting buyers complete
-agentic purchases through a local encrypted Wallet.
+agentic purchases through a local encrypted `Wallet`.
 
-v0.7 generalizes UCP payment wiring across PSP adapters. Merchants advertise
-neutral payment capabilities, buyers select wallet issuers by advertised
-instrument type, and the coffee-shop validation runs the same catalog through
-Stripe-backed and reference-backed UCP checkout configs. ACP remains
-intentionally direct Stripe SPT-only in this release. MCP checkout remains out
-of scope.
+The payment model has two explicit modes:
+
+- `agent-native`: the wallet mints scoped credentials such as Stripe SPTs or
+  PSP-specific payment tokens.
+- `browser-manual`: the wallet stores legacy vaulted cards and exposes a
+  `BrowserManualSession` for browser automation or manual checkout flows.
 
 ## Quickstart (under 2 minutes)
 
@@ -42,9 +42,10 @@ curl localhost:3000/.well-known/commerce.json
 That one `serveCommerce` call exposes your catalog over **all five read surfaces**
 from a single manifest: `/.well-known/commerce.json`, the `/commerce` HTTP API,
 `/mcp`, `/acp/feed`, and `/.well-known/ucp` + `/api/catalog/*`. Read-only by default,
-no PSP required. The single `steelyard` package re-exports the ~15 symbols most
-integrators need (`defineCommerce`, the protocol handlers, `Wallet`, `Steelyard.connect`,
-`stripePsp`, `createStripeSptIssuer`, …); see [`packages/steelyard`](packages/steelyard/README.md).
+no PSP required. The single `steelyard` package re-exports the symbols most
+integrators need (`defineCommerce`, `serveCommerce`, `createCheckoutServer`,
+`Wallet`, `vaultedCard`, `stripeSpt`, `stripePsp`, …); see
+[`packages/steelyard`](packages/steelyard/README.md).
 
 ## Next.js Quickstart
 
@@ -84,30 +85,35 @@ pnpm -r test
 ```
 
 `defineCommerce(...)` builds the manifest; pass it to `@steelyard/protocol/mcp`,
-`/acp`, and `/ucp` for per-protocol control, or to `@steelyard/merchant/checkout`
-to mount ACP and UCP checkout routes.
+`/acp`, and `/ucp` for per-protocol control, to `createCommerceReadHandler()`
+for a read-only router, or to `createCheckoutServer()` to mount ACP and UCP
+checkout routes.
 
-## What's New in v0.7
+## Agent-Native Payments
 
 UCP payment handlers are now adapter-neutral. Stripe SPTs remain supported, and
 the guarded reference PSP proves the same UCP checkout path can use another
 instrument type:
 
+ACP remains intentionally direct Stripe SPT-only while UCP handles
+adapter-neutral credentials.
+
 ```mermaid
 sequenceDiagram
   Buyer->>Merchant: UCP checkout
   Merchant-->>Buyer: payment_handlers + available_instruments
-  Buyer->>Issuer: Mint scoped payment handle
+  Buyer->>PaymentMandateIssuer: Mint scoped PaymentMandate
   Buyer->>Merchant: Selected instrument + credential
-  Merchant->>PSP: Verify and capture handle
+  Merchant->>PSP: Verify and capture credential
   Merchant-->>Buyer: Receipt
 ```
 
 ```ts
-const wallet = await Wallet.open({ paymentIssuer: createStripeSptIssuer({ apiKey }) });
+const wallet = await Wallet.open();
+await wallet.addInstrument(stripeSpt({ apiKey }));
 const merchant = await Steelyard.connect("https://shop.example/.well-known/ucp", opts);
 const offer = await merchant.getOffer("single");
-const receipt = await wallet.pay(intentFromOffer(offer), { merchant });
+const receipt = await wallet.purchase(intentFromOffer(offer), { merchant });
 console.log(receipt.reference.ucp?.psp_payment_id);
 ```
 
@@ -300,14 +306,14 @@ const merchant = await Steelyard.connect("https://coffee.example/acp/feed", {
 });
 if ("error" in merchant) throw new Error(merchant.error_detail ?? merchant.error);
 
-const receipt = await wallet.pay(intent, { merchant, idempotencyKey: "purchase_123" });
+const receipt = await wallet.purchase(intent, { merchant, idempotencyKey: "purchase_123" });
 ```
 
 `PurchaseIntent.amount` is the maximum amount authorized for merchant checkout;
 reconcile the final captured amount from the returned receipt.
 
 Power users can still import `Steelyard` from `@steelyard/buyer/client`,
-`BuyerPolicy` from `@steelyard/buyer/policy`, and `BuyerVault` from
+`WalletRules` from `@steelyard/buyer/policy`, and `BuyerVault` from
 `@steelyard/buyer/vault`.
 
 ## Port Note

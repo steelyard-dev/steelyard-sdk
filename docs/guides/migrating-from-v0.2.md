@@ -3,11 +3,11 @@
 v0.2 wallet payment released card details to application code:
 
 ```ts
-const payment = await wallet.pay(intent);
-await payment.withRawCard(async (card) => {
+const session = await wallet.createBrowserManualSession(intent);
+await session.revealCard(async (card) => {
   // app-owned checkout
 });
-await payment.complete({ status: "completed" });
+await session.complete({ status: "completed" });
 ```
 
 v0.3 adds merchant checkout:
@@ -16,7 +16,7 @@ v0.3 adds merchant checkout:
 const merchant = await Steelyard.connect(url, { delegatePaymentUrl });
 if ("error" in merchant) throw new Error(merchant.error_detail ?? merchant.error);
 
-const receipt = await wallet.pay(intent, {
+const receipt = await wallet.purchase(intent, {
   merchant,
   idempotencyKey: "purchase_123"
 });
@@ -24,11 +24,11 @@ const receipt = await wallet.pay(intent, {
 
 ## What changes
 
-- Add a `merchant` option to `Wallet.pay()` for real ACP/UCP checkout.
+- Use `wallet.purchase(intent, { merchant })` for real ACP/UCP checkout.
 - Configure `delegatePaymentUrl` when connecting to merchants that require
   direct delegate payment.
-- Keep `Wallet.pay(intent)` only for legacy integrations that still own the
-  checkout call.
+- Use `wallet.createBrowserManualSession(intent)` only for integrations that
+  still own the browser checkout call.
 - Read receipts with `wallet.listReceipts()` instead of only legacy
   `listSpend()`.
 - Create mandate keys for wallets that predate v0.3 and need UCP checkout:

@@ -31,8 +31,8 @@ curl localhost:3000/.well-known/commerce.json
 ```
 
 `serveCommerce` is read-only by default (no PSP needed). It returns a Node `Server`
-you can `.listen()`, or use `createCommerceHandler(manifest)` to mount the surfaces
-inside your own server.
+you can `.listen()`, or use `createCommerceReadHandler(manifest)` to mount the
+surfaces inside your own server.
 
 ## What's re-exported
 
@@ -41,10 +41,11 @@ This package re-exports the symbols 90% of integrators need:
 | Need | Symbols |
 |------|---------|
 | Define schemas | `defineCommerce`, types `Manifest` `Offer` `Price` `PurchaseIntent` |
-| Serve | `serveCommerce`, `createCommerceHandler` |
+| Serve | `serveCommerce`, `createCommerceReadHandler` |
 | Per-protocol handlers | `createMcpServer` `createMcpHttpHandler` `createUcpHandler` `buildUcpDiscovery` `createAcpFeedHandler` `buildAcpFeed` `createCommerceManifestHandler` `createHttpApiHandler` |
-| Checkout + PSP | `createMerchantCheckout`, `stripePsp`, `referencePsp` |
-| Payment issuers | `createStripeSptIssuer`, `createReferencePaymentIssuer` |
+| Checkout + PSP | `createCheckoutServer`, `stripePsp`, `referencePsp` |
+| Payment instruments | `vaultedCard`, `stripeSpt`, `referenceMandate` |
+| Policy | `PolicyEngine`, `createPolicyEngine` |
 | Buy | `Wallet`, `Steelyard` / `connect` |
 
 ## Power users

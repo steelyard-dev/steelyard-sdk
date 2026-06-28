@@ -44,7 +44,7 @@ from a single manifest:
 | UCP | `/.well-known/ucp` + `/api/catalog/*` |
 
 Read-only by default — no PSP or keys required. Add checkout later with
-`createMerchantCheckout` + a PSP adapter (`stripePsp` / `referencePsp`).
+`createCheckoutServer` + a PSP adapter (`stripePsp` / `referencePsp`).
 
 !!! tip "Same config, every surface"
     `curl localhost:3000/acp/feed` and `POST localhost:3000/api/catalog/search`

@@ -1,5 +1,9 @@
 // Copyright (c) Steelyard contributors. MIT License.
-export { MerchantCheckoutConfigError, UnknownPaymentHandlerError, createMerchantCheckout } from "./server.js";
+export {
+  MerchantCheckoutConfigError,
+  UnknownPaymentHandlerError,
+  createCheckoutServer
+} from "./server.js";
 export type {
   AcpRoutes,
   AcpBearerAuthConfig,

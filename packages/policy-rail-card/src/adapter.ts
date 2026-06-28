@@ -1,16 +1,16 @@
-import type { RailAdapter, RailCapabilities, RailEnvironment, SettlementEvent } from "@steelyard/policy";
+import type { PolicyRailAdapter, RailCapabilities, RailEnvironment, SettlementEvent } from "@steelyard/policy";
 import { mintCard, type MintArgs } from "./mint.js";
 import { WebhookEventBus } from "./observe.js";
 import { revokeCard } from "./revoke.js";
 
-export interface CardRailAdapterOptions {
+export interface VirtualCardPolicyRailAdapterOptions {
   stripe: MintArgs["stripe"];
   cardholderId: string;
   env: RailEnvironment;
   webhookBus: WebhookEventBus;
 }
 
-export class CardRailAdapter implements RailAdapter {
+export class VirtualCardPolicyRailAdapter implements PolicyRailAdapter {
   readonly name = "virtual_card";
   readonly enforcement_level = "network_enforced";
   readonly loss_ceiling_source = "per_credential";
@@ -19,7 +19,7 @@ export class CardRailAdapter implements RailAdapter {
   ];
   readonly env: RailEnvironment;
 
-  constructor(private readonly opts: CardRailAdapterOptions) {
+  constructor(private readonly opts: VirtualCardPolicyRailAdapterOptions) {
     this.env = opts.env;
   }
 
@@ -27,7 +27,7 @@ export class CardRailAdapter implements RailAdapter {
     return { rails_supported: ["virtual_card"], availability_signal_source: "stripe_issuing" };
   }
 
-  async mint(args: Parameters<RailAdapter["mint"]>[0]) {
+  async mint(args: Parameters<PolicyRailAdapter["mint"]>[0]) {
     return mintCard({
       stripe: this.opts.stripe,
       cardholderId: this.opts.cardholderId,
@@ -47,4 +47,8 @@ export class CardRailAdapter implements RailAdapter {
   async ackSettlement(_credential_id: string, _event_id: string): Promise<void> {
     // Stripe webhooks are at-least-once; ingestion dedupes by event id.
   }
+}
+
+export function virtualCardRail(opts: VirtualCardPolicyRailAdapterOptions): VirtualCardPolicyRailAdapter {
+  return new VirtualCardPolicyRailAdapter(opts);
 }

@@ -11,6 +11,7 @@
       "pnpm-workspace.yaml",
       "tsconfig.base.json",
       "turbo.json",
+      "!**/.next",
       "!**/dist",
       "!**/coverage",
       "!**/node_modules"

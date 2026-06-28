@@ -19,7 +19,7 @@ The checkout mandate is sent in the AP2 extension object:
 }
 ```
 
-The payment mandate is sent as the selected payment credential token:
+The payment mandate is sent through the selected UCP `credential.token` field:
 
 ```json
 {

@@ -5,9 +5,9 @@ root `Wallet` facade and is exported for power users who need custom policy
 loading.
 
 ```ts
-import { BuyerPolicy } from "@steelyard/buyer/policy";
+import { WalletRules } from "@steelyard/buyer/policy";
 
-const policy = await BuyerPolicy.load();
+const policy = await WalletRules.load();
 const decision = await policy.evaluate(intent, { vault });
 ```
 

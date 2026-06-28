@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import type { RailAdapter } from "@steelyard/policy";
-import { CardRailAdapter } from "../src/adapter.js";
+import type { PolicyRailAdapter } from "@steelyard/policy";
+import { VirtualCardPolicyRailAdapter } from "../src/adapter.js";
 import { WebhookEventBus } from "../src/observe.js";
 import { revokeCard } from "../src/revoke.js";
 
@@ -14,8 +14,8 @@ describe("revokeCard", () => {
   });
 });
 
-describe("CardRailAdapter", () => {
-  it("implements RailAdapter metadata, observe, revoke, and ack", async () => {
+describe("VirtualCardPolicyRailAdapter", () => {
+  it("implements PolicyRailAdapter metadata, observe, revoke, and ack", async () => {
     const stripe = {
       issuing: {
         cards: {
@@ -26,8 +26,8 @@ describe("CardRailAdapter", () => {
     };
     const webhookBus = new WebhookEventBus();
     webhookBus.ingest({ id: "evt_1", type: "issuing_transaction.created", created: 1000, data: { object: { card: "ic_created", amount: 1000 } } });
-    const adapter: RailAdapter = new CardRailAdapter({
-      stripe: stripe as unknown as ConstructorParameters<typeof CardRailAdapter>[0]["stripe"],
+    const adapter: PolicyRailAdapter = new VirtualCardPolicyRailAdapter({
+      stripe: stripe as unknown as ConstructorParameters<typeof VirtualCardPolicyRailAdapter>[0]["stripe"],
       cardholderId: "ich_user",
       env: "production",
       webhookBus

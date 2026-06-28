@@ -11,26 +11,29 @@
 
 // ── Define ──────────────────────────────────────────────────────────────────
 export { defineCommerce } from "@steelyard/core";
-export type { Manifest, Offer, Price, PurchaseIntent } from "@steelyard/core";
+export type {
+  PaymentMandateIssuer,
+  Manifest,
+  Offer,
+  PaymentMandate,
+  PaymentInstrument,
+  PaymentInstrumentRecord,
+  PaymentMode,
+  Price,
+  PurchaseIntent
+} from "@steelyard/core";
 
 // ── Serve (the one call) ────────────────────────────────────────────────────
-export { serveCommerce, createCommerceHandler } from "./serve.js";
+export { serveCommerce, createCommerceReadHandler } from "./serve.js";
 export type { CommerceProtocol, ServeCommerceOptions } from "./serve.js";
 
-// ── Expose: per-protocol read surfaces (for custom routing) ─────────────────
-export { createMcpServer, createMcpHttpHandler } from "@steelyard/protocol/mcp";
-export { createUcpHandler, buildUcpDiscovery } from "@steelyard/protocol/ucp";
-export { createAcpFeedHandler, buildAcpFeed } from "@steelyard/protocol/acp";
-export { createCommerceManifestHandler } from "@steelyard/protocol/commerce-manifest";
-export { createHttpApiHandler } from "@steelyard/protocol/http";
-
 // ── Merchant checkout + PSP adapters ────────────────────────────────────────
-export { createMerchantCheckout } from "@steelyard/merchant/checkout";
+export { createCheckoutServer } from "@steelyard/merchant/checkout";
 export { stripePsp, referencePsp } from "@steelyard/merchant/psp";
 
-// ── Payment issuers (buyer side) ────────────────────────────────────────────
-export { createStripeSptIssuer } from "@steelyard/stripe/buyer";
-export { createReferencePaymentIssuer } from "@steelyard/buyer";
+// ── Payment instruments (buyer side) ────────────────────────────────────────
+export { stripeSpt } from "@steelyard/stripe/buyer";
+export { referenceMandate, vaultedCard } from "@steelyard/buyer";
 
 // ── Buyer: wallet + explore client ──────────────────────────────────────────
 export { Wallet } from "@steelyard/buyer";
@@ -43,7 +46,14 @@ export type {
   Rule,
   CredentialConstraints,
   IssuedCredential,
-  RailAdapter,
+  PolicyRailAdapter,
   SettlementEvent,
-  NormalizedFacts
+  NormalizedFacts,
+  PolicyEngineOptions,
+  PolicyDecision,
+  PaymentIntentProposal,
+  ApprovalStatusResult,
+  ApprovalCallbackResult
 } from "@steelyard/policy";
+
+export { PolicyEngine, createPolicyEngine } from "@steelyard/policy";

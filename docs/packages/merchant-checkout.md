@@ -5,7 +5,7 @@ routes over the same `defineCommerce()` manifest, using a session store,
 idempotency store, PSP adapter, and optional merchant policy.
 
 ```ts
-import { createMerchantCheckout, memoryCheckoutSessionStore, memoryIdempotencyStore } from "@steelyard/merchant/checkout";
+import { createCheckoutServer, memoryCheckoutSessionStore, memoryIdempotencyStore } from "@steelyard/merchant/checkout";
 import { mockPsp } from "@steelyard/merchant/psp";
 import {
   ap2MerchantAuthorizationSigner,
@@ -16,7 +16,7 @@ import {
 
 const ap2NonceStore = fileNonceStore({ dir: "/var/lib/steelyard/ap2-nonces" });
 
-const checkout = createMerchantCheckout(manifest, {
+const checkout = createCheckoutServer(manifest, {
   protocols: ["acp", "ucp"],
   store: memoryCheckoutSessionStore(),
   idempotency: memoryIdempotencyStore(),

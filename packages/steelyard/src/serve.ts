@@ -67,11 +67,11 @@ interface CommerceHandlers {
 }
 
 /**
- * Build the multiplexed request listener for a commerce manifest. Use this when you
- * want to mount the surfaces inside an existing server. For the common case, call
- * {@link serveCommerce} instead.
+ * Build the multiplexed read request listener for a commerce manifest. Use this
+ * when you want to mount the surfaces inside an existing server. For the common
+ * case, call {@link serveCommerce} instead.
  */
-export function createCommerceHandler(manifest: Manifest, opts: ServeCommerceOptions = {}): RequestListener {
+export function createCommerceReadHandler(manifest: Manifest, opts: ServeCommerceOptions = {}): RequestListener {
   const enabled = new Set<CommerceProtocol>(opts.protocols ?? ALL_PROTOCOLS);
   const mcp = enabled.has("mcp") ? createMcpHttpHandler(manifest, opts.mcp ?? {}) : undefined;
   const ucp = enabled.has("ucp") ? createUcpHandler(manifest, opts.ucp ?? {}) : undefined;
@@ -119,10 +119,10 @@ export function createCommerceHandler(manifest: Manifest, opts: ServeCommerceOpt
  * ```
  *
  * Read-only by default (no PSP required). Pass `opts.ucp`/`opts.mcp` for auth, or
- * mount {@link createMerchantCheckout} separately for checkout.
+ * mount createCheckoutServer separately for checkout.
  */
 export function serveCommerce(manifest: Manifest, opts: ServeCommerceOptions = {}): Server {
-  return createServer(createCommerceHandler(manifest, opts));
+  return createServer(createCommerceReadHandler(manifest, opts));
 }
 
 function buildCommerceHandlers(

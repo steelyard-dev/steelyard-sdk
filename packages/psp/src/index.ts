@@ -6,11 +6,14 @@ import type {
 } from "@steelyard/core";
 
 export type {
+  PaymentMandateIssuer,
   PaymentCapability,
-  PaymentIssuerMandateDraft,
+  PaymentMandate,
+  PaymentInstrument,
+  PaymentInstrumentRecord,
+  PaymentMandateRequest,
   PspCaptureResult,
-  SptHandle,
-  WalletPaymentIssuer
+  SptHandle
 } from "@steelyard/core";
 
 export interface PspPaymentIntent {

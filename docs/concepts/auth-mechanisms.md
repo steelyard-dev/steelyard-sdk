@@ -13,11 +13,11 @@ signature and ignores the bearer token for dispatch.
 
 ## Merchant Selection
 
-Adding `ucp.auth` to `createMerchantCheckout()` enables auth enforcement for
+Adding `ucp.auth` to `createCheckoutServer()` enables auth enforcement for
 UCP checkout routes:
 
 ```ts
-const checkout = createMerchantCheckout(manifest, {
+const checkout = createCheckoutServer(manifest, {
   protocols: ["ucp"],
   store,
   idempotency,

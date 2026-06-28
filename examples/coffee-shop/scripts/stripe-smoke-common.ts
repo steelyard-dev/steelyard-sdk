@@ -5,7 +5,7 @@ import { Wallet } from "@steelyard/buyer";
 import type { Merchant } from "@steelyard/buyer/client";
 import type { Offer, Price, PurchaseIntent, Receipt } from "@steelyard/core";
 import { stripePsp, type PspAdapter, type PspCaptureResult } from "@steelyard/merchant/psp";
-import { createStripeSptIssuer } from "@steelyard/stripe/buyer";
+import { createStripeSptPaymentMandateIssuer } from "@steelyard/stripe/buyer";
 import {
   startCoffeeShopCheckoutServer,
   type CoffeeShopUcpAuthMode,
@@ -86,7 +86,7 @@ export async function startStripeSmokeHarness(
       },
       limits: { daily: { USD: 100 } },
       allowedMerchants: ["coffee.example"],
-      paymentIssuer: createStripeSptIssuer({
+      paymentMandateIssuer: createStripeSptPaymentMandateIssuer({
         apiKey: config.apiKey,
         ...(stripeFetch ? { fetch: stripeFetch } : {})
       })

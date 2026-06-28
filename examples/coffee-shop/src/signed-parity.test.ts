@@ -100,7 +100,7 @@ async function buy(
 
   const offer = await merchant.getOffer("cappuccino");
   if ("error" in offer) throw new Error(offer.error_detail ?? offer.error);
-  return wallet.pay(intentFromOffer(offer, merchant.url), {
+  return wallet.purchase(intentFromOffer(offer, merchant.url), {
     merchant,
     idempotencyKey: opts.idempotencyKey,
     clock

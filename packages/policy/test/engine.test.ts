@@ -4,9 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { ApprovalChannel, ApprovalPrompt, ApprovalStatus } from "../src/approval/channel.js";
-import { Engine } from "../src/engine.js";
+import { PolicyEngine } from "../src/engine.js";
 import { InMemoryFxQuoteService } from "../src/fx.js";
-import type { RailAdapter } from "../src/rail/adapter.js";
+import type { PolicyRailAdapter } from "../src/rail/adapter.js";
 import type { SettlementEvent } from "../src/rail/adapter.js";
 import type { Intent } from "../src/types.js";
 
@@ -67,7 +67,7 @@ class MemoryApprovalChannel implements ApprovalChannel {
   }
 }
 
-interface FakeCardRail extends RailAdapter {
+interface FakeCardRail extends PolicyRailAdapter {
   mintCount: number;
   minted: Array<{ authorization_hash: string; constraints_amount_minor: bigint }>;
   revoked: string[];
@@ -77,7 +77,7 @@ interface FakeCardRail extends RailAdapter {
   mismatchAuth?: boolean;
 }
 
-const engines: Engine[] = [];
+const engines: PolicyEngine[] = [];
 
 afterEach(async () => {
   await Promise.all(engines.splice(0).map((engine) => engine.stop()));
@@ -131,12 +131,12 @@ async function makeEngine(opts: {
   socketPath?: string;
   rail?: FakeCardRail;
   env?: "sandbox" | "production";
-} = {}): Promise<{ engine: Engine; rail: FakeCardRail; approvals: MemoryApprovalChannel; clock: MutableClock; dataDir: string }> {
+} = {}): Promise<{ engine: PolicyEngine; rail: FakeCardRail; approvals: MemoryApprovalChannel; clock: MutableClock; dataDir: string }> {
   const clock = new MutableClock();
   const dataDir = mkdtempSync(join(tmpdir(), "engine-"));
   const rail = opts.rail ?? fakeCardAdapter();
   const approvals = opts.approvalChannel ?? new MemoryApprovalChannel();
-  const engine = new Engine({
+  const engine = new PolicyEngine({
     dataDir,
     clock,
     fx: new InMemoryFxQuoteService({}, () => clock.now()),
@@ -162,7 +162,7 @@ function intent(amount_minor: bigint, overrides: Partial<Intent> = {}): Intent {
   };
 }
 
-describe("Engine.proposeIntent", () => {
+describe("PolicyEngine.proposeIntent", () => {
   it("allows a matching intent, mints once, and returns an engine-scoped credential id", async () => {
     const { engine, rail } = await makeEngine();
     const request = { caller_token: engine.callerToken(), idempotency_key: "k1", intent: intent(5000n) };
@@ -314,7 +314,7 @@ describe("Engine.proposeIntent", () => {
   });
 });
 
-describe("Engine approval race ledger", () => {
+describe("PolicyEngine approval race ledger", () => {
   it("lets a pending approval complete after the budget is exhausted and rejects replayed callbacks", async () => {
     const { engine, approvals, rail } = await makeEngine({ approvalBudgetMax: 1 });
     const caller_token = engine.callerToken();
@@ -423,7 +423,7 @@ describe("Engine approval race ledger", () => {
   it("denies approval rules fail-closed when no approval channel is configured", async () => {
     const clock = new MutableClock();
     const dataDir = mkdtempSync(join(tmpdir(), "engine-"));
-    const engine = new Engine({
+    const engine = new PolicyEngine({
       dataDir,
       clock,
       fx: new InMemoryFxQuoteService({}, () => clock.now()),
@@ -479,7 +479,7 @@ describe("Engine approval race ledger", () => {
   });
 });
 
-describe("Engine IPC composition", () => {
+describe("PolicyEngine IPC composition", () => {
   it("serves capabilities over the JSON-RPC socket", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "engine-"));
     const socketPath = join(dataDir, "policy.sock");

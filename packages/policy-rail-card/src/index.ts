@@ -1,5 +1,5 @@
-export { CardRailAdapter } from "./adapter.js";
-export type { CardRailAdapterOptions } from "./adapter.js";
+export { VirtualCardPolicyRailAdapter, virtualCardRail } from "./adapter.js";
+export type { VirtualCardPolicyRailAdapterOptions } from "./adapter.js";
 export { mintCard } from "./mint.js";
 export type { MintArgs } from "./mint.js";
 export { WebhookEventBus } from "./observe.js";

@@ -2,7 +2,7 @@
 
 Checkout uses idempotency at three layers:
 
-- Buyer purchase key: `Wallet.pay()` accepts `idempotencyKey`; otherwise it
+- Buyer purchase key: `wallet.purchase()` accepts `idempotencyKey`; otherwise it
   generates one.
 - Driver subkeys: checkout create, delegate-payment, update, and complete use
   deterministic suffixes such as `<key>:create` and `<key>:complete`.

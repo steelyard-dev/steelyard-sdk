@@ -7,7 +7,7 @@ import {
   signDetachedJws,
   type EcJwk,
   type HmsAlgorithm,
-  type PaymentIssuerMandateDraft,
+  type PaymentMandateRequest,
   type PurchaseIntent,
   type WalletDriverPort
 } from "@steelyard/core";
@@ -31,9 +31,9 @@ import {
   AcpCanceled,
   AcpExpired,
   AcpNoCompatibleHandler,
-  AcpPaymentIssuerMissing,
+  AcpPaymentMandateIssuerMissing,
   AcpProtocolViolation,
-  AcpUnsupportedPaymentIssuer,
+  AcpUnsupportedPaymentMandateIssuer,
   acpDriver,
   verifyAcpWebhook
 } from "./acp.js";
@@ -64,7 +64,7 @@ import {
   parseAp2PaymentMandate,
   ucpAp2PaymentTransactionId
 } from "../vault/mandate-ap2/index.js";
-import { createReferencePaymentIssuer } from "../reference-payment.js";
+import { createReferencePaymentMandateIssuer } from "../reference-payment.js";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const manifest = defineCommerce({
@@ -122,9 +122,9 @@ describe("ACP checkout driver", () => {
     const minted: unknown[] = [];
     const port = {
       ...testPort(),
-      paymentIssuer: {
+      paymentMandateIssuer: {
         instrumentType: "shared_payment_token" as const,
-        async mintForMandate(mandate: PaymentIssuerMandateDraft) {
+        async issueMandate(mandate: PaymentMandateRequest) {
           minted.push(mandate);
           return {
             id: "spt_123",
@@ -196,12 +196,12 @@ describe("ACP checkout driver", () => {
         idempotencyKey: "purchase_2",
         clock: () => now
       })
-    ).rejects.toBeInstanceOf(AcpPaymentIssuerMissing);
+    ).rejects.toBeInstanceOf(AcpPaymentMandateIssuerMissing);
   });
 
   it("rejects reference delegated-token issuers before ACP minting (AG1)", async () => {
     const merchant = await startAcpMerchant();
-    const referenceIssuer = createReferencePaymentIssuer({
+    const referenceIssuer = createReferencePaymentMandateIssuer({
       signingKey: walletP256PrivateKey,
       clock: () => now
     });
@@ -212,11 +212,11 @@ describe("ACP checkout driver", () => {
       merchantId: "coffee.example",
       port: {
         ...testPort(),
-        paymentIssuer: {
+        paymentMandateIssuer: {
           ...referenceIssuer,
-          async mintForMandate(mandate) {
+          async issueMandate(mandate) {
             mintCount += 1;
-            return await referenceIssuer.mintForMandate(mandate);
+            return await referenceIssuer.issueMandate(mandate);
           }
         }
       },
@@ -224,9 +224,9 @@ describe("ACP checkout driver", () => {
       clock: () => now
     });
 
-    await expect(failedPurchase).rejects.toBeInstanceOf(AcpUnsupportedPaymentIssuer);
+    await expect(failedPurchase).rejects.toBeInstanceOf(AcpUnsupportedPaymentMandateIssuer);
     await expect(failedPurchase).rejects.toMatchObject({
-      name: "AcpUnsupportedPaymentIssuer",
+      name: "AcpUnsupportedPaymentMandateIssuer",
       instrumentType: "delegated_payment_token"
     });
     expect(mintCount).toBe(0);
@@ -514,9 +514,9 @@ describe("UCP checkout driver", () => {
     const minted: unknown[] = [];
     const port = withUcpSigningKey({
       ...testPort(),
-      paymentIssuer: {
+      paymentMandateIssuer: {
         instrumentType: "shared_payment_token",
-        async mintForMandate(mandate) {
+        async issueMandate(mandate) {
           minted.push(mandate);
           return {
             id: "spt_123",
@@ -583,9 +583,9 @@ describe("UCP checkout driver", () => {
     const minted: unknown[] = [];
     const port = withUcpSigningKey({
       ...testPort(),
-      paymentIssuer: {
+      paymentMandateIssuer: {
         instrumentType: "delegated_payment_token",
-        async mintForMandate(mandate) {
+        async issueMandate(mandate) {
           minted.push(mandate);
           return {
             id: "dpt_123",
@@ -860,9 +860,9 @@ describe("UCP checkout driver", () => {
         supportsSteelyardMode: true,
         port: {
           ...testPort(),
-          paymentIssuer: {
+          paymentMandateIssuer: {
             instrumentType: "shared_payment_token",
-            async mintForMandate(mandate: PaymentIssuerMandateDraft) {
+            async issueMandate(mandate: PaymentMandateRequest) {
               return {
                 id: "spt_unadvertised",
                 expires_at: Math.floor(Date.parse(mandate.payment.expires_at) / 1000),

@@ -8,7 +8,7 @@ Once AP2 is active, the checkout session is locked into the AP2 flow:
 
 - checkout responses include `ap2.merchant_authorization`
 - completion requests include `ap2.checkout_mandate`
-- the selected payment credential token carries the AP2 payment mandate
+- the selected UCP `credential.token` field carries the AP2 payment mandate
 - legacy Steelyard mandate fallback is disabled for that session
 
 ## Discovery

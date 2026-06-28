@@ -1,21 +1,35 @@
 # `@steelyard/buyer`
 
-Root Wallet facade for the junior path.
+Root `Wallet` facade for buyer-side payment instruments.
 
 ```ts
-import { Wallet } from "@steelyard/buyer";
+import { Wallet, vaultedCard } from "@steelyard/buyer";
+import { stripeSpt } from "@steelyard/stripe/buyer";
 
 const wallet = await Wallet.open();
 
-if (await wallet.isAllowed(intent)) {
-  const payment = await wallet.pay(intent);
-  await payment.cancel();
-}
+await wallet.addInstrument(stripeSpt({ apiKey: process.env.STRIPE_SECRET_KEY! }));
+await wallet.addInstrument(vaultedCard({
+  number: "4242 4242 4242 4242",
+  exp: "12/29",
+  name: "Jane Doe",
+  merchants: ["legacy-shop.example"]
+}));
+
+const credential = await wallet.prepareMandate(intent);
+const session = await wallet.createBrowserManualSession(intent);
 ```
 
-`Wallet` composes `BuyerPolicy` and `BuyerVault` internally. It does not expose
+`Wallet` composes `WalletRules` and `BuyerVault` internally. It does not expose
 `wallet.policy` or `wallet.vault`; power users import
 `@steelyard/buyer/policy` and `@steelyard/buyer/vault` directly.
+
+## Payment modes
+
+- `agent-native`: `stripeSpt(...)`, `referenceMandate(...)`, or another
+  `PaymentMandateIssuer` mint a scoped `PaymentMandate` for agentic checkout.
+- `browser-manual`: `vaultedCard(...)` stores legacy cards locally and returns a
+  `BrowserManualSession` for browser automation or manual checkout.
 
 ## Setup
 

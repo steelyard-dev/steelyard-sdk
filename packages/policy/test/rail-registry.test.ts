@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { RailAdapter } from "../src/rail/adapter.js";
+import type { PolicyRailAdapter } from "../src/rail/adapter.js";
 import { RailRegistry } from "../src/rail/registry.js";
 
-const fakeAdapter: RailAdapter = {
+const fakeAdapter: PolicyRailAdapter = {
   name: "virtual_card",
   enforcement_level: "network_enforced",
   loss_ceiling_source: "per_credential",

@@ -1,8 +1,8 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import type {
-  PaymentHandle,
-  PaymentIssuerMandateDraft,
-  WalletPaymentIssuer
+  PaymentMandateIssuer,
+  PaymentMandate,
+  PaymentMandateRequest
 } from "@steelyard/core";
 import type { PspAdapter, PspCaptureArgs } from "./index.js";
 
@@ -35,9 +35,9 @@ export interface PspConformanceOptions {
   failures?: readonly PspFailureFixture[];
 }
 
-export interface IssuerConformanceOptions {
-  draft: PaymentIssuerMandateDraft;
-  incompleteDraft?: PaymentIssuerMandateDraft;
+export interface MandateIssuerConformanceOptions {
+  draft: PaymentMandateRequest;
+  incompleteDraft?: PaymentMandateRequest;
 }
 
 type CaseBody = () => Promise<void> | void;
@@ -82,25 +82,25 @@ export async function runPspConformance(adapter: PspAdapter, opts: PspConformanc
   return report(cases);
 }
 
-export async function runIssuerConformance(
-  issuer: WalletPaymentIssuer,
-  opts: IssuerConformanceOptions
+export async function runMandateIssuerConformance(
+  issuer: PaymentMandateIssuer,
+  opts: MandateIssuerConformanceOptions
 ): Promise<ConformanceReport> {
   const cases: ConformanceCase[] = [];
   await record(cases, "issuer.instrumentType", "instrumentType is declared", () => {
     assert(typeof issuer.instrumentType === "string" && issuer.instrumentType.length > 0, "instrumentType is required");
   });
-  await record(cases, "issuer.mintForMandate.scope", "mintForMandate scopes to the draft", async () => {
-    const handle = await issuer.mintForMandate(opts.draft);
-    assertPaymentHandle(handle);
+  await record(cases, "issuer.issueMandate.scope", "issueMandate scopes to the draft", async () => {
+    const handle = await issuer.issueMandate(opts.draft);
+    assertPaymentMandate(handle);
     assert(handle.currency.toUpperCase() === opts.draft.payment.currency, "currency widened or changed");
     assert(handle.max_amount <= opts.draft.payment.amount, "max_amount widens draft amount");
     const draftExpiry = unixSeconds(opts.draft.payment.expires_at);
     assert(Number.isSafeInteger(draftExpiry), "draft expiry must parse as unix seconds");
     assert(handle.expires_at <= draftExpiry, "expires_at widens draft expiry");
   });
-  await record(cases, "issuer.mintForMandate.incomplete", "mintForMandate refuses incomplete scope", async () => {
-    await assertRejectedIssuer(
+  await record(cases, "issuer.issueMandate.incomplete", "issueMandate refuses incomplete scope", async () => {
+    await assertRejectedMandateIssuer(
       issuer,
       opts.incompleteDraft ?? ({
         iat: opts.draft.iat,
@@ -111,7 +111,7 @@ export async function runIssuerConformance(
           checkout_id: opts.draft.payment.checkout_id,
           expires_at: opts.draft.payment.expires_at
         }
-      } as PaymentIssuerMandateDraft)
+      } as PaymentMandateRequest)
     );
   });
   return report(cases);
@@ -136,10 +136,11 @@ function report(cases: ConformanceCase[]): ConformanceReport {
 
 function assertCapabilities(adapter: PspAdapter): void {
   assert(typeof adapter.name === "string" && adapter.name.length > 0, "adapter.name is required");
-  assert(Array.isArray(adapter.capabilities), "adapter.capabilities must be an array");
-  assert(adapter.capabilities.length > 0, "adapter.capabilities must not be empty");
+  const capabilities = adapter.capabilities;
+  assert(Array.isArray(capabilities), "adapter.capabilities must be an array");
+  assert(capabilities.length > 0, "adapter.capabilities must not be empty");
   const seen = new Set<string>();
-  for (const [index, capability] of adapter.capabilities.entries()) {
+  for (const [index, capability] of capabilities.entries()) {
     assert(typeof capability.handlerId === "string" && capability.handlerId.length > 0, `capability ${index} missing handlerId`);
     assert(
       typeof capability.instrumentType === "string" && capability.instrumentType.length > 0,
@@ -182,22 +183,22 @@ async function assertRejectedCapture(adapter: PspAdapter, args: PspCaptureArgs):
   }
 }
 
-function assertPaymentHandle(handle: PaymentHandle): void {
-  assert(handle && typeof handle === "object", "payment handle must be an object");
-  assert(typeof handle.id === "string" && handle.id.length > 0, "payment handle id is required");
-  assert(Number.isSafeInteger(handle.expires_at), "payment handle expires_at must be an integer");
-  assert(Number.isSafeInteger(handle.max_amount) && handle.max_amount >= 0, "payment handle max_amount must be non-negative");
-  assert(/^[A-Z]{3}$/.test(handle.currency), "payment handle currency must be ISO 4217 uppercase");
-  assert(handle.scope_proof && typeof handle.scope_proof === "object", "payment handle scope_proof is required");
+function assertPaymentMandate(handle: PaymentMandate): void {
+  assert(handle && typeof handle === "object", "payment mandate must be an object");
+  assert(typeof handle.id === "string" && handle.id.length > 0, "payment mandate id is required");
+  assert(Number.isSafeInteger(handle.expires_at), "payment mandate expires_at must be an integer");
+  assert(Number.isSafeInteger(handle.max_amount) && handle.max_amount >= 0, "payment mandate max_amount must be non-negative");
+  assert(/^[A-Z]{3}$/.test(handle.currency), "payment mandate currency must be ISO 4217 uppercase");
+  assert(handle.scope_proof && typeof handle.scope_proof === "object", "payment mandate scope_proof is required");
   assert(typeof handle.scope_proof.type === "string" && handle.scope_proof.type.length > 0, "scope_proof.type is required");
 }
 
-async function assertRejectedIssuer(issuer: WalletPaymentIssuer, draft: PaymentIssuerMandateDraft): Promise<void> {
+async function assertRejectedMandateIssuer(issuer: PaymentMandateIssuer, draft: PaymentMandateRequest): Promise<void> {
   try {
-    const handle = await issuer.mintForMandate(draft);
-    throw new Error(`expected mintForMandate to reject, received ${JSON.stringify(handle)}`);
+    const handle = await issuer.issueMandate(draft);
+    throw new Error(`expected issueMandate to reject, received ${JSON.stringify(handle)}`);
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("expected mintForMandate")) throw error;
+    if (error instanceof Error && error.message.startsWith("expected issueMandate")) throw error;
   }
 }
 

@@ -143,12 +143,12 @@ export function mockPsp(opts: MockPspOptions = {}): PspAdapter {
 
 export function mockVaultToken(input: {
   idempotencyKey: string;
-  paymentCredential: string;
+  paymentMandate: string;
   seed?: string;
 }): string {
   if (!input.idempotencyKey) throw new PspConfigError("idempotencyKey is required");
-  if (!input.paymentCredential) throw new PspConfigError("paymentCredential is required");
-  return `vt_test_${shortHash(input.seed ?? "steelyard-mock-psp", input.paymentCredential, input.idempotencyKey)}`;
+  if (!input.paymentMandate) throw new PspConfigError("paymentMandate is required");
+  return `vt_test_${shortHash(input.seed ?? "steelyard-mock-psp", input.paymentMandate, input.idempotencyKey)}`;
 }
 
 export function stripePsp(opts: StripePspOptions): PspAdapter {

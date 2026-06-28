@@ -52,7 +52,7 @@ try {
 
     const offer = await merchant.getOffer("cappuccino");
     if ("error" in offer) throw new Error(offer.error_detail ?? offer.error);
-    const receipt = await wallet.pay(intentFromOffer(offer, merchant.url), {
+    const receipt = await wallet.purchase(intentFromOffer(offer, merchant.url), {
       merchant,
       idempotencyKey: "coffee_bearer_cappuccino",
       clock

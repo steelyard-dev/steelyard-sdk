@@ -194,7 +194,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     payment_token_id: string;
     payment_instrument_type: string;
   } | undefined;
-  if (ap2Required && opts.port.paymentIssuer) {
+  if (ap2Required && opts.port.paymentMandateIssuer) {
     ap2Mandates = await issueUcpAp2Mandates({
       opts,
       checkout: checkout as Checkout,
@@ -205,7 +205,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
     });
     vaultTokenId = ap2Mandates.payment_token_id;
     selectedInstrumentType = ap2Mandates.payment_instrument_type;
-  } else if (!ap2Required && opts.port.paymentIssuer && handlerSupportsInstrument(selected.handler, opts.port.paymentIssuer.instrumentType)) {
+  } else if (!ap2Required && opts.port.paymentMandateIssuer && handlerSupportsInstrument(selected.handler, opts.port.paymentMandateIssuer.instrumentType)) {
     const handle = await mintUcpPaymentHandle({
       opts,
       totals,
@@ -215,7 +215,7 @@ export async function purchase(intent: PurchaseIntent, opts: UcpDriverOpts): Pro
       clock
     });
     vaultTokenId = handle.id;
-    selectedInstrumentType = opts.port.paymentIssuer.instrumentType;
+    selectedInstrumentType = opts.port.paymentMandateIssuer.instrumentType;
   } else {
     vaultTokenId = await delegateVaultToken({
       delegatePaymentUrl: selected.delegatePaymentUrl,
@@ -334,9 +334,9 @@ async function issueUcpAp2Mandates(args: {
     expires_at: expiresAt
   };
   const issuedAt = Math.floor(args.clock().getTime() / 1000);
-  const issuer = args.opts.port.paymentIssuer;
+  const issuer = args.opts.port.paymentMandateIssuer;
   const issued = issuer
-    ? await issuer.mintForMandate({
+    ? await issuer.issueMandate({
         iat: issuedAt,
         nonce: paymentNonce,
         merchant_id: args.opts.merchantId,
@@ -386,10 +386,10 @@ async function mintUcpPaymentHandle(args: {
   purchaseKey: string;
   clock: () => Date;
 }) {
-  const issuer = args.opts.port.paymentIssuer;
-  if (!issuer) throw new UcpAuthMissing("UCP payment issuer is required for this payment handler");
+  const issuer = args.opts.port.paymentMandateIssuer;
+  if (!issuer) throw new UcpAuthMissing("UCP payment mandate issuer is required for this payment handler");
   const expiresAt = new Date(args.clock().getTime() + 15 * 60_000).toISOString();
-  return await issuer.mintForMandate({
+  return await issuer.issueMandate({
     iat: Math.floor(args.clock().getTime() / 1000),
     nonce: `ucp:${args.checkoutId}:${args.purchaseKey}`,
     merchant_id: args.opts.merchantId,
@@ -651,14 +651,14 @@ function selectedUcpHandler(
 ): { handler: PaymentHandlerLike; delegatePaymentUrl: string } | undefined {
   const delegated = selectedHandler(handlers, opts.delegatePaymentUrl);
   if (delegated) return delegated;
-  const issuer = opts.port.paymentIssuer;
+  const issuer = opts.port.paymentMandateIssuer;
   if (!issuer) return undefined;
   const compatible = handlers.find((handler) => handlerSupportsInstrument(handler, issuer.instrumentType));
   return compatible ? { handler: compatible, delegatePaymentUrl: "" } : undefined;
 }
 
 function ucpSelectedInstrumentType(handler: PaymentHandlerLike, opts: UcpDriverOpts): string | undefined {
-  const issuer = opts.port.paymentIssuer;
+  const issuer = opts.port.paymentMandateIssuer;
   return issuer && handlerSupportsInstrument(handler, issuer.instrumentType) ? issuer.instrumentType : undefined;
 }
 

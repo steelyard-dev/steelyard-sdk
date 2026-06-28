@@ -23,7 +23,7 @@ if (process.env.STEELYARD_EXAMPLE_DRY_RUN === "1") {
     const decision = await wallet.decide(intent);
     console.log("not allowed:", decision);
   } else {
-    const payment = await wallet.pay(intent);
+    const payment = await wallet.createBrowserManualSession(intent);
     await payment.cancel();
   }
   await wallet.close();
@@ -45,7 +45,7 @@ async function dryRun(): Promise<void> {
       limits: { daily: { USD: 100 } },
       allowedMerchants: ["coffee.example"]
     });
-    const payment = await wallet.pay({
+    const payment = await wallet.createBrowserManualSession({
       merchant: {
         domain: "coffee.example",
         transport_url: merchantUrl,

@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Wallet, createReferencePaymentIssuer } from "@steelyard/buyer";
+import { Wallet, referenceMandate } from "@steelyard/buyer";
 import { Steelyard } from "@steelyard/buyer/client";
 import type { Offer, Price, PurchaseIntent, Receipt } from "@steelyard/core";
 import {
@@ -107,13 +107,13 @@ async function startReferenceSmokeHarness(): Promise<ReferenceSmokeHarness> {
         address: { line1: "1 Market St", city: "San Francisco", postal_code: "94105", country: "US" }
       },
       limits: { daily: { USD: 100 } },
-      allowedMerchants: ["coffee.example"],
-      paymentIssuer: createReferencePaymentIssuer({
-        signingKey: buyerDemoUcpPrivateKey,
-        allowInProduction: true,
-        clock: () => now
-      })
+      allowedMerchants: ["coffee.example"]
     });
+    await wallet.addInstrument(referenceMandate({
+      signingKey: buyerDemoUcpPrivateKey,
+      allowInProduction: true,
+      clock: () => now
+    }));
     shop = await startCoffeeShopCheckoutServer({
       clock: () => now,
       steelyardMandate: false,
@@ -141,7 +141,7 @@ async function purchaseUcp(wallet: Wallet, shop: RunningCoffeeShopCheckout, idem
 
   const offer = await merchant.getOffer("single");
   if ("error" in offer) throw new Error(offer.error_detail ?? offer.error);
-  return await wallet.pay(intentFromOffer(offer, merchant.url), { merchant, idempotencyKey });
+  return await wallet.purchase(intentFromOffer(offer, merchant.url), { merchant, idempotencyKey });
 }
 
 function intentFromOffer(offer: Offer, transportUrl: string): PurchaseIntent {

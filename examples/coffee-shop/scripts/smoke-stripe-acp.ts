@@ -30,7 +30,7 @@ try {
 
   const offer = await merchant.getOffer("single");
   if ("error" in offer) throw new Error(offer.error_detail ?? offer.error);
-  const receipt = await harness.wallet.pay(intentFromOffer(offer, merchant.url, "acp"), {
+  const receipt = await harness.wallet.purchase(intentFromOffer(offer, merchant.url, "acp"), {
     merchant,
     idempotencyKey: `coffee_stripe_acp_${Date.now().toString(36)}`
   });

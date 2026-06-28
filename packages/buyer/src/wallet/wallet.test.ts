@@ -40,13 +40,15 @@ vi.mock("@napi-rs/keyring", () => ({
 const walletModule = await import("./index.js");
 const {
   Wallet,
+  BrowserManualSession,
   WalletApprovalRequired,
   WalletNotAllowed,
   WalletAmountExceeded,
   ReceiptPersistenceFailed,
   NoCardForMerchant,
   KeystoreUnavailable,
-  MandateKeyMissing
+  MandateKeyMissing,
+  vaultedCard
 } = walletModule;
 
 const originalCwd = process.cwd();
@@ -149,7 +151,7 @@ describe("Wallet setup and open", () => {
         where: { merchant_domain: ["coffee.example"] }
       });
 
-      const payment = await wallet.pay(intent);
+      const payment = await wallet.createBrowserManualSession(intent);
       expect(payment.metadata).toEqual({ brand: "visa", last4: "1111", exp: "12/99", name: "Jane Doe" });
       expect(JSON.stringify(payment.metadata)).not.toContain("4111111111111111");
 
@@ -176,6 +178,22 @@ describe("Wallet setup and open", () => {
       expect(created).toMatchObject({ key_id: expect.stringMatching(/^mk_/), algorithm: "Ed25519" });
       await expect(wallet.hasMandateKey()).resolves.toBe(true);
       await expect(wallet.exportMandatePublicKey()).resolves.toMatchObject({ key_id: created.key_id });
+      await expect(wallet.ensureUcpSigningKey()).resolves.toMatchObject({ kid: expect.any(String) });
+      await expect(wallet.ensureUcpSigningKey()).resolves.toMatchObject({ kid: expect.any(String) });
+    });
+  });
+
+  it("overwrites existing project wallet files when requested", async () => {
+    await withWorkspace(async () => {
+      await Wallet.create(createOptions());
+      const wallet = await Wallet.create(createOptions({
+        overwrite: true,
+        card: { number: "5555555555554444", exp: "12/99", name: "Jane Replacement" }
+      }));
+
+      await expect(wallet.listCards()).resolves.toMatchObject([
+        { brand: "mastercard", name_on_card: "Jane Replacement" }
+      ]);
     });
   });
 
@@ -248,11 +266,11 @@ describe("Wallet decision, payment, and maintenance", () => {
       const wallet = await Wallet.create(createOptions({ approvalAbove: { USD: 4 } }));
       await expect(wallet.decide(intent)).resolves.toMatchObject({ status: "approval_required" });
       await expect(wallet.isAllowed(intent)).resolves.toBe(false);
-      await expect(wallet.pay(intent)).rejects.toBeInstanceOf(WalletApprovalRequired);
+      await expect(wallet.createBrowserManualSession(intent)).rejects.toBeInstanceOf(WalletApprovalRequired);
 
-      const payment = await wallet.pay(intent, { approval: { source: "user", ts: new Date().toISOString() } });
+      const payment = await wallet.createBrowserManualSession(intent, { approval: { source: "user", ts: new Date().toISOString() } });
       let captured: { number: string; exp: string; name: string } | undefined;
-      await expect(payment.withRawCard((card) => {
+      await expect(payment.revealCard((card) => {
         captured = card;
         return card.number;
       })).resolves.toBe("4111111111111111");
@@ -262,7 +280,7 @@ describe("Wallet decision, payment, and maintenance", () => {
       await expect(wallet.listSpend()).resolves.toMatchObject([{ intent_id: "intent_coffee", status: "completed" }]);
 
       await wallet.setAllowedMerchants(["tea.example"]);
-      await expect(wallet.pay(intent)).rejects.toBeInstanceOf(WalletNotAllowed);
+      await expect(wallet.createBrowserManualSession(intent)).rejects.toBeInstanceOf(WalletNotAllowed);
     });
   });
 
@@ -280,7 +298,7 @@ describe("Wallet decision, payment, and maintenance", () => {
         return purchaseReceipt(450);
       });
 
-      const receipt = await wallet.pay(intent, {
+      const receipt = await wallet.purchase(intent, {
         merchant,
         idempotencyKey: "purchase_wallet",
         clock: () => purchaseClock
@@ -302,7 +320,7 @@ describe("Wallet decision, payment, and maintenance", () => {
         throw new Error("should not tokenize");
       });
 
-      await expect(wallet.pay(intent, { merchant, clock: () => purchaseClock })).rejects.toBeInstanceOf(WalletAmountExceeded);
+      await expect(wallet.purchase(intent, { merchant, clock: () => purchaseClock })).rejects.toBeInstanceOf(WalletAmountExceeded);
       await expect(wallet.pendingReservations()).resolves.toEqual([]);
       await expect(wallet.spendInWindow("daily", "USD")).resolves.toEqual({ pending: 0, captured: 0 });
     });
@@ -313,7 +331,7 @@ describe("Wallet decision, payment, and maintenance", () => {
       const wallet = await Wallet.create(createOptions({ approvalAbove: { USD: 4 } }));
       const merchant = merchantWithPurchase(vi.fn(async () => purchaseReceipt()));
 
-      await expect(wallet.pay(intent, { merchant, clock: () => purchaseClock }))
+      await expect(wallet.purchase(intent, { merchant, clock: () => purchaseClock }))
         .rejects.toMatchObject({ name: "WalletApprovalRequired", kind: "policy" });
       expect(merchant.purchase).not.toHaveBeenCalled();
       await expect(wallet.pendingReservations()).resolves.toEqual([]);
@@ -327,7 +345,7 @@ describe("Wallet decision, payment, and maintenance", () => {
         throw new Error("HTTP 500");
       });
 
-      await expect(wallet.pay(intent, {
+      await expect(wallet.purchase(intent, {
         merchant: failingMerchant,
         idempotencyKey: "merchant_failure",
         clock: () => purchaseClock
@@ -339,7 +357,7 @@ describe("Wallet decision, payment, and maintenance", () => {
         await opts.onTotalsKnown?.(450, "EUR");
         throw new Error("should not charge after mismatch");
       });
-      await expect(wallet.pay(intent, {
+      await expect(wallet.purchase(intent, {
         merchant: mismatchMerchant,
         idempotencyKey: "currency_mismatch",
         clock: () => purchaseClock
@@ -356,7 +374,7 @@ describe("Wallet decision, payment, and maintenance", () => {
         throw new Error("unreachable");
       });
 
-      await expect(wallet.pay(intent, {
+      await expect(wallet.purchase(intent, {
         merchant,
         idempotencyKey: "missing_mandate",
         clock: () => purchaseClock
@@ -385,7 +403,7 @@ describe("Wallet decision, payment, and maintenance", () => {
 
       let challenge: InstanceType<typeof WalletApprovalRequired> | undefined;
       try {
-        await wallet.pay(intent, {
+        await wallet.purchase(intent, {
           merchant: challengeMerchant,
           idempotencyKey: "resume_key",
           clock: () => purchaseClock
@@ -408,7 +426,7 @@ describe("Wallet decision, payment, and maintenance", () => {
         await opts.onTotalsKnown?.(450, "USD");
         return purchaseReceipt(450);
       });
-      await expect(wallet.pay(intent, {
+      await expect(wallet.purchase(intent, {
         merchant: resumeMerchant,
         resume: challenge.resume,
         clock: () => purchaseClock
@@ -437,7 +455,7 @@ describe("Wallet decision, payment, and maintenance", () => {
 
       let challenge: InstanceType<typeof WalletApprovalRequired> | undefined;
       try {
-        await wallet.pay(intent, {
+        await wallet.purchase(intent, {
           merchant: challengeMerchant,
           idempotencyKey: "reconcile_release",
           clock: () => purchaseClock
@@ -474,7 +492,7 @@ describe("Wallet decision, payment, and maintenance", () => {
 
       let failure: InstanceType<typeof ReceiptPersistenceFailed> | undefined;
       try {
-        await wallet.pay(intent, {
+        await wallet.purchase(intent, {
           merchant,
           idempotencyKey: "persist_fail",
           clock: () => purchaseClock
@@ -528,6 +546,119 @@ describe("Wallet decision, payment, and maintenance", () => {
     });
   });
 
+  it("manages browser-manual instruments through named wallet APIs", async () => {
+    await withWorkspace(async () => {
+      const wallet = await Wallet.create(createOptions());
+      const created = await wallet.addInstrument(vaultedCard({
+        number: "5555555555554444",
+        exp: "12/99",
+        name: "Jane Biz",
+        label: "Work card",
+        merchants: ["github.com"]
+      }));
+
+      expect(created).toMatchObject({
+        mode: "browser-manual",
+        type: "vaulted_card",
+        label: "Work card",
+        default: false
+      });
+
+      const initialChoice = await wallet.chooseInstrument(intent, { mode: "browser-manual" });
+      expect(initialChoice.label).toContain("visa");
+      await wallet.setDefaultInstrument(created.id);
+
+      await expect(wallet.chooseInstrument(intent, { instrumentId: created.id })).resolves.toMatchObject({
+        id: created.id,
+        mode: "browser-manual",
+        label: expect.stringContaining("mastercard"),
+        default: true
+      });
+      const session = await wallet.createBrowserManualSession(intent, { instrumentId: created.id });
+      expect(session).toBeInstanceOf(BrowserManualSession);
+      await expect(session.revealCard((card) => card.number)).resolves.toBe("5555555555554444");
+
+      await wallet.removeInstrument(created.id);
+      await expect(wallet.chooseInstrument(intent, { instrumentId: created.id })).rejects.toThrow(/no matching payment instrument/);
+    });
+  });
+
+  it("prepares agent-native credentials and exposes the issuer on merchant purchase ports", async () => {
+    await withWorkspace(async () => {
+      const noIssuer = await Wallet.create(createOptions({ overwrite: true }));
+      await expect(noIssuer.prepareMandate(intent)).rejects.toThrow(/no agent-native payment instrument/);
+
+      const minted: any[] = [];
+      const issuer = {
+        instrumentType: "shared_payment_token",
+        async issueMandate(mandate: any) {
+          minted.push(mandate);
+          return {
+            id: "spt_wallet_test",
+            expires_at: Math.floor(Date.parse(mandate.payment.expires_at) / 1000),
+            max_amount: mandate.payment.amount,
+            currency: mandate.payment.currency,
+            scope_proof: { type: "test_scope" }
+          };
+        }
+      };
+      const wallet = noIssuer;
+      const instrument = await wallet.addInstrument({
+        mode: "agent-native",
+        type: "shared_payment_token",
+        label: "Test SPT",
+        issuer
+      });
+
+      await expect(wallet.listInstruments()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: instrument.id,
+          mode: "agent-native",
+          type: "shared_payment_token",
+          label: "Test SPT",
+          default: true
+        })
+      ]));
+
+      await expect(wallet.prepareMandate(intent, {
+        instrumentId: instrument.id,
+        idempotencyKey: "credential_key",
+        clock: () => purchaseClock
+      })).resolves.toMatchObject({
+        id: "spt_wallet_test",
+        max_amount: 450,
+        currency: "USD"
+      });
+      expect(minted[0]).toMatchObject({
+        nonce: "credential_key",
+        merchant_id: "coffee.example",
+        instrument_type: "shared_payment_token",
+        payment: { amount: 450, currency: "USD", checkout_id: "intent_coffee" }
+      });
+      await expect(wallet.prepareMandate(intent, { instrumentId: "missing" }))
+        .rejects.toThrow(/agent-native payment instrument not found/);
+
+      const merchant = merchantWithPurchase(async (_intent, opts) => {
+        expect(opts.port.paymentMandateIssuer).toBe(issuer);
+        await opts.onTotalsKnown?.(450, "USD");
+        return purchaseReceipt(450);
+      });
+      await expect(wallet.purchase(intent, {
+        merchant,
+        instrumentId: instrument.id,
+        idempotencyKey: "purchase_key",
+        clock: () => purchaseClock
+      })).resolves.toMatchObject({ order_id: "order_1" });
+
+      await wallet.setDefaultInstrument(instrument.id);
+      await expect(wallet.listInstruments()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: instrument.id, default: true })
+      ]));
+      await wallet.removeInstrument(instrument.id);
+      await expect(wallet.prepareMandate(intent)).rejects.toThrow(/no agent-native payment instrument/);
+    });
+  });
+
   it("manages cards, billing, recovery, and password rotation", async () => {
     await withWorkspace(async (root) => {
       const wallet = await Wallet.create(createOptions({
@@ -535,6 +666,8 @@ describe("Wallet decision, payment, and maintenance", () => {
         recovery: { path: join(root, "recovery.enc"), password: "recovery password" }
       }));
       await expect(readFile(join(root, "recovery.enc"), "utf8")).resolves.toContain("wrapped_key");
+      await expect(wallet.exportRecovery({ path: join(root, "recovery-2.enc"), password: "second recovery" }))
+        .resolves.toBe(join(root, "recovery-2.enc"));
 
       await wallet.addCard({
         number: "5555555555554444",
@@ -544,22 +677,22 @@ describe("Wallet decision, payment, and maintenance", () => {
         default: false
       });
       await wallet.setAllowedMerchants(["coffee.example", "github.com"]);
-      await expect(wallet.pay({ ...intent, merchant: { ...intent.merchant, domain: "github.com" } }))
+      await expect(wallet.createBrowserManualSession({ ...intent, merchant: { ...intent.merchant, domain: "github.com" } }))
         .resolves.toMatchObject({ metadata: { brand: "mastercard" } });
       const cards = await wallet.listCards();
       const biz = cards.find((card) => card.name_on_card === "Jane Biz")!;
       await wallet.setDefaultCard(biz.id);
-      await expect(wallet.pay(intent))
+      await expect(wallet.createBrowserManualSession(intent))
         .resolves.toMatchObject({ metadata: { brand: "mastercard" } });
 
       const original = cards.find((card) => card.name_on_card === "Jane Doe")!;
       await wallet.removeCard(biz.id);
-      await expect(wallet.pay(intent))
+      await expect(wallet.createBrowserManualSession(intent))
         .rejects.toBeInstanceOf(NoCardForMerchant);
       await wallet.setDefaultCard(original.id);
 
       await wallet.updateBilling({ address: { line1: "2 Main St", city: "SF", postal_code: "94111", country: "US" } });
-      const payment = await wallet.pay(intent);
+      const payment = await wallet.createBrowserManualSession(intent);
       expect(payment.billing.address.line1).toBe("2 Main St");
 
       await wallet.rotatePassword({ oldPassword: "old password", newPassword: "new password" });

@@ -59,7 +59,7 @@ through whatever trust channel your deployment chooses.
 ## Merchant verification
 
 Use `steelyardJwsVerifier({ trustedKeys, mode: "enabled" })` for real
-verification, and set `steelyardMandate: true` on `createMerchantCheckout()`.
+verification, and set `steelyardMandate: true` on `createCheckoutServer()`.
 Use `mockMandateVerifier()` only for tests and demos; outside known test
 environments it requires both an explicit option and
 `STEELYARD_ALLOW_MOCK_MANDATE=1`.

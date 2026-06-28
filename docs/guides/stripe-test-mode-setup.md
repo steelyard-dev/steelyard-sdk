@@ -30,7 +30,7 @@ profile_test_61TU90nIeGjU7NNVXA6TU90m7ISQWsBxpcx9lASWWXTk
 ```
 
 For your own integration, create or select a network business profile in the
-Stripe Dashboard and pass it as `sellerProfile` to `createStripeSptIssuer()`.
+Stripe Dashboard and pass it as `sellerProfile` to `createStripeSptPaymentMandateIssuer()`.
 If Stripe returns `Stripe business profile not found`, the key is valid but the
 account is not enabled for the SPT business-profile flow; use
 `STEELYARD_MOCK_STRIPE=1` for SDK validation until Stripe enables that access.

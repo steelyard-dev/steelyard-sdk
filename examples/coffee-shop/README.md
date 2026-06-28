@@ -59,4 +59,4 @@ profile_test_61TU90nIeGjU7NNVXA6TU90m7ISQWsBxpcx9lASWWXTk
 ```
 
 Use your own Stripe network business profile by passing `sellerProfile` to
-`createStripeSptIssuer()` in a custom harness.
+`createStripeSptPaymentMandateIssuer()` in a custom harness.

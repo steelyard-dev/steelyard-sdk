@@ -7,12 +7,12 @@ import type { BuyerVault } from "../vault/index.js";
 import { evaluatePolicy } from "./evaluate.js";
 import { parsePolicyYaml, type ParsedPolicyDocument } from "./schema.js";
 
-export interface BuyerPolicyLoadOptions {
+export interface WalletRulesLoadOptions {
   paths?: string[];
   allowMissingPolicy?: boolean;
 }
 
-export class BuyerPolicy {
+export class WalletRules {
   readonly rules: ReadonlyArray<Rule>;
   readonly limits: SpendLimits;
   readonly isPermissive: boolean;
@@ -25,25 +25,25 @@ export class BuyerPolicy {
     this.isPermissive = isPermissive;
   }
 
-  static async load(opts: BuyerPolicyLoadOptions = {}): Promise<BuyerPolicy> {
+  static async load(opts: WalletRulesLoadOptions = {}): Promise<WalletRules> {
     const paths = opts.paths?.map((path) => resolve(path)) ?? [projectPolicyPath(), globalPolicyPath()];
     const documents = await readPolicyDocuments(paths);
     if (!documents.length) {
       if (opts.allowMissingPolicy) {
         warnPermissiveOnce(paths);
-        return new BuyerPolicy([permissiveDocument()], true);
+        return new WalletRules([permissiveDocument()], true);
       }
       throw new Error(`no policy file found at ${paths.join(", ")}`);
     }
-    return new BuyerPolicy(documents, false);
+    return new WalletRules(documents, false);
   }
 
-  static async loadGlobal(opts: Omit<BuyerPolicyLoadOptions, "paths"> = {}): Promise<BuyerPolicy> {
-    return BuyerPolicy.load({ ...opts, paths: [globalPolicyPath()] });
+  static async loadGlobal(opts: Omit<WalletRulesLoadOptions, "paths"> = {}): Promise<WalletRules> {
+    return WalletRules.load({ ...opts, paths: [globalPolicyPath()] });
   }
 
-  static async loadProject(opts: Omit<BuyerPolicyLoadOptions, "paths"> = {}): Promise<BuyerPolicy> {
-    return BuyerPolicy.load({ ...opts, paths: [projectPolicyPath()] });
+  static async loadProject(opts: Omit<WalletRulesLoadOptions, "paths"> = {}): Promise<WalletRules> {
+    return WalletRules.load({ ...opts, paths: [projectPolicyPath()] });
   }
 
   async evaluate(intent: PurchaseIntent, ctx: { vault?: BuyerVault } = {}): Promise<Decision> {

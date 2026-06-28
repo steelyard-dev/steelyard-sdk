@@ -4,28 +4,29 @@ import { describe, expect, it } from "vitest";
 import {
   REFERENCE_PAYMENT_INSTRUMENT_TYPE,
   REFERENCE_PAYMENT_TOKEN_PREFIX,
-  ReferencePaymentIssuerError,
-  ReferencePaymentIssuerInProductionError,
-  createReferencePaymentIssuer
+  ReferencePaymentMandateIssuerError,
+  ReferencePaymentMandateIssuerInProductionError,
+  createReferencePaymentMandateIssuer,
+  referenceMandate
 } from "./reference-payment.js";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 
-describe("createReferencePaymentIssuer", () => {
+describe("createReferencePaymentMandateIssuer", () => {
   it("is default-deny outside known test environments", async () => {
     await withReferenceEnv({}, async () => {
-      expect(() => createReferencePaymentIssuer({ signingKey: referencePrivateKey })).toThrow(ReferencePaymentIssuerInProductionError);
-      expect(() => createReferencePaymentIssuer({ signingKey: referencePrivateKey, allowInProduction: true }))
-        .toThrow(ReferencePaymentIssuerInProductionError);
+      expect(() => createReferencePaymentMandateIssuer({ signingKey: referencePrivateKey })).toThrow(ReferencePaymentMandateIssuerInProductionError);
+      expect(() => createReferencePaymentMandateIssuer({ signingKey: referencePrivateKey, allowInProduction: true }))
+        .toThrow(ReferencePaymentMandateIssuerInProductionError);
       process.env.STEELYARD_ALLOW_REFERENCE_PSP = "1";
-      expect(() => createReferencePaymentIssuer({ signingKey: referencePrivateKey })).toThrow(ReferencePaymentIssuerInProductionError);
-      expect(() => createReferencePaymentIssuer({ signingKey: referencePrivateKey, allowInProduction: true })).not.toThrow();
+      expect(() => createReferencePaymentMandateIssuer({ signingKey: referencePrivateKey })).toThrow(ReferencePaymentMandateIssuerInProductionError);
+      expect(() => createReferencePaymentMandateIssuer({ signingKey: referencePrivateKey, allowInProduction: true })).not.toThrow();
     });
   });
 
   it("mints a context-bound delegated payment token", async () => {
-    const issuer = createReferencePaymentIssuer({ signingKey: referencePrivateKey, clock: () => now });
-    const handle = await issuer.mintForMandate({
+    const issuer = createReferencePaymentMandateIssuer({ signingKey: referencePrivateKey, clock: () => now });
+    const handle = await issuer.issueMandate({
       iat: Math.floor(now.getTime() / 1000),
       nonce: "payment_nonce_1",
       merchant_id: "https://coffee.example/.well-known/ucp",
@@ -55,9 +56,9 @@ describe("createReferencePaymentIssuer", () => {
   });
 
   it("rejects incomplete mandate scope", async () => {
-    const issuer = createReferencePaymentIssuer({ signingKey: referencePrivateKey, clock: () => now });
+    const issuer = createReferencePaymentMandateIssuer({ signingKey: referencePrivateKey, clock: () => now });
     await expect(
-      issuer.mintForMandate({
+      issuer.issueMandate({
         iat: Math.floor(now.getTime() / 1000),
         nonce: "payment_nonce_1",
         payment: {
@@ -67,7 +68,18 @@ describe("createReferencePaymentIssuer", () => {
           expires_at: new Date(now.getTime() + 15 * 60_000).toISOString()
         }
       })
-    ).rejects.toThrow(ReferencePaymentIssuerError);
+    ).rejects.toThrow(ReferencePaymentMandateIssuerError);
+  });
+
+  it("wraps the issuer as an agent-native wallet instrument", () => {
+    const instrument = referenceMandate({ signingKey: referencePrivateKey, clock: () => now });
+
+    expect(instrument).toMatchObject({
+      mode: "agent-native",
+      type: REFERENCE_PAYMENT_INSTRUMENT_TYPE,
+      label: "Reference mandate"
+    });
+    expect(instrument.issuer.instrumentType).toBe(REFERENCE_PAYMENT_INSTRUMENT_TYPE);
   });
 });
 
