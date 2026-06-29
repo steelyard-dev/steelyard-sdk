@@ -42,7 +42,7 @@ UCP response signatures use a different signature base from requests. They
 cover `@status` and, when a body is present, `content-digest` and
 `content-type`.
 
-`@steelyard/merchant/checkout` exposes:
+`steelyard/merchant/checkout` exposes:
 
 ```ts
 responseSigningPolicy: "high-value-only" | "all" | "off"

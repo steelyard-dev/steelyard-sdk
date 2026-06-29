@@ -56,7 +56,7 @@ npx steelyard init
 In a Next.js 14+ App Router app, this writes the route handlers for the four
 Steelyard surfaces (`/.well-known/commerce.json`, `/mcp`, `/acp/feed`,
 `/.well-known/ucp`), a `commerce.ts` manifest stub, and an optional dev
-inspector at `/steelyard`, then installs `steelyard` + `@steelyard/next`
+inspector at `/steelyard`, then installs `steelyard`
 with your project's package manager (pass `--skip-install` to skip). If a
 Stripe API key is found, it offers to import your existing Stripe catalog.
 Discovery is fully wired today. `steelyard enable checkout` lays the
@@ -73,7 +73,7 @@ The umbrella is a front door, not a wall. Import any specific package directly w
 you need the full surface:
 
 ```sh
-npm install @steelyard/core @steelyard/protocol @steelyard/buyer @steelyard/merchant @steelyard/stripe @steelyard/cli
+npm install steelyard
 ```
 
 For local development of this monorepo:
@@ -84,7 +84,7 @@ pnpm -r build
 pnpm -r test
 ```
 
-`defineCommerce(...)` builds the manifest; pass it to `@steelyard/protocol/mcp`,
+`defineCommerce(...)` builds the manifest; pass it to `steelyard/protocol/mcp`,
 `/acp`, and `/ucp` for per-protocol control, to `createCommerceReadHandler()`
 for a read-only router, or to `createCheckoutServer()` to mount ACP and UCP
 checkout routes.
@@ -167,8 +167,8 @@ manifest:
 
 ```ts
 import { createServer } from "node:http";
-import { createCommerceManifestHandler } from "@steelyard/protocol/commerce-manifest";
-import { createHttpApiHandler } from "@steelyard/protocol/http";
+import { createCommerceManifestHandler } from "steelyard/protocol/commerce-manifest";
+import { createHttpApiHandler } from "steelyard/protocol/http";
 
 const wellKnown = createCommerceManifestHandler(manifest, {
   peers: {
@@ -191,13 +191,13 @@ Validate a running server:
 
 ```sh
 steelyard validate https://coffee.example/.well-known/commerce.json
-pnpm --filter @steelyard/example-coffee-shop smoke:well-known
+pnpm --filter steelyard-example-coffee-shop smoke:well-known
 ```
 
 Generate static `commerce.json` for a CDN:
 
 ```sh
-pnpm --filter @steelyard/example-coffee-shop build
+pnpm --filter steelyard-example-coffee-shop build
 steelyard manifest ./examples/coffee-shop/dist/catalog.js \
   --module \
   --export coffeeShopManifest \
@@ -219,8 +219,8 @@ steelyard manifest ./examples/coffee-shop/dist/catalog.js \
 Demo video placeholder: https://www.loom.com/share/STEELYARD_V1_DEMO_PLACEHOLDER
 
 ```sh
-pnpm --filter @steelyard/example-coffee-shop build
-PORT=3000 pnpm --filter @steelyard/example-coffee-shop start
+pnpm --filter steelyard-example-coffee-shop build
+PORT=3000 pnpm --filter steelyard-example-coffee-shop start
 ```
 
 In another terminal:
@@ -301,22 +301,22 @@ Run an end-to-end mock purchase:
 ```sh
 STEELYARD_ALLOW_MOCK_PSP=1 \
 STEELYARD_ALLOW_MOCK_MANDATE=1 \
-pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol acp
+pnpm --filter steelyard-example-coffee-shop buy:real -- --protocol acp
 
 STEELYARD_ALLOW_MOCK_PSP=1 \
 STEELYARD_ALLOW_MOCK_MANDATE=1 \
-pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol ucp
+pnpm --filter steelyard-example-coffee-shop buy:real -- --protocol ucp
 
 STEELYARD_ALLOW_MOCK_PSP=1 \
-pnpm --filter @steelyard/example-coffee-shop smoke:bearer
+pnpm --filter steelyard-example-coffee-shop smoke:bearer
 ```
 
 ## Wallet
 
 ```ts
-import type { PurchaseIntent } from "@steelyard/core";
-import { Wallet } from "@steelyard/buyer";
-import { Steelyard } from "@steelyard/buyer/client";
+import type { PurchaseIntent } from "steelyard/core";
+import { Wallet } from "steelyard/buyer";
+import { Steelyard } from "steelyard/buyer/client";
 
 const wallet = await Wallet.open();
 const intent: PurchaseIntent = {
@@ -341,9 +341,9 @@ const receipt = await wallet.purchase(intent, { merchant, idempotencyKey: "purch
 `PurchaseIntent.amount` is the maximum amount authorized for merchant checkout;
 reconcile the final captured amount from the returned receipt.
 
-Power users can still import `Steelyard` from `@steelyard/buyer/client`,
-`WalletRules` from `@steelyard/buyer/policy`, and `BuyerVault` from
-`@steelyard/buyer/vault`.
+Power users can still import `Steelyard` from `steelyard/buyer/client`,
+`WalletRules` from `steelyard/buyer/policy`, and `BuyerVault` from
+`steelyard/buyer/vault`.
 
 ## Port Note
 

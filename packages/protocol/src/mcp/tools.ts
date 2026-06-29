@@ -1,6 +1,6 @@
 // Copyright (c) Mercato contributors. MIT License.
 // Copyright (c) Steelyard contributors. MIT License.
-import type { Manifest, Offer } from "@steelyard/core";
+import type { Manifest, Offer } from "@steelyard-dev/core";
 
 export interface ToolResult {
   ok: true;

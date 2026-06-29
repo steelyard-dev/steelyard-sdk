@@ -4,7 +4,7 @@ import {
   type CommerceManifestPeer,
   type Manifest,
   type PeerName
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import type { CommandResult, CliIO } from "../io.js";
 import { writeLine } from "../io.js";
 import {

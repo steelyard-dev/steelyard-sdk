@@ -3,9 +3,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { acpDriver } from "@steelyard/buyer/client/acp";
-import { BuyerVault, passwordKeystore } from "@steelyard/buyer/vault";
-import type { PurchaseIntent, WalletDriverPort } from "@steelyard/core";
+import { acpDriver } from "steelyard/buyer/client/acp";
+import { BuyerVault, passwordKeystore } from "steelyard/buyer/vault";
+import type { PurchaseIntent, WalletDriverPort } from "steelyard/core";
 import {
   startCoffeeShopCheckoutServer,
   startMockDelegatePaymentServer

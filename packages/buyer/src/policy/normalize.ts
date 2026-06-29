@@ -1,1 +1,1 @@
-export { normalizeCurrency, normalizeMerchantDomain } from "@steelyard/core/policy-yaml";
+export { normalizeCurrency, normalizeMerchantDomain } from "@steelyard-dev/core/policy-yaml";

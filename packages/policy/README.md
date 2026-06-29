@@ -1,4 +1,4 @@
-# @steelyard/policy
+# steelyard/policy
 
 Buyer-side policy engine for agent-initiated payments. The engine runs outside
 the LLM agent, evaluates a YAML policy, reserves budget in SQLite, mints narrow
@@ -8,11 +8,11 @@ log for every decision.
 ## Install
 
 ```bash
-pnpm add @steelyard/policy
+pnpm add steelyard
 ```
 
 The package ships ESM and TypeScript declarations. Use
-`@steelyard/policy-rail-card` when you want the v1 Stripe Issuing rail.
+`steelyard/policy-rail-card` when you want the v1 Stripe Issuing rail.
 
 ## Quick start
 
@@ -20,7 +20,7 @@ The package ships ESM and TypeScript declarations. Use
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PolicyEngine, InMemoryFxQuoteService, type PolicyRailAdapter } from "@steelyard/policy";
+import { PolicyEngine, InMemoryFxQuoteService, type PolicyRailAdapter } from "steelyard/policy";
 
 const clock = { now: () => new Date() };
 const rail: PolicyRailAdapter = {

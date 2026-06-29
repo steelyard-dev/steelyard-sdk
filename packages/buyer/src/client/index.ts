@@ -14,13 +14,13 @@ import {
   type PurchaseIntent,
   type Receipt,
   type WalletDriverPort
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import {
   assertValidAcpDiscovery,
   type AcpDiscoveryResponse,
   type AcpFeed,
   type AcpProduct
-} from "@steelyard/protocol/acp";
+} from "@steelyard-dev/protocol/acp";
 import {
   STEELYARD_CHECKOUT_MANDATE_V01,
   UCP_AP2_CAPABILITY,
@@ -33,7 +33,7 @@ import {
   UcpProfileFetchError,
   resolveSigningKey,
   type UcpProfileDoc
-} from "@steelyard/protocol/ucp";
+} from "@steelyard-dev/protocol/ucp";
 import { acpDriver, type AcpAuthOptions } from "./acp.js";
 import { handlerSupportsInstrument } from "./driver-common.js";
 import { ucpDriver, type UcpAp2MandateOptions, type UcpAuthOptions } from "./ucp.js";

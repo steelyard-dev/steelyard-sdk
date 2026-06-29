@@ -1,4 +1,4 @@
-import type { SettlementEvent, SettlementEventKind } from "@steelyard/policy";
+import type { SettlementEvent, SettlementEventKind } from "@steelyard-dev/policy";
 
 export interface StripeIssuingEvent {
   id: string;

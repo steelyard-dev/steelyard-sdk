@@ -4,9 +4,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { buildAcpDiscovery, buildAcpFeed } from "@steelyard/protocol/acp";
-import { defineCommerce, type EcJwk, type PaymentMandateRequest, type PurchaseIntent, type WalletDriverPort } from "@steelyard/core";
-import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
+import { buildAcpDiscovery, buildAcpFeed } from "@steelyard-dev/protocol/acp";
+import { defineCommerce, type EcJwk, type PaymentMandateRequest, type PurchaseIntent, type WalletDriverPort } from "@steelyard-dev/core";
+import { createMcpHttpHandler } from "@steelyard-dev/protocol/mcp";
 import {
   STEELYARD_CHECKOUT_MANDATE_V01,
   UCP_CATALOG_SEARCH_CAPABILITY,
@@ -14,20 +14,20 @@ import {
   UcpProfileCache,
   buildUcpDiscovery,
   createUcpHandler
-} from "@steelyard/protocol/ucp";
+} from "@steelyard-dev/protocol/ucp";
 import {
   applyCompleteRequest as applyAcpComplete,
   applyCreateRequest as applyAcpCreate,
   type CheckoutSessionCompleteRequest,
   type CheckoutSessionCreateRequest,
   type CheckoutSession
-} from "@steelyard/protocol/acp/checkout";
+} from "@steelyard-dev/protocol/acp/checkout";
 import {
   applyUcpComplete,
   applyUcpCreate,
   applyUcpUpdate,
   type Checkout as UcpCheckout
-} from "@steelyard/protocol/ucp/checkout";
+} from "@steelyard-dev/protocol/ucp/checkout";
 import {
   BuyerHmsProfileMissing,
   MerchantNoCheckout,

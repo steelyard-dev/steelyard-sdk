@@ -1,6 +1,6 @@
 {
-  "name": "@steelyard/psp",
-  "version": "0.2.0",
+  "name": "@steelyard-dev/psp",
+  "version": "0.11.0",
   "description": "Public PSP adapter contract and conformance kit for Steelyard.",
   "license": "MIT",
   "type": "module",
@@ -30,12 +30,13 @@
     "clean": "rm -rf dist .turbo coverage"
   },
   "dependencies": {
-    "@steelyard/core": "workspace:^"
+    "@steelyard-dev/core": "workspace:^"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^2.1.5"
-  }
+  },
+  "private": true
 }

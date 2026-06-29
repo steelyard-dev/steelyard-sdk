@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it, vi } from "vitest";
-import type { EcJwk } from "@steelyard/core";
+import type { EcJwk } from "@steelyard-dev/core";
 import type { UcpProfileDoc } from "./discovery.js";
 import {
   UCP_PROFILE_MAX_BYTES,

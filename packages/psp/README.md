@@ -1,10 +1,10 @@
-# @steelyard/psp
+# steelyard/psp
 
 Public PSP adapter contract and conformance kit for Steelyard.
 
 Use this package when you are building a payment adapter outside the Steelyard
 monorepo. It is intentionally thin: the only runtime dependency is
-`@steelyard/core`.
+`steelyard/core`.
 
 ## Contract Surface
 
@@ -20,7 +20,7 @@ import type {
   PaymentMandateRequest,
   SptHandle,
   PspCaptureResult
-} from "@steelyard/psp";
+} from "steelyard/psp";
 ```
 
 Merchant adapters implement `PspAdapter`: declare `capabilities`, answer
@@ -31,15 +31,15 @@ idempotent. Buyer issuers implement `PaymentMandateIssuer`: declare one
 
 `PspPaymentIntent`, `PspPaymentMandate`, `PspCaptureArgs`, and `PspAdapter` are
 owned by this package. Foundational buyer-side contract types are re-exported
-from `@steelyard/core` so adapter authors can import the full contract from one
+from `steelyard/core` so adapter authors can import the full contract from one
 package.
 
 ## Conformance
 
-`@steelyard/psp/conformance` exports framework-agnostic runners:
+`steelyard/psp/conformance` exports framework-agnostic runners:
 
 ```ts
-import { runPspConformance, runMandateIssuerConformance } from "@steelyard/psp/conformance";
+import { runPspConformance, runMandateIssuerConformance } from "steelyard/psp/conformance";
 
 const pspReport = await runPspConformance(adapter, fixtures);
 const issuerReport = await runMandateIssuerConformance(issuer, fixtures);
@@ -61,7 +61,7 @@ mandate types, or the issuer contract require a major version.
 
 The wider Steelyard SDK is still pre-1.0 and may make breaking changes on minor
 releases. This stability promise is scoped specifically to the
-`@steelyard/psp` contract surface.
+`steelyard/psp` contract surface.
 
 ## Trust Model
 

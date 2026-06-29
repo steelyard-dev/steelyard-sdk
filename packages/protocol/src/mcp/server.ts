@@ -8,7 +8,7 @@ import {
   ReadResourceRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import type { Implementation, ServerCapabilities } from "@modelcontextprotocol/sdk/types.js";
-import type { Manifest } from "@steelyard/core";
+import type { Manifest } from "@steelyard-dev/core";
 import { COMMERCE_CAPABILITY, COMMERCE_EXTENSION_KEY } from "./capability.js";
 import { getOffer, listOffers, type ToolResponse } from "./tools.js";
 

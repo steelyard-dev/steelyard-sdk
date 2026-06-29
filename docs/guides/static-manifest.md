@@ -7,7 +7,7 @@ and point `peers` at the live protocol endpoints.
 ## Build the example
 
 ```sh
-pnpm --filter @steelyard/example-coffee-shop build
+pnpm --filter steelyard-example-coffee-shop build
 ```
 
 The coffee-shop package exports the raw Steelyard manifest from

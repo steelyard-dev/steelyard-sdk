@@ -3,7 +3,7 @@ export {
   Ap2MandateVerifierConfigError,
   parseSdJwtKbPresentation,
   sdJwtKbVerifier
-} from "@steelyard/ucp-signing";
+} from "@steelyard-dev/ucp-signing";
 export type {
   Ap2MandateFailureReason,
   Ap2MandateTrustModel,
@@ -11,4 +11,4 @@ export type {
   Ap2MandateVerifier,
   ParseSdJwtKbPresentationResult,
   SdJwtKbVerifierOptions
-} from "@steelyard/ucp-signing";
+} from "@steelyard-dev/ucp-signing";

@@ -1,11 +1,11 @@
 # Wallet (junior surface)
 
-`@steelyard/buyer` is the simple buyer surface. It composes the policy engine
+`steelyard/buyer` is the simple buyer surface. It composes the policy engine
 and encrypted vault so application code does not handle policy YAML or raw PANs.
 
 ```ts
-import { Wallet } from "@steelyard/buyer";
-import { Steelyard } from "@steelyard/buyer/client";
+import { Wallet } from "steelyard/buyer";
+import { Steelyard } from "steelyard/buyer/client";
 
 const wallet = await Wallet.open();
 const merchant = await Steelyard.connect("https://coffee.example/acp/feed", {
@@ -20,7 +20,7 @@ const receipt = await wallet.purchase(intent, { merchant });
 ## First setup
 
 ```ts
-import { Wallet } from "@steelyard/buyer";
+import { Wallet } from "steelyard/buyer";
 
 const wallet = await Wallet.create({
   card: { number: "4242 4242 4242 4242", exp: "12/29", name: "Jane Doe" },

@@ -1,6 +1,6 @@
-# @steelyard/policy-rail-card
+# steelyard/policy-rail-card
 
-Stripe Issuing virtual-card policy rail adapter for `@steelyard/policy`.
+Stripe Issuing virtual-card policy rail adapter for `steelyard/policy`.
 
 ## Stripe Issuing Prerequisites
 
@@ -23,7 +23,7 @@ also uses Stripe Issuing test helpers, so test keys need access to
 The rail is constructed with an explicit `env` tag:
 
 ```ts
-import { virtualCardRail } from "@steelyard/policy-rail-card";
+import { virtualCardRail } from "steelyard/policy-rail-card";
 
 const rail = virtualCardRail({
   stripe,
@@ -59,7 +59,7 @@ adapter:
 
 ```ts
 import Stripe from "stripe";
-import { virtualCardRail, WebhookEventBus } from "@steelyard/policy-rail-card";
+import { virtualCardRail, WebhookEventBus } from "steelyard/policy-rail-card";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 const webhookBus = new WebhookEventBus();

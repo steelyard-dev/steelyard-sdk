@@ -1,10 +1,10 @@
-# `@steelyard/protocol/mcp`
+# `steelyard/protocol/mcp`
 
 Emit an MCP server from a Steelyard manifest. Uses the official
 `@modelcontextprotocol/sdk`.
 
 ```bash
-npm install @steelyard/protocol @steelyard/core @modelcontextprotocol/sdk
+npm install steelyard @modelcontextprotocol/sdk
 ```
 
 ## Exports
@@ -18,7 +18,7 @@ import {
   COMMERCE_EXTENSION_KEY,
   listOffers,
   getOffer
-} from "@steelyard/protocol/mcp";
+} from "steelyard/protocol/mcp";
 ```
 
 ### `createMcpServer(manifest)` → `Server`
@@ -58,4 +58,4 @@ server and exercises every tool + resource. Coverage: ≥ 95% lines.
 ## What's next
 
 - :material-protocol: [MCP protocol reference](../protocols/mcp.md).
-- :material-shopping-search: [`@steelyard/buyer/client`](client.md) — the unified buyer SDK.
+- :material-shopping-search: [`steelyard/buyer/client`](client.md) — the unified buyer SDK.

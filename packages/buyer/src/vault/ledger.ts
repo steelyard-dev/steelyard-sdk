@@ -1,4 +1,4 @@
-import { systemClock, type PurchaseIntent, type Receipt, type SpendLimits, type SpendReceipt } from "@steelyard/core";
+import { systemClock, type PurchaseIntent, type Receipt, type SpendLimits, type SpendReceipt } from "@steelyard-dev/core";
 import { xsalsa20poly1305 } from "@noble/ciphers/salsa.js";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { chmod, mkdir, open, readFile, rename, stat } from "node:fs/promises";

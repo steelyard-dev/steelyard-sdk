@@ -1,18 +1,18 @@
-# `@steelyard/merchant/checkout`
+# `steelyard/merchant/checkout`
 
 Merchant-side checkout assembly for ACP and UCP. It mounts checkout
 routes over the same `defineCommerce()` manifest, using a session store,
 idempotency store, PSP adapter, and optional merchant policy.
 
 ```ts
-import { createCheckoutServer, memoryCheckoutSessionStore, memoryIdempotencyStore } from "@steelyard/merchant/checkout";
-import { mockPsp } from "@steelyard/merchant/psp";
+import { createCheckoutServer, memoryCheckoutSessionStore, memoryIdempotencyStore } from "steelyard/merchant/checkout";
+import { mockPsp } from "steelyard/merchant/psp";
 import {
   ap2MerchantAuthorizationSigner,
   fileNonceStore,
   mockMandateVerifier,
   sdJwtKbVerifier
-} from "@steelyard/merchant/mandate";
+} from "steelyard/merchant/mandate";
 
 const ap2NonceStore = fileNonceStore({ dir: "/var/lib/steelyard/ap2-nonces" });
 
@@ -119,7 +119,7 @@ can provide database-backed implementations.
 
 ## PSPs
 
-`@steelyard/merchant/psp` ships:
+`steelyard/merchant/psp` ships:
 
 - `mockPsp()` for tests and demos. Outside known test environments it requires
   `allowInProduction: true` and `STEELYARD_ALLOW_MOCK_PSP=1`.

@@ -2,7 +2,7 @@
 //
 // toNextHandler — adapt a Node RequestListener into a Next.js App Router handler.
 //
-// The protocol handlers in @steelyard/protocol are Node `RequestListener`s
+// The protocol handlers in steelyard/protocol are Node `RequestListener`s
 // (req: IncomingMessage, res: ServerResponse) => void. App Router routes are
 // (req: Request) => Promise<Response>. This adapter mocks the minimum surface
 // of IncomingMessage and ServerResponse, invokes the handler, and assembles a

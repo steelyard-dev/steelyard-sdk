@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it } from "vitest";
-import { defineCommerce } from "@steelyard/core";
+import { defineCommerce } from "@steelyard-dev/core";
 import {
   ACP_VERSION,
   ACP_WEBHOOK_SIGNATURE_HEADER,

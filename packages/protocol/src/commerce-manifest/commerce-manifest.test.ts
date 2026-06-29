@@ -7,7 +7,7 @@ import {
   canonicalCommerceManifestHash,
   defineCommerce,
   validateCommerceManifest
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import { createCommerceManifestHandler } from "./index.js";
 
 const fixedDate = new Date("2026-06-14T12:00:00.000Z");

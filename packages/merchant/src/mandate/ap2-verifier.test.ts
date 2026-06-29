@@ -8,8 +8,8 @@ import {
   type Ap2ErrorCode,
   type EcJwk,
   type HmsAlgorithm
-} from "@steelyard/core";
-import type { Checkout } from "@steelyard/protocol/ucp/checkout";
+} from "@steelyard-dev/core";
+import type { Checkout } from "@steelyard-dev/protocol/ucp/checkout";
 import { describe, expect, it } from "vitest";
 import {
   Ap2MandateVerifierConfigError,

@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createHash, createPublicKey, verify as cryptoVerify, type JsonWebKey as NodeJsonWebKey } from "node:crypto";
-import { canonicalizeForSigning, systemClock, type Checkout, type JsonWebKey } from "@steelyard/core";
+import { canonicalizeForSigning, systemClock, type Checkout, type JsonWebKey } from "@steelyard-dev/core";
 
 export interface MandateEnvelope {
   "steelyard.checkout_mandate"?: string;

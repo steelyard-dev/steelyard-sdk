@@ -1,4 +1,4 @@
-import { defineCommerce } from "@steelyard/core";
+import { defineCommerce } from "steelyard/core";
 
 export const coffeeShopManifest = defineCommerce({
   identity: { name: "Steelyard Coffee", domain: "coffee.example", currencies: ["USD"] },

@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import type { RequestListener } from "node:http";
-import { assertValidEcJwk, type EcJwk } from "@steelyard/core";
+import { assertValidEcJwk, type EcJwk } from "@steelyard-dev/core";
 import {
   assertValidUcpProfile,
   UCP_AP2_CAPABILITY,
@@ -8,7 +8,7 @@ import {
   UCP_VERSION,
   type UcpProfileDoc,
   type UcpPublicSigningKey
-} from "@steelyard/protocol/ucp";
+} from "@steelyard-dev/protocol/ucp";
 
 export interface UcpBuyerProfileOptions {
   signingKeys: readonly EcJwk[];

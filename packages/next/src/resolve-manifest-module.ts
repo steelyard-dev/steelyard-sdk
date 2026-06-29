@@ -8,7 +8,7 @@
 // generated `route.ts` stays a one-liner instead of duplicating an unwrap
 // helper into every user repo.
 
-import type { Manifest } from "@steelyard/core";
+import type { Manifest } from "@steelyard-dev/core";
 
 type MaybeFactory<T> = T | (() => T) | (() => Promise<T>);
 

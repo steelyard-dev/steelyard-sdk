@@ -8,7 +8,7 @@ import {
   type JsonWebKey,
   type Receipt,
   type SpendReceipt
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import { randomBytes, createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, basename, resolve, join } from "node:path";

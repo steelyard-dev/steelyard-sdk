@@ -12,9 +12,9 @@ UCP profiles.
 Useful checks:
 
 ```sh
-STEELYARD_ALLOW_MOCK_PSP=1 pnpm --filter @steelyard/example-coffee-shop buy:real -- --protocol ucp
-STEELYARD_ALLOW_MOCK_PSP=1 pnpm --filter @steelyard/example-coffee-shop smoke:bearer
-STEELYARD_ALLOW_MOCK_PSP=1 pnpm --filter @steelyard/example-coffee-shop smoke:vanilla-ucp
+STEELYARD_ALLOW_MOCK_PSP=1 pnpm --filter steelyard-example-coffee-shop buy:real -- --protocol ucp
+STEELYARD_ALLOW_MOCK_PSP=1 pnpm --filter steelyard-example-coffee-shop smoke:bearer
+STEELYARD_ALLOW_MOCK_PSP=1 pnpm --filter steelyard-example-coffee-shop smoke:vanilla-ucp
 ```
 
 ## Stripe SPT Smokes
@@ -28,10 +28,10 @@ Get an unrestricted Test mode secret key from the Stripe Dashboard, then run:
 
 ```sh
 STRIPE_TEST_SECRET_KEY=sk_test_... \
-pnpm --filter @steelyard/example-coffee-shop smoke:stripe:ucp
+pnpm --filter steelyard-example-coffee-shop smoke:stripe:ucp
 
 STRIPE_TEST_SECRET_KEY=sk_test_... \
-pnpm --filter @steelyard/example-coffee-shop smoke:stripe:acp
+pnpm --filter steelyard-example-coffee-shop smoke:stripe:acp
 ```
 
 The UCP smoke signs AP2 mandates, mints an SPT scoped to the checkout, embeds
@@ -46,10 +46,10 @@ For release validation and CI:
 
 ```sh
 STEELYARD_MOCK_STRIPE=1 STRIPE_TEST_SECRET_KEY=sk_test_mock \
-pnpm --filter @steelyard/example-coffee-shop smoke:stripe:ucp
+pnpm --filter steelyard-example-coffee-shop smoke:stripe:ucp
 
 STEELYARD_MOCK_STRIPE=1 STRIPE_TEST_SECRET_KEY=sk_test_mock \
-pnpm --filter @steelyard/example-coffee-shop smoke:stripe:acp
+pnpm --filter steelyard-example-coffee-shop smoke:stripe:acp
 ```
 
 The default Test mode seller profile is:

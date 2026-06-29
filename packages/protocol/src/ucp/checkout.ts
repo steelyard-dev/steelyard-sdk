@@ -1,5 +1,5 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import type { PspCaptureResult } from "@steelyard/core";
+import type { PspCaptureResult } from "@steelyard-dev/core";
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import checkoutBaseSchema from "../../spec/ucp/2026-04-17/schemas/shopping/checkout.json";
@@ -10,7 +10,7 @@ import {
   PAYMENT_INSTRUMENT_SCHEMA_ID
 } from "./spec-schemas.js";
 import type { OrderConfirmation } from "@ucp-js/sdk";
-export type { PspCaptureResult } from "@steelyard/core";
+export type { PspCaptureResult } from "@steelyard-dev/core";
 
 export type JsonSchema = Record<string, unknown> & {
   $id?: string;

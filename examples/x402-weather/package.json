@@ -1,5 +1,5 @@
 {
-  "name": "@steelyard/example-x402-weather",
+  "name": "steelyard-example-x402-weather",
   "version": "0.2.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,7 @@
     "clean": "rm -rf dist .turbo coverage"
   },
   "dependencies": {
-    "@steelyard/core": "workspace:^",
-    "@steelyard/x402": "workspace:^"
+    "steelyard": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.9.0",

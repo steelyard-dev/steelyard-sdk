@@ -22,7 +22,7 @@
     "clean": "rm -rf dist .turbo coverage"
   },
   "dependencies": {
-    "@steelyard/psp": "workspace:^"
+    "steelyard": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",

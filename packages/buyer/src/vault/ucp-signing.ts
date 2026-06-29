@@ -4,7 +4,7 @@ import {
   systemClock,
   type EcJwk,
   type HmsAlgorithm
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import { createHash, generateKeyPairSync, type JsonWebKey as NodeJsonWebKey } from "node:crypto";
 
 export interface StoredUcpSigningKey {

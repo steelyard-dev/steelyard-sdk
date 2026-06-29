@@ -97,16 +97,16 @@ nav:
     - "Buyer purchase API": packages/buyer-purchase.md
     - "Policy (engine)": packages/buyer-policy.md
     - "Vault (engine)": packages/buyer-vault.md
-    - "@steelyard/core": packages/core.md
-    - "@steelyard/merchant/checkout": packages/merchant-checkout.md
-    - "@steelyard/merchant/policy": packages/merchant-policy.md
-    - "@steelyard/protocol/mcp": packages/mcp.md
-    - "@steelyard/protocol/acp": packages/acp.md
-    - "@steelyard/protocol/ucp": packages/ucp.md
-    - "@steelyard/buyer/client": packages/client.md
-    - "@steelyard/agent": packages/agent.md
-    - "@steelyard/cli": packages/cli.md
-    - "@steelyard/x402": packages/x402.md
+    - "steelyard/core": packages/core.md
+    - "steelyard/merchant/checkout": packages/merchant-checkout.md
+    - "steelyard/merchant/policy": packages/merchant-policy.md
+    - "steelyard/protocol/mcp": packages/mcp.md
+    - "steelyard/protocol/acp": packages/acp.md
+    - "steelyard/protocol/ucp": packages/ucp.md
+    - "steelyard/buyer/client": packages/client.md
+    - "steelyard/agent": packages/agent.md
+    - "steelyard/cli": packages/cli.md
+    - "steelyard/x402": packages/x402.md
   - Architecture: architecture.md
 
 markdown_extensions:

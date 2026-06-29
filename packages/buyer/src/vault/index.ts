@@ -1,4 +1,4 @@
-export type { BillingAddress, BillingPayload, CardMetadata, SpendReceipt } from "@steelyard/core";
+export type { BillingAddress, BillingPayload, CardMetadata, SpendReceipt } from "@steelyard-dev/core";
 export { fileBoxStore, memoryBoxStore, type BoxStore } from "./boxstore.js";
 export type { NewAddress } from "./address.js";
 export type { NewCard, RawCard } from "./card.js";

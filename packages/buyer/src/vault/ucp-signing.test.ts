@@ -1,4 +1,4 @@
-import { ecdsaVerifyRaw } from "@steelyard/core";
+import { ecdsaVerifyRaw } from "@steelyard-dev/core";
 import { describe, expect, it } from "vitest";
 import { BuyerVault, memoryBoxStore, memoryKeystore } from "./index.js";
 import {

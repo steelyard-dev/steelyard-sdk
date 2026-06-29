@@ -11,8 +11,8 @@ composes:
 - receipt persistence
 
 ```ts
-import { Wallet } from "@steelyard/buyer";
-import { Steelyard } from "@steelyard/buyer/client";
+import { Wallet } from "steelyard/buyer";
+import { Steelyard } from "steelyard/buyer/client";
 
 const wallet = await Wallet.open({ password: process.env.STEELYARD_PASSWORD });
 const merchant = await Steelyard.connect("https://coffee.example/acp/feed", {

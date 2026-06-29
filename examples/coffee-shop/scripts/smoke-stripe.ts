@@ -1,4 +1,4 @@
-import { stripePsp } from "@steelyard/merchant/psp";
+import { stripePsp } from "steelyard/merchant/psp";
 
 const apiKey = process.env.STRIPE_SECRET_KEY;
 if (!apiKey) {

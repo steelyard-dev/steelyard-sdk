@@ -1,4 +1,4 @@
-import type { PurchaseIntent, Receipt } from "@steelyard/core";
+import type { PurchaseIntent, Receipt } from "@steelyard-dev/core";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

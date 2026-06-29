@@ -11,7 +11,7 @@ import {
   type EcJwk,
   type HmsAlgorithm,
   type PaymentCapability
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import type { UcpSigner } from "./signer.js";
 
 export type Checkout = Record<string, unknown>;

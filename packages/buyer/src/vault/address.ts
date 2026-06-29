@@ -1,4 +1,4 @@
-import type { BillingAddress } from "@steelyard/core";
+import type { BillingAddress } from "@steelyard-dev/core";
 
 export interface NewAddress {
   id?: string;

@@ -1,6 +1,6 @@
 # UCP
 
-Steelyard's UCP adapter (`@steelyard/protocol/ucp`) emits a real
+Steelyard's UCP adapter (`steelyard/protocol/ucp`) emits a real
 [Universal Commerce Protocol](https://protocol/ucp.dev/) discovery document
 **plus** a runtime-validated shopping-service catalog API:
 
@@ -67,7 +67,7 @@ import {
   searchCatalog, lookupCatalog, getProduct,
   validateSearchResponse, validateLookupResponse, validateGetProductResponse,
   assertValidSearchResponse, assertValidLookupResponse, assertValidGetProductResponse
-} from "@steelyard/protocol/ucp";
+} from "steelyard/protocol/ucp";
 
 const result = searchCatalog(manifest, { query: "espresso" });
 // result.products is a list of UCP Product[]
@@ -142,6 +142,6 @@ throws.
 
 ## What's next
 
-- :material-package-variant-closed: [`@steelyard/protocol/ucp` package API](../packages/ucp.md).
-- :material-shopping-search: [`@steelyard/buyer/client`](../packages/client.md) — the
+- :material-package-variant-closed: [`steelyard/protocol/ucp` package API](../packages/ucp.md).
+- :material-shopping-search: [`steelyard/buyer/client`](../packages/client.md) — the
   unified buyer SDK that auto-detects this UCP surface.

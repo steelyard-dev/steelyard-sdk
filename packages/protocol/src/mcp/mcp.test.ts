@@ -7,7 +7,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
-import { defineCommerce, ecdsaSignRaw, type EcJwk, type HmsAlgorithm, type Manifest } from "@steelyard/core";
+import { defineCommerce, ecdsaSignRaw, type EcJwk, type HmsAlgorithm, type Manifest } from "@steelyard-dev/core";
 import { signUcpRequest, verifyUcpResponse } from "../ucp/index.js";
 import {
   COMMERCE_CAPABILITY,

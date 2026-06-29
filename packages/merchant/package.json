@@ -1,6 +1,6 @@
 {
-  "name": "@steelyard/merchant",
-  "version": "0.2.0",
+  "name": "@steelyard-dev/merchant",
+  "version": "0.11.0",
   "description": "Merchant-side primitives for Steelyard: policy engine and (future) trust controls. Subpath imports.",
   "license": "MIT",
   "type": "module",
@@ -42,13 +42,14 @@
   "dependencies": {
     "@sd-jwt/core": "^0.19.0",
     "@sd-jwt/sd-jwt-vc": "^0.19.0",
-    "@steelyard/core": "workspace:^",
-    "@steelyard/psp": "workspace:^",
-    "@steelyard/protocol": "workspace:^",
-    "@steelyard/ucp-signing": "workspace:^",
+    "@steelyard-dev/core": "workspace:^",
+    "@steelyard-dev/psp": "workspace:^",
+    "@steelyard-dev/protocol": "workspace:^",
+    "@steelyard-dev/ucp-signing": "workspace:^",
     "proper-lockfile": "^4.1.2"
   },
   "devDependencies": {
     "@types/proper-lockfile": "^4.1.4"
-  }
+  },
+  "private": true
 }

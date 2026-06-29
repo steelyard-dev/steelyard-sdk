@@ -1,4 +1,4 @@
-# @steelyard/example-nextjs
+# steelyard/example-nextjs
 
 A Next.js 15 App Router demo: human Stripe Checkout for visitors, agent
 discovery + (optionally) agent checkout via Steelyard from the same app.

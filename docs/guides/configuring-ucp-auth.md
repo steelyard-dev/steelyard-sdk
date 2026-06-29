@@ -11,7 +11,7 @@ the public part is published through `buildUcpDiscovery()` as top-level
 `signing_keys[]`.
 
 ```ts
-import { createCheckoutServer } from "@steelyard/merchant/checkout";
+import { createCheckoutServer } from "steelyard/merchant/checkout";
 
 const checkout = createCheckoutServer(manifest, {
   protocols: ["ucp"],
@@ -68,8 +68,8 @@ Create a UCP signing key in the encrypted wallet vault, host a public buyer
 profile, then pass the profile URL into `Steelyard.connect()`.
 
 ```ts
-import { Wallet } from "@steelyard/buyer";
-import { Steelyard } from "@steelyard/buyer/client";
+import { Wallet } from "steelyard/buyer";
+import { Steelyard } from "steelyard/buyer/client";
 
 const wallet = await Wallet.open();
 const key = await wallet.createUcpSigningKey({ algorithm: "ES256" });

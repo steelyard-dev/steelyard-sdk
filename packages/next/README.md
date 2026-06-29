@@ -1,11 +1,11 @@
-# @steelyard/next
+# steelyard/next
 
 Next.js adapter for Steelyard. Lets you serve the four read surfaces
 (`/.well-known/commerce.json`, `/mcp`, `/acp/feed`, `/.well-known/ucp`) from
 inside any Next.js 14+ App Router or Pages Router app.
 
 ```sh
-npm install @steelyard/next
+npm install steelyard
 # or scaffold everything at once:
 npx steelyard init
 ```
@@ -14,7 +14,7 @@ npx steelyard init
 
 ```ts
 // app/mcp/route.ts
-import { createCommerceRoutes } from "@steelyard/next";
+import { createCommerceRoutes } from "steelyard/next";
 import manifest from "@/commerce";
 
 const routes = createCommerceRoutes(manifest);
@@ -29,8 +29,8 @@ for you.
 
 ```ts
 // pages/api/mcp.ts
-import { toNextApiHandler } from "@steelyard/next";
-import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
+import { toNextApiHandler } from "steelyard/next";
+import { createMcpHttpHandler } from "steelyard/protocol/mcp";
 import manifest from "../../commerce";
 
 export default toNextApiHandler(createMcpHttpHandler(manifest));

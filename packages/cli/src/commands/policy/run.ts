@@ -2,7 +2,7 @@
 import type { EventEmitter } from "node:events";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
-import { EcbFxQuoteService, PolicyEngine } from "@steelyard/policy";
+import { EcbFxQuoteService, PolicyEngine } from "@steelyard-dev/policy";
 import type { CliIO, CommandResult } from "../../io.js";
 import { writeLine } from "../../io.js";
 

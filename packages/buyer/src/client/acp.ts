@@ -1,5 +1,5 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import { mapAcpToOrderState, type PurchaseIntent, type Receipt } from "@steelyard/core";
+import { mapAcpToOrderState, type PurchaseIntent, type Receipt } from "@steelyard-dev/core";
 import {
   ACP_API_VERSION_HEADER,
   ACP_VERSION,
@@ -13,7 +13,7 @@ import {
   type AcpPaymentData,
   type AcpPaymentHandler,
   type AcpWebhookSignatureVerificationResult
-} from "@steelyard/protocol/acp/checkout";
+} from "@steelyard-dev/protocol/acp/checkout";
 import {
   asRecord,
   driverClock,

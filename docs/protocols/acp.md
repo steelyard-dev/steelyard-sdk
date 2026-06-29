@@ -1,6 +1,6 @@
 # ACP
 
-Steelyard's ACP adapter (`@steelyard/protocol/acp`) emits an
+Steelyard's ACP adapter (`steelyard/protocol/acp`) emits an
 [Agentic Commerce Protocol](https://agentic-commerce-protocol.com/) feed
 that conforms to the **pinned spec**:
 
@@ -49,7 +49,7 @@ and (optionally) `links[]` from the manifest identity.
 ## Runtime validation API
 
 ```typescript
-import { buildAcpFeed, validateAcpFeed, assertValidAcpFeed } from "@steelyard/protocol/acp";
+import { buildAcpFeed, validateAcpFeed, assertValidAcpFeed } from "steelyard/protocol/acp";
 
 const feed = buildAcpFeed(manifest);
 
@@ -98,4 +98,4 @@ violation).
 ## What's next
 
 - :material-protocol: [UCP](ucp.md) — the third protocol surface.
-- :material-package-variant-closed: [`@steelyard/protocol/acp` package API](../packages/acp.md).
+- :material-package-variant-closed: [`steelyard/protocol/acp` package API](../packages/acp.md).

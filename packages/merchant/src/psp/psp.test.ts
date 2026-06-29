@@ -1,7 +1,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createHash } from "node:crypto";
 import { SDJwtInstance } from "@sd-jwt/core";
-import { ecdsaSignRaw, signDetachedJws, type EcJwk, type HmsAlgorithm } from "@steelyard/core";
+import { ecdsaSignRaw, signDetachedJws, type EcJwk, type HmsAlgorithm } from "@steelyard-dev/core";
 import { describe, expect, it } from "vitest";
 import {
   MockInProductionError,

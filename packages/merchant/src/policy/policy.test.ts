@@ -3,7 +3,7 @@ import { mkdtemp, rm, unlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { PurchaseIntent } from "@steelyard/core";
+import type { PurchaseIntent } from "@steelyard-dev/core";
 import { MerchantPolicy, MerchantPolicyMissing } from "./index.js";
 
 const intent: PurchaseIntent = {

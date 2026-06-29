@@ -8,7 +8,7 @@ export {
   parseAp2CheckoutMandate,
   parseAp2PaymentMandate,
   ucpAp2PaymentTransactionId
-} from "@steelyard/ucp-signing";
+} from "@steelyard-dev/ucp-signing";
 export type {
   Ap2CheckoutMandateBuyerClaims,
   Ap2CheckoutMandateClaims,
@@ -25,4 +25,4 @@ export type {
   IssuedAp2PaymentMandate,
   ParsedAp2CheckoutMandate,
   ParsedAp2PaymentMandate
-} from "@steelyard/ucp-signing";
+} from "@steelyard-dev/ucp-signing";

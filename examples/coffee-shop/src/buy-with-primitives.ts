@@ -1,9 +1,9 @@
-import type { PurchaseIntent } from "@steelyard/core";
+import type { PurchaseIntent } from "steelyard/core";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { WalletRules } from "@steelyard/buyer/policy";
-import { BuyerVault, passwordKeystore } from "@steelyard/buyer/vault";
+import { WalletRules } from "steelyard/buyer/policy";
+import { BuyerVault, passwordKeystore } from "steelyard/buyer/vault";
 
 if (process.env.STEELYARD_EXAMPLE_DRY_RUN === "1") {
   await dryRun();

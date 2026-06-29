@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Wallet, referenceMandate } from "@steelyard/buyer";
-import { Steelyard } from "@steelyard/buyer/client";
-import type { Offer, Price, PurchaseIntent, Receipt } from "@steelyard/core";
+import { Wallet, referenceMandate } from "steelyard/buyer";
+import { Steelyard } from "steelyard/buyer/client";
+import type { Offer, Price, PurchaseIntent, Receipt } from "steelyard/core";
 import {
   REFERENCE_PAYMENT_HANDLER_ID,
   REFERENCE_PAYMENT_INSTRUMENT_TYPE,
@@ -11,7 +11,7 @@ import {
   referencePsp,
   type PspAdapter,
   type PspCaptureResult
-} from "@steelyard/merchant/psp";
+} from "steelyard/merchant/psp";
 import {
   startCoffeeShopCheckoutServer,
   type RunningCoffeeShopCheckout

@@ -1,42 +1,240 @@
 {
   "name": "steelyard",
-  "version": "0.2.0",
-  "description": "The Steelyard SDK front door: define commerce once, serve it over commerce.json, HTTP, MCP, ACP, and UCP, and let buyers complete agentic purchases.",
+  "version": "0.11.0",
+  "description": "The Steelyard SDK: define commerce once, serve it over commerce.json, HTTP, MCP, ACP, UCP, and x402, and run agentic payments from one package.",
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "main": "./dist/index.cjs",
+  "main": "./dist/index.js",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    }
+      "import": "./dist/index.js"
+    },
+    "./serve": {
+      "types": "./dist/serve.d.ts",
+      "import": "./dist/serve.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./core/policy-yaml": {
+      "types": "./dist/core/policy-yaml.d.ts",
+      "import": "./dist/core/policy-yaml.js"
+    },
+    "./core/order-state": {
+      "types": "./dist/core/order-state.d.ts",
+      "import": "./dist/core/order-state.js"
+    },
+    "./core/idempotency": {
+      "types": "./dist/core/idempotency.d.ts",
+      "import": "./dist/core/idempotency.js"
+    },
+    "./core/purchase": {
+      "types": "./dist/core/purchase.d.ts",
+      "import": "./dist/core/purchase.js"
+    },
+    "./core/stripe": {
+      "types": "./dist/core/stripe.d.ts",
+      "import": "./dist/core/stripe.js"
+    },
+    "./core/stripe/constants": {
+      "types": "./dist/core/stripe/constants.d.ts",
+      "import": "./dist/core/stripe/constants.js"
+    },
+    "./protocol/mcp": {
+      "types": "./dist/protocol/mcp.d.ts",
+      "import": "./dist/protocol/mcp.js"
+    },
+    "./protocol/commerce-manifest": {
+      "types": "./dist/protocol/commerce-manifest.d.ts",
+      "import": "./dist/protocol/commerce-manifest.js"
+    },
+    "./protocol/http": {
+      "types": "./dist/protocol/http.d.ts",
+      "import": "./dist/protocol/http.js"
+    },
+    "./protocol/acp": {
+      "types": "./dist/protocol/acp.d.ts",
+      "import": "./dist/protocol/acp.js"
+    },
+    "./protocol/acp/checkout": {
+      "types": "./dist/protocol/acp/checkout.d.ts",
+      "import": "./dist/protocol/acp/checkout.js"
+    },
+    "./protocol/ucp": {
+      "types": "./dist/protocol/ucp.d.ts",
+      "import": "./dist/protocol/ucp.js"
+    },
+    "./protocol/ucp/checkout": {
+      "types": "./dist/protocol/ucp/checkout.d.ts",
+      "import": "./dist/protocol/ucp/checkout.js"
+    },
+    "./buyer": {
+      "types": "./dist/buyer.d.ts",
+      "import": "./dist/buyer.js"
+    },
+    "./buyer/client": {
+      "types": "./dist/buyer/client.d.ts",
+      "import": "./dist/buyer/client.js"
+    },
+    "./buyer/client/acp": {
+      "types": "./dist/buyer/client/acp.d.ts",
+      "import": "./dist/buyer/client/acp.js"
+    },
+    "./buyer/client/ucp": {
+      "types": "./dist/buyer/client/ucp.d.ts",
+      "import": "./dist/buyer/client/ucp.js"
+    },
+    "./buyer/vault": {
+      "types": "./dist/buyer/vault.d.ts",
+      "import": "./dist/buyer/vault.js"
+    },
+    "./buyer/policy": {
+      "types": "./dist/buyer/policy.d.ts",
+      "import": "./dist/buyer/policy.js"
+    },
+    "./merchant": {
+      "types": "./dist/merchant.d.ts",
+      "import": "./dist/merchant.js"
+    },
+    "./merchant/checkout": {
+      "types": "./dist/merchant/checkout.d.ts",
+      "import": "./dist/merchant/checkout.js"
+    },
+    "./merchant/policy": {
+      "types": "./dist/merchant/policy.d.ts",
+      "import": "./dist/merchant/policy.js"
+    },
+    "./merchant/psp": {
+      "types": "./dist/merchant/psp.d.ts",
+      "import": "./dist/merchant/psp.js"
+    },
+    "./merchant/mandate": {
+      "types": "./dist/merchant/mandate.d.ts",
+      "import": "./dist/merchant/mandate.js"
+    },
+    "./psp": {
+      "types": "./dist/psp.d.ts",
+      "import": "./dist/psp.js"
+    },
+    "./psp/conformance": {
+      "types": "./dist/psp/conformance.d.ts",
+      "import": "./dist/psp/conformance.js"
+    },
+    "./policy": {
+      "types": "./dist/policy.d.ts",
+      "import": "./dist/policy.js"
+    },
+    "./policy-rail-card": {
+      "types": "./dist/policy-rail-card.d.ts",
+      "import": "./dist/policy-rail-card.js"
+    },
+    "./stripe/buyer": {
+      "types": "./dist/stripe/buyer.d.ts",
+      "import": "./dist/stripe/buyer.js"
+    },
+    "./ucp-signing": {
+      "types": "./dist/ucp-signing.d.ts",
+      "import": "./dist/ucp-signing.js"
+    },
+    "./next": {
+      "types": "./dist/next.d.ts",
+      "import": "./dist/next.js"
+    },
+    "./x402": {
+      "types": "./dist/x402.d.ts",
+      "import": "./dist/x402.js"
+    },
+    "./x402/server": {
+      "types": "./dist/x402/server.d.ts",
+      "import": "./dist/x402/server.js"
+    },
+    "./agent": {
+      "types": "./dist/agent.d.ts",
+      "import": "./dist/agent.js"
+    },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    },
+    "./cli/commands/validate": {
+      "types": "./dist/cli/commands/validate.d.ts",
+      "import": "./dist/cli/commands/validate.js"
+    },
+    "./cli/commands/manifest": {
+      "types": "./dist/cli/commands/manifest.d.ts",
+      "import": "./dist/cli/commands/manifest.js"
+    },
+    "./cli/commands/doctor": {
+      "types": "./dist/cli/commands/doctor.d.ts",
+      "import": "./dist/cli/commands/doctor.js"
+    },
+    "./cli/commands/policy/lint": {
+      "types": "./dist/cli/commands/policy/lint.d.ts",
+      "import": "./dist/cli/commands/policy/lint.js"
+    },
+    "./cli/commands/policy/run": {
+      "types": "./dist/cli/commands/policy/run.d.ts",
+      "import": "./dist/cli/commands/policy/run.js"
+    },
+    "./cli/commands/policy/audit-verify": {
+      "types": "./dist/cli/commands/policy/audit-verify.d.ts",
+      "import": "./dist/cli/commands/policy/audit-verify.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "bin",
+    "dist",
+    "spec",
+    "README.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && chmod +x bin/steelyard.js bin/steelyard-agent.js",
     "test": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .turbo coverage"
   },
   "dependencies": {
-    "@steelyard/buyer": "workspace:^",
-    "@steelyard/core": "workspace:^",
-    "@steelyard/merchant": "workspace:^",
-    "@steelyard/policy": "workspace:*",
-    "@steelyard/protocol": "workspace:^",
-    "@steelyard/stripe": "workspace:^",
-    "@steelyard/x402": "workspace:^"
+    "@anthropic-ai/sdk": "^0.71.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@napi-rs/keyring": "^1.3.0",
+    "@noble/ciphers": "^2.2.0",
+    "@noble/hashes": "^1.8.0",
+    "@sd-jwt/core": "^0.19.0",
+    "@sd-jwt/sd-jwt-vc": "^0.19.0",
+    "@ucp-js/sdk": "^0.1.0",
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1",
+    "better-sqlite3": "^12.11.1",
+    "cac": "^7.0.0",
+    "canonicalize": "^3.0.0",
+    "ora": "^8.1.1",
+    "picocolors": "^1.1.1",
+    "picomatch": "^4.0.4",
+    "prompts": "^2.4.2",
+    "proper-lockfile": "^4.1.2",
+    "stripe": "^17.4.0",
+    "tldts": "^7.4.4",
+    "uuidv7": "^1.2.1",
+    "yaml": "^2.9.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.5",
-    "@vitest/coverage-v8": "^2.1.9"
+    "vitest": "^2.1.5"
+  },
+  "bin": {
+    "steelyard": "bin/steelyard.js",
+    "steelyard-agent": "bin/steelyard-agent.js"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

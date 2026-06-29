@@ -2,15 +2,15 @@
 //
 // `steelyard` — the SDK front door. A curated re-export of the ~15 symbols 90% of
 // developers need, plus the serveCommerce() one-call helper. Everything else is
-// still available by importing the specific @steelyard/* package directly.
+// still available by importing the specific steelyard/* package directly.
 //
 //   import { defineCommerce, serveCommerce } from "steelyard";
 //
 // Power users: for anything not re-exported here, import the underlying package,
-// e.g. `@steelyard/protocol/ucp`, `@steelyard/buyer/vault`, `@steelyard/merchant`.
+// e.g. `steelyard/protocol/ucp`, `steelyard/buyer/vault`, `steelyard/merchant`.
 
 // ── Define ──────────────────────────────────────────────────────────────────
-export { defineCommerce } from "@steelyard/core";
+export { defineCommerce } from "@steelyard-dev/core";
 export type {
   PaymentMandateIssuer,
   Manifest,
@@ -21,25 +21,25 @@ export type {
   PaymentMode,
   Price,
   PurchaseIntent
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 
 // ── Serve (the one call) ────────────────────────────────────────────────────
 export { serveCommerce, createCommerceReadHandler } from "./serve.js";
 export type { CommerceProtocol, ServeCommerceOptions } from "./serve.js";
 
 // ── Merchant checkout + PSP adapters ────────────────────────────────────────
-export { createCheckoutServer } from "@steelyard/merchant/checkout";
-export { stripePsp, referencePsp } from "@steelyard/merchant/psp";
+export { createCheckoutServer } from "@steelyard-dev/merchant/checkout";
+export { stripePsp, referencePsp } from "@steelyard-dev/merchant/psp";
 
 // ── Payment instruments (buyer side) ────────────────────────────────────────
-export { stripeSpt } from "@steelyard/stripe/buyer";
-export { referenceMandate, vaultedCard } from "@steelyard/buyer";
-export { x402Fetch, x402Payments } from "@steelyard/x402";
-export { exactUsdc, x402Paywall } from "@steelyard/x402/server";
+export { stripeSpt } from "@steelyard-dev/stripe/buyer";
+export { referenceMandate, vaultedCard } from "@steelyard-dev/buyer";
+export { x402Fetch, x402Payments } from "@steelyard-dev/x402";
+export { exactUsdc, x402Paywall } from "@steelyard-dev/x402/server";
 
 // ── Buyer: wallet + explore client ──────────────────────────────────────────
-export { Wallet } from "@steelyard/buyer";
-export { Steelyard, connect } from "@steelyard/buyer/client";
+export { Wallet } from "@steelyard-dev/buyer";
+export { Steelyard, connect } from "@steelyard-dev/buyer/client";
 
 // ── Buyer policy engine types ───────────────────────────────────────────────
 export type {
@@ -56,6 +56,6 @@ export type {
   PaymentIntentProposal,
   ApprovalStatusResult,
   ApprovalCallbackResult
-} from "@steelyard/policy";
+} from "@steelyard-dev/policy";
 
-export { PolicyEngine, createPolicyEngine } from "@steelyard/policy";
+export { PolicyEngine, createPolicyEngine } from "@steelyard-dev/policy";

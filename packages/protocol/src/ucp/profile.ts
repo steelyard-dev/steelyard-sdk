@@ -1,7 +1,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { promises as dns } from "node:dns";
 import { isIP } from "node:net";
-import { assertValidEcJwk, defaultClock, type EcJwk } from "@steelyard/core";
+import { assertValidEcJwk, defaultClock, type EcJwk } from "@steelyard-dev/core";
 import { assertValidUcpProfile, type UcpProfileDoc } from "./discovery.js";
 
 export const UCP_PROFILE_MAX_BYTES = 1024 * 1024;

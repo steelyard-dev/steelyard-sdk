@@ -1,15 +1,15 @@
 # Payment Adapters
 
 Steelyard v0.10 makes PSP adapters a public contract. External authors should
-build against `@steelyard/psp`, not `@steelyard/merchant` internals.
+build against `steelyard/psp`, not `steelyard/merchant` internals.
 
 ```sh
-npm install @steelyard/psp
+npm install steelyard
 ```
 
 ```ts
-import type { PaymentMandateIssuer, PspAdapter } from "@steelyard/psp";
-import { runPspConformance, runMandateIssuerConformance } from "@steelyard/psp/conformance";
+import type { PaymentMandateIssuer, PspAdapter } from "steelyard/psp";
+import { runPspConformance, runMandateIssuerConformance } from "steelyard/psp/conformance";
 ```
 
 ## Adapter Shape
@@ -40,9 +40,9 @@ and mint a scoped `PaymentMandate` from `PaymentMandateRequest`. The issuer's
 `instrumentType` must match one of the merchant adapter's advertised
 `capabilities[].instrumentType` values.
 
-`@steelyard/psp` owns the merchant-side contract types
+`steelyard/psp` owns the merchant-side contract types
 `PspAdapter`, `PspCaptureArgs`, `PspPaymentMandate`, and `PspPaymentIntent`. It
-also re-exports the buyer-side contract types from `@steelyard/core`, so adapter
+also re-exports the buyer-side contract types from `steelyard/core`, so adapter
 authors can import the full contract from one package.
 
 ## Run Conformance
@@ -90,7 +90,7 @@ adapter code safe. Treat adapters like payment infrastructure.
 
 ## Stability Policy
 
-The `@steelyard/psp` adapter contract follows additive-only semver: your adapter
+The `steelyard/psp` adapter contract follows additive-only semver: your adapter
 will not break on a minor release. New minor releases may add optional members or
 helpers, but breaking interface changes to `PspAdapter`, `PspCaptureArgs`, the
 payment mandate types, or the issuer contract require a major bump.
@@ -107,7 +107,7 @@ Third-party adapters should use:
 
 Known adapters:
 
-- `@steelyard/merchant/psp` Stripe and reference adapters: first-party,
+- `steelyard/merchant/psp` Stripe and reference adapters: first-party,
   in-repo reference implementations.
 - `examples/psp-adapter-template`: standalone-shaped starter for external
   authors.
@@ -128,5 +128,5 @@ Using a non-SPT issuer fails before minting.
 
 AP2 mandate issuance and verification, AP2 envelope checks, merchant
 authorization signing, AP2 payment-mandate verification, and UCP HTTP Message
-Signature operations live in `@steelyard/ucp-signing`. Applications normally
+Signature operations live in `steelyard/ucp-signing`. Applications normally
 reach those through the buyer, merchant, and protocol package exports.

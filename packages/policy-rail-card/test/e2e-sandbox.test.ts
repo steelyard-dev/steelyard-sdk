@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import Stripe from "stripe";
-import { PolicyEngine, InMemoryFxQuoteService, verifyChain } from "@steelyard/policy";
+import { PolicyEngine, InMemoryFxQuoteService, verifyChain } from "@steelyard-dev/policy";
 import { VirtualCardPolicyRailAdapter } from "../src/adapter.js";
 import { WebhookEventBus, type StripeIssuingEvent } from "../src/observe.js";
 

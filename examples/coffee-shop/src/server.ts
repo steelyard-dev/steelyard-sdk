@@ -1,17 +1,17 @@
 import { createServer, type IncomingMessage, type RequestListener, type ServerResponse } from "node:http";
-import { createUcpBuyerProfileHandler } from "@steelyard/buyer/client";
-import { buildAcpFeed } from "@steelyard/protocol/acp";
-import { createCommerceManifestHandler } from "@steelyard/protocol/commerce-manifest";
-import { HTTP_API_DEFAULT_PREFIX, createHttpApiHandler } from "@steelyard/protocol/http";
-import { createMcpHttpHandler } from "@steelyard/protocol/mcp";
-import { createUcpHandler } from "@steelyard/protocol/ucp";
+import { createUcpBuyerProfileHandler } from "steelyard/buyer/client";
+import { buildAcpFeed } from "steelyard/protocol/acp";
+import { createCommerceManifestHandler } from "steelyard/protocol/commerce-manifest";
+import { HTTP_API_DEFAULT_PREFIX, createHttpApiHandler } from "steelyard/protocol/http";
+import { createMcpHttpHandler } from "steelyard/protocol/mcp";
+import { createUcpHandler } from "steelyard/protocol/ucp";
 import {
   COMMERCE_MANIFEST_PATH,
   COMMERCE_READ_VERSION,
   type CommerceManifestOpts,
   type CommerceManifestPeer,
   type PeerName
-} from "@steelyard/core";
+} from "steelyard/core";
 import { coffeeShopManifest } from "./catalog.js";
 import { buyerDemoUcpPublicKey, merchantDemoUcpPrivateKey } from "./demo-ucp-keys.js";
 

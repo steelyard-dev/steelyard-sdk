@@ -1,6 +1,6 @@
 {
-  "name": "@steelyard/core",
-  "version": "0.2.0",
+  "name": "@steelyard-dev/core",
+  "version": "0.11.0",
   "description": "Core read-side commerce manifest, validation, and types for Steelyard.",
   "license": "MIT",
   "type": "module",
@@ -63,5 +63,6 @@
     "uuidv7": "^1.2.1",
     "yaml": "^2.9.0",
     "zod": "^3.23.8"
-  }
+  },
+  "private": true
 }

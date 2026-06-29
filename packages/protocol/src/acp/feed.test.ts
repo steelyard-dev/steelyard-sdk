@@ -3,7 +3,7 @@
 import { createServer, type Server as NodeServer } from "node:http";
 import { request } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { defineCommerce } from "@steelyard/core";
+import { defineCommerce } from "@steelyard-dev/core";
 import {
   assertValidAcpFeed,
   buildAcpFeed,

@@ -1,5 +1,5 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import type { Manifest, PspCaptureResult } from "@steelyard/core";
+import type { Manifest, PspCaptureResult } from "@steelyard-dev/core";
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import acpCheckoutSchema from "../../spec/acp/2026-04-17/json-schema/schema.agentic_checkout.json";
@@ -25,7 +25,7 @@ export type DiscountsResponse = AcpDiscountsResponse;
 export type CheckoutSession = AcpCheckoutSession;
 export type CheckoutSessionWithOrder = AcpCheckoutSessionWithOrder;
 export type AcpDiscoveryResponse = GeneratedAcpDiscoveryResponse;
-export type { PspCaptureResult } from "@steelyard/core";
+export type { PspCaptureResult } from "@steelyard-dev/core";
 export type {
   AcpCancelSessionRequest,
   AcpCheckoutSession,

@@ -1,10 +1,10 @@
-# `@steelyard/cli`
+# `steelyard/cli`
 
 Command-line tools for generating, validating, and diagnosing v0.4 commerce
 manifests.
 
 ```bash
-npm install -D @steelyard/cli
+npm install -D steelyard
 ```
 
 ## Commands

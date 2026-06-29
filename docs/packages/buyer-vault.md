@@ -1,10 +1,10 @@
 # Vault (engine)
 
-`@steelyard/buyer/vault` stores billing identity, addresses, and payment cards
+`steelyard/buyer/vault` stores billing identity, addresses, and payment cards
 in an encrypted local vault.
 
 ```ts
-import { BuyerVault, passwordKeystore } from "@steelyard/buyer/vault";
+import { BuyerVault, passwordKeystore } from "steelyard/buyer/vault";
 
 const vault = await BuyerVault.open({
   path: "~/.steelyard/vault.box",

@@ -1,7 +1,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createHash } from "node:crypto";
-import { ecdsaVerifyRaw, type EcJwk } from "@steelyard/core";
-import type { Checkout } from "@steelyard/protocol/ucp/checkout";
+import { ecdsaVerifyRaw, type EcJwk } from "@steelyard-dev/core";
+import type { Checkout } from "@steelyard-dev/protocol/ucp/checkout";
 import { describe, expect, it } from "vitest";
 import {
   BuyerVault,

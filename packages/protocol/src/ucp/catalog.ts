@@ -1,7 +1,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-import type { Manifest, Offer, Price } from "@steelyard/core";
+import type { Manifest, Offer, Price } from "@steelyard-dev/core";
 import {
   UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,

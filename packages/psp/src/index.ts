@@ -3,7 +3,7 @@ import type {
   EcJwk,
   PaymentCapability,
   PspCaptureResult
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 
 export type {
   PaymentMandateIssuer,
@@ -14,7 +14,7 @@ export type {
   PaymentMandateRequest,
   PspCaptureResult,
   SptHandle
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 
 export interface PspPaymentIntent {
   amount: number;

@@ -4,14 +4,14 @@ import {
   ecdsaSignRaw,
   type EcJwk,
   type HmsAlgorithm
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import {
   Ap2MerchantAuthorizationSignerConfigError,
   ap2MerchantAuthorizationSigner as ap2MerchantAuthorizationSignerForUcpSigner,
   checkoutWithoutAp2
-} from "@steelyard/ucp-signing";
-import type { UcpSigner } from "@steelyard/ucp-signing";
-import type { Checkout } from "@steelyard/protocol/ucp/checkout";
+} from "@steelyard-dev/ucp-signing";
+import type { UcpSigner } from "@steelyard-dev/ucp-signing";
+import type { Checkout } from "@steelyard-dev/protocol/ucp/checkout";
 import type { HmsSigningKey } from "../checkout/index.js";
 
 export interface MerchantAuthorizationSigner {

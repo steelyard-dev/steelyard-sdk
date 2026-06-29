@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { IncomingHttpHeaders, IncomingMessage, OutgoingHttpHeader, OutgoingHttpHeaders, ServerResponse } from "node:http";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { isInitializeRequest } from "@modelcontextprotocol/sdk/types.js";
-import { defaultClock, type Clock, type EcJwk, type Manifest } from "@steelyard/core";
+import { defaultClock, type Clock, type EcJwk, type Manifest } from "@steelyard-dev/core";
 import {
   parseUcpAgentProfileUrl,
   signUcpResponse,

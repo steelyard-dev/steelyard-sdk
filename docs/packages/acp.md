@@ -1,9 +1,9 @@
-# `@steelyard/protocol/acp`
+# `steelyard/protocol/acp`
 
 Emit a spec-validated ACP feed/catalog endpoint from a Steelyard manifest.
 
 ```bash
-npm install @steelyard/protocol @steelyard/core
+npm install steelyard
 ```
 
 The published `ProductsResponse` is validated against
@@ -25,10 +25,10 @@ import {
   type AcpDescription,
   type AcpMedia,
   type AcpValidationResult
-} from "@steelyard/protocol/acp";
+} from "steelyard/protocol/acp";
 ```
 
-Checkout validators are exported from `@steelyard/protocol/acp/checkout`:
+Checkout validators are exported from `steelyard/protocol/acp/checkout`:
 
 ```ts
 import {
@@ -37,7 +37,7 @@ import {
   applyCompleteRequest,
   assertValidCheckoutSession,
   assertValidCheckoutSessionWithOrder
-} from "@steelyard/protocol/acp/checkout";
+} from "steelyard/protocol/acp/checkout";
 ```
 
 ### `buildAcpFeed(manifest)` → `AcpFeed`
@@ -67,4 +67,4 @@ throw the specific spec violation). Coverage: ≥ 95% lines.
 
 - :material-protocol: [ACP protocol reference](../protocols/acp.md).
 - :material-cart: [ACP checkout](../protocols/acp-checkout.md).
-- :material-shopping-search: [`@steelyard/buyer/client`](client.md) — the unified buyer SDK.
+- :material-shopping-search: [`steelyard/buyer/client`](client.md) — the unified buyer SDK.

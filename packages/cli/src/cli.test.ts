@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable, Writable } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
-import { commerceManifest, defineCommerce, type Manifest } from "@steelyard/core";
+import { commerceManifest, defineCommerce, type Manifest } from "@steelyard-dev/core";
 import { manifestCommand } from "./commands/manifest.js";
 import { runCli } from "./cli.js";
 import { defaultIO, type CliIO } from "./io.js";

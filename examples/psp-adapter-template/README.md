@@ -1,7 +1,7 @@
 # Steelyard PSP Adapter Template
 
 This example is shaped like a standalone third-party adapter repository. Its
-runtime dependency is only `@steelyard/psp`.
+runtime dependency is only `steelyard/psp`.
 
 ```sh
 pnpm install

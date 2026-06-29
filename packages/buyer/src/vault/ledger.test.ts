@@ -1,4 +1,4 @@
-import type { PurchaseIntent, Receipt, SpendReceipt } from "@steelyard/core";
+import type { PurchaseIntent, Receipt, SpendReceipt } from "@steelyard-dev/core";
 import { fork } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { appendFile, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";

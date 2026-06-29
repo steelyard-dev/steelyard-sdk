@@ -2,7 +2,7 @@
 // To regenerate after manifest changes, run `steelyard init` again.
 // UCP discovery document — served at /.well-known/ucp.
 
-import { createCommerceRoutes, resolveManifestModule } from "@steelyard/next";
+import { createCommerceRoutes, resolveManifestModule } from "steelyard/next";
 import manifestModule from "@/commerce";
 
 const routes = createCommerceRoutes(await resolveManifestModule(manifestModule));

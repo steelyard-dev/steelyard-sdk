@@ -1,6 +1,11 @@
 # Release History
 
-## Unreleased — Next.js Developer Experience and Policy Engine
+## Unreleased
+
+## 0.11.0 - 2026-06-28
+
+Next.js developer experience, buyer policy engine, payment naming cleanup, and
+x402 paid HTTP resources.
 
 Steelyard now drops into existing Next.js + Stripe apps with one command.
 `npx steelyard init` detects the framework, language, package manager, and

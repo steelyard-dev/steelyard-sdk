@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PurchaseIntent } from "@steelyard/core";
+import type { PurchaseIntent } from "@steelyard-dev/core";
 import { evaluatePolicy } from "./evaluate.js";
 import { domainMatches } from "./glob.js";
 import { normalizeMerchantDomain } from "./normalize.js";

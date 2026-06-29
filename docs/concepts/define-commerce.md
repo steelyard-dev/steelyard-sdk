@@ -6,7 +6,7 @@ protocol adapter; the same `Manifest` powers all of them.
 ## Shape
 
 ```typescript
-import { defineCommerce } from "@steelyard/core";
+import { defineCommerce } from "steelyard/core";
 
 const manifest = defineCommerce({
   identity: {
@@ -86,7 +86,7 @@ buyer's expectation around fulfillment.
 If you want to validate a config without throwing, use `validate()`:
 
 ```typescript
-import { validate } from "@steelyard/core";
+import { validate } from "steelyard/core";
 
 const result = validate(rawInput);
 if (!result.valid) {

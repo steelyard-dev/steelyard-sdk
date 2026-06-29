@@ -2,7 +2,7 @@
 import { createServer, request } from "node:http";
 import type { RequestListener, Server as NodeServer } from "node:http";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { defineCommerce, type Manifest } from "@steelyard/core";
+import { defineCommerce, type Manifest } from "@steelyard-dev/core";
 import { createHttpApiHandler, HTTP_API_DEFAULT_PREFIX } from "./index.js";
 
 const fixedDate = new Date("2026-06-14T12:00:00.000Z");

@@ -1,8 +1,8 @@
-# `@steelyard/merchant/policy`
+# `steelyard/merchant/policy`
 
 Merchant-side checkout policy loader. The YAML shape mirrors
-`@steelyard/buyer/policy` and is parsed by the shared strict
-`@steelyard/core/policy-yaml` parser.
+`steelyard/buyer/policy` and is parsed by the shared strict
+`steelyard/core/policy-yaml` parser.
 
 ```yaml
 version: "0.1"
@@ -17,7 +17,7 @@ rules:
 ```
 
 ```typescript
-import { MerchantPolicy } from "@steelyard/merchant/policy";
+import { MerchantPolicy } from "steelyard/merchant/policy";
 
 const policy = MerchantPolicy.fromPath("/etc/steelyard/merchant-policy.yml");
 const decision = await policy.evaluate(intent);

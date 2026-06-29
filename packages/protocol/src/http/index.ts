@@ -8,7 +8,7 @@ import {
   type CommerceManifestPeer,
   type Manifest,
   type Offer
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import commerceManifestSchema from "../../../core/spec/commerce-manifest/0.1/commerce-manifest.schema.json";
 import capabilitiesResponseSchema from "../../../core/spec/http/0.1/capabilities_response.schema.json";
 import errorSchema from "../../../core/spec/http/0.1/error.schema.json";

@@ -1,4 +1,4 @@
-import type { PolicyRailAdapter, RailCapabilities, RailEnvironment, SettlementEvent } from "@steelyard/policy";
+import type { PolicyRailAdapter, RailCapabilities, RailEnvironment, SettlementEvent } from "@steelyard-dev/policy";
 import { mintCard, type MintArgs } from "./mint.js";
 import { WebhookEventBus } from "./observe.js";
 import { revokeCard } from "./revoke.js";

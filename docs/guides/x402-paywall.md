@@ -61,6 +61,6 @@ durable custom store.
 ## Offline Example
 
 ```sh
-pnpm --filter @steelyard/example-x402-weather test
-pnpm --filter @steelyard/example-x402-weather build
+pnpm --filter steelyard-example-x402-weather test
+pnpm --filter steelyard-example-x402-weather build
 ```

@@ -1,4 +1,4 @@
-import type { EcJwk } from "@steelyard/core";
+import type { EcJwk } from "steelyard/core";
 
 function b64urlHex(value: string): string {
   return Buffer.from(value, "hex").toString("base64url");

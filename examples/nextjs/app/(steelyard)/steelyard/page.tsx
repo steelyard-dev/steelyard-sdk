@@ -1,7 +1,7 @@
 // Steelyard dev inspector — written by `steelyard init`.
 // Lives at /steelyard, dev-only, owned by your repo (edit or delete freely).
 
-import { resolveManifestModule } from "@steelyard/next";
+import { resolveManifestModule } from "steelyard/next";
 import manifestModule from "../../../commerce";
 
 export const dynamic = "force-dynamic";

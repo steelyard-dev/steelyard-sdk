@@ -2,7 +2,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { Manifest } from "@steelyard/core";
+import type { Manifest } from "@steelyard-dev/core";
 import { createMcpServer } from "./server.js";
 
 export async function runMcpStdio(

@@ -1,11 +1,11 @@
-# `@steelyard/buyer`
+# `steelyard/buyer`
 
 Root `Wallet` facade for buyer-side payment instruments.
 
 ```ts
-import { Wallet, vaultedCard } from "@steelyard/buyer";
-import { stripeSpt } from "@steelyard/stripe/buyer";
-import { x402Payments } from "@steelyard/x402";
+import { Wallet, vaultedCard } from "steelyard/buyer";
+import { stripeSpt } from "steelyard/stripe/buyer";
+import { x402Payments } from "steelyard/x402";
 
 const wallet = await Wallet.open();
 
@@ -29,7 +29,7 @@ const session = await wallet.createBrowserManualSession(intent);
 
 `Wallet` composes `WalletRules` and `BuyerVault` internally. It does not expose
 `wallet.policy` or `wallet.vault`; power users import
-`@steelyard/buyer/policy` and `@steelyard/buyer/vault` directly.
+`steelyard/buyer/policy` and `steelyard/buyer/vault` directly.
 
 ## Payment modes
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Merchant } from "@steelyard/buyer/client";
+import type { Merchant } from "@steelyard-dev/buyer/client";
 import { parseNaivePrompt, runAgent, DEFAULT_ANTHROPIC_MODEL, type AgentOutput } from "./index.js";
 
 const offers = [

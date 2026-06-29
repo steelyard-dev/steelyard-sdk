@@ -6,13 +6,13 @@
 
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { Steelyard, type Merchant } from "@steelyard/buyer/client";
+import { Steelyard, type Merchant } from "@steelyard-dev/buyer/client";
 import {
   COMMERCE_MANIFEST_PATH,
   defineCommerce,
   validateCommerceManifest,
   type CommerceManifestDoc
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import { createCommerceReadHandler, serveCommerce } from "./serve.js";
 
 const manifest = defineCommerce({

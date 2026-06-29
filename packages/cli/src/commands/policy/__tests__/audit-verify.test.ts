@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable, Writable } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { hashEntry } from "@steelyard/policy";
+import { hashEntry } from "@steelyard-dev/policy";
 import { runCli } from "../../../cli.js";
 import type { CliIO } from "../../../io.js";
 

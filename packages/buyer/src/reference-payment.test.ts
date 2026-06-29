@@ -1,5 +1,5 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import type { EcJwk } from "@steelyard/core";
+import type { EcJwk } from "@steelyard-dev/core";
 import { describe, expect, it } from "vitest";
 import {
   REFERENCE_PAYMENT_INSTRUMENT_TYPE,

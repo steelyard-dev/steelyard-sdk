@@ -12,7 +12,7 @@ import {
   type HmsAlgorithm,
   type Sf941InnerList,
   type SignatureParameters
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import type { UcpSigner } from "./signer.js";
 
 export interface UcpOpaqueSigningMaterial {

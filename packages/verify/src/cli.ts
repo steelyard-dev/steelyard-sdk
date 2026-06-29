@@ -13,8 +13,8 @@ import {
   parseSf941Dict,
   serializeSf941Dict,
   type EcJwk
-} from "@steelyard/core";
-import { fetchUcpProfile, type UcpProfileFetchErrorCode } from "@steelyard/protocol/ucp";
+} from "@steelyard-dev/core";
+import { fetchUcpProfile, type UcpProfileFetchErrorCode } from "@steelyard-dev/protocol/ucp";
 
 type VerifyStatus = "passed" | "failed" | "skipped";
 
@@ -212,30 +212,30 @@ function addV07AdapterConformanceCases(cases: VerifyCase[]): void {
       "UCP payment handlers derive from PSP accepted instruments",
       ["packages/protocol/src/ucp/ucp.test.ts", "packages/merchant/src/checkout/server.test.ts", "NC1", "MV2", "AD3"],
       async (ctx) => {
-        await runFocusedVitest(ctx, "v06-protocol-ucp", "@steelyard/protocol", "src/ucp/ucp.test.ts");
-        await runFocusedVitest(ctx, "v07-merchant-checkout", "@steelyard/merchant", "src/checkout/server.test.ts");
+        await runFocusedVitest(ctx, "v06-protocol-ucp", "@steelyard-dev/protocol", "src/ucp/ucp.test.ts");
+        await runFocusedVitest(ctx, "v07-merchant-checkout", "@steelyard-dev/merchant", "src/checkout/server.test.ts");
       }
     ],
     [
       "V07-BN-01",
       "Buyer UCP requires advertised instruments and carries issuer instrument types",
       ["packages/buyer/src/client/checkout-drivers.test.ts", "BN2", "BN3"],
-      (ctx) => runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard/buyer", "src/client/checkout-drivers.test.ts")
+      (ctx) => runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard-dev/buyer", "src/client/checkout-drivers.test.ts")
     ],
     [
       "V07-RP-01",
       "Reference issuer and PSP sign and verify delegated payment tokens",
       ["packages/buyer/src/reference-payment.test.ts", "packages/merchant/src/psp/psp.test.ts", "RP1", "RP2", "RP3"],
       async (ctx) => {
-        await runFocusedVitest(ctx, "v07-buyer-reference-payment", "@steelyard/buyer", "src/reference-payment.test.ts");
-        await runFocusedVitest(ctx, "v06-merchant-psp", "@steelyard/merchant", "src/psp/psp.test.ts");
+        await runFocusedVitest(ctx, "v07-buyer-reference-payment", "@steelyard-dev/buyer", "src/reference-payment.test.ts");
+        await runFocusedVitest(ctx, "v06-merchant-psp", "@steelyard-dev/merchant", "src/psp/psp.test.ts");
       }
     ],
     [
       "V07-AG-01",
       "ACP rejects non-SPT payment mandate issuers before minting",
       ["packages/buyer/src/client/checkout-drivers.test.ts", "AG1"],
-      (ctx) => runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard/buyer", "src/client/checkout-drivers.test.ts")
+      (ctx) => runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard-dev/buyer", "src/client/checkout-drivers.test.ts")
     ],
     [
       "V07-EX-01",
@@ -244,7 +244,7 @@ function addV07AdapterConformanceCases(cases: VerifyCase[]): void {
       (ctx) =>
         runCommandOnce(ctx, "v07-coffee-shop-dual-ucp", "pnpm", [
           "--filter",
-          "@steelyard/example-coffee-shop",
+          "steelyard-example-coffee-shop",
           "smoke:ucp:dual"
         ], {
           STEELYARD_MOCK_STRIPE: "1",
@@ -277,27 +277,27 @@ function addV06StripeConformanceCases(cases: VerifyCase[]): void {
       "VSPT-01",
       "Stripe SPT primitives mint, charge, normalize errors, and reject live keys",
       ["packages/core/src/stripe/index.test.ts", "SP1", "SP2", "SP3", "SP4"],
-      (ctx) => runFocusedVitest(ctx, "v06-core-stripe", "@steelyard/core", "src/stripe/index.test.ts")
+      (ctx) => runFocusedVitest(ctx, "v06-core-stripe", "@steelyard-dev/core", "src/stripe/index.test.ts")
     ],
     [
       "VSI-01",
       "Buyer Stripe SPT issuer binds AP2 mandate scope and refuses widening",
       ["packages/stripe/src/buyer.test.ts", "SI1", "SI2", "SI3", "SI4"],
-      (ctx) => runFocusedVitest(ctx, "v06-stripe-buyer", "@steelyard/stripe", "src/buyer.test.ts")
+      (ctx) => runFocusedVitest(ctx, "v06-stripe-buyer", "@steelyard-dev/stripe", "src/buyer.test.ts")
     ],
     [
       "VSC-01",
       "Merchant PSP discriminates SPTs and verifies AP2 payment mandates before Stripe capture",
       ["packages/merchant/src/psp/psp.test.ts", "SC1", "SC2", "SC3", "SC4", "AP1", "AP2", "AP3", "AP4"],
-      (ctx) => runFocusedVitest(ctx, "v06-merchant-psp", "@steelyard/merchant", "src/psp/psp.test.ts")
+      (ctx) => runFocusedVitest(ctx, "v06-merchant-psp", "@steelyard-dev/merchant", "src/psp/psp.test.ts")
     ],
     [
       "VUH-01",
       "UCP payment_handlers advertise Stripe and buyer checkout selects compatible handlers",
       ["packages/protocol/src/ucp/ucp.test.ts", "packages/buyer/src/client/checkout-drivers.test.ts", "UH1", "UH2", "UH3", "UH4"],
       async (ctx) => {
-        await runFocusedVitest(ctx, "v06-protocol-ucp", "@steelyard/protocol", "src/ucp/ucp.test.ts");
-        await runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard/buyer", "src/client/checkout-drivers.test.ts");
+        await runFocusedVitest(ctx, "v06-protocol-ucp", "@steelyard-dev/protocol", "src/ucp/ucp.test.ts");
+        await runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard-dev/buyer", "src/client/checkout-drivers.test.ts");
       }
     ],
     [
@@ -305,8 +305,8 @@ function addV06StripeConformanceCases(cases: VerifyCase[]): void {
       "ACP checkout REST accepts direct SPT payment_data and buyer emits exact request shapes",
       ["packages/protocol/src/acp/checkout.test.ts", "packages/buyer/src/client/checkout-drivers.test.ts", "AC1", "AC2", "AC3", "AC4", "AC5", "AC6", "AB1", "AB2", "AB3", "AB4", "AB5", "AP5"],
       async (ctx) => {
-        await runFocusedVitest(ctx, "v06-protocol-acp-checkout", "@steelyard/protocol", "src/acp/checkout.test.ts");
-        await runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard/buyer", "src/client/checkout-drivers.test.ts");
+        await runFocusedVitest(ctx, "v06-protocol-acp-checkout", "@steelyard-dev/protocol", "src/acp/checkout.test.ts");
+        await runFocusedVitest(ctx, "v06-buyer-checkout-drivers", "@steelyard-dev/buyer", "src/client/checkout-drivers.test.ts");
       }
     ],
     [
@@ -316,15 +316,15 @@ function addV06StripeConformanceCases(cases: VerifyCase[]): void {
       async (ctx) => {
         await runCommandOnce(ctx, "v06-coffee-shop-stripe-ucp-mock", "pnpm", [
           "--filter",
-          "@steelyard/example-coffee-shop",
+          "steelyard-example-coffee-shop",
           "smoke:stripe:ucp"
         ], { STEELYARD_MOCK_STRIPE: "1", STRIPE_TEST_SECRET_KEY: "sk_test_mock" });
         await runCommandOnce(ctx, "v06-coffee-shop-stripe-acp-mock", "pnpm", [
           "--filter",
-          "@steelyard/example-coffee-shop",
+          "steelyard-example-coffee-shop",
           "smoke:stripe:acp"
         ], { STEELYARD_MOCK_STRIPE: "1", STRIPE_TEST_SECRET_KEY: "sk_test_mock" });
-        await runFocusedVitest(ctx, "v06-coffee-shop-tests", "@steelyard/example-coffee-shop", "src/acp-interop.test.ts");
+        await runFocusedVitest(ctx, "v06-coffee-shop-tests", "steelyard-example-coffee-shop", "src/acp-interop.test.ts");
       }
     ]
   ];
@@ -346,55 +346,55 @@ function addV05Ap2ConformanceCases(cases: VerifyCase[]): void {
       "VAP2-01",
       "AP2 checkout mandate is SD-JWT+KB with KB-JWT sd_hash",
       ["packages/buyer/src/vault/mandate-ap2.test.ts", "RFC 9901 Section 4.3"],
-      (ctx) => runFocusedVitest(ctx, "vap2-buyer-mandate-ap2", "@steelyard/buyer", "src/vault/mandate-ap2.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vap2-buyer-mandate-ap2", "@steelyard-dev/buyer", "src/vault/mandate-ap2.test.ts")
     ],
     [
       "VAP2-02",
       "AP2 payment mandate uses mandate.payment.1 claims",
       ["packages/buyer/src/vault/mandate-ap2.test.ts", "AP2 mandate.payment.1"],
-      (ctx) => runFocusedVitest(ctx, "vap2-buyer-mandate-ap2", "@steelyard/buyer", "src/vault/mandate-ap2.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vap2-buyer-mandate-ap2", "@steelyard-dev/buyer", "src/vault/mandate-ap2.test.ts")
     ],
     [
       "VAP2-03",
       "PSP adapters verify AP2 payment mandates before capture",
       ["packages/merchant/src/psp/psp.test.ts", "PM5-3"],
-      (ctx) => runFocusedVitest(ctx, "vap2-merchant-psp", "@steelyard/merchant", "src/psp/psp.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vap2-merchant-psp", "@steelyard-dev/merchant", "src/psp/psp.test.ts")
     ],
     [
       "VAP2-04",
       "AP2 envelope validation accepts SD-JWT+KB shape and defers signature checks",
       ["packages/protocol/src/ucp/ap2-envelope.test.ts", "SC5-2"],
-      (ctx) => runFocusedVitest(ctx, "vap2-protocol-ap2-envelope", "@steelyard/protocol", "src/ucp/ap2-envelope.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vap2-protocol-ap2-envelope", "@steelyard-dev/protocol", "src/ucp/ap2-envelope.test.ts")
     ],
     [
       "VBV-01",
       "Merchant authorization signer emits AP2 detached JWS",
       ["packages/merchant/src/mandate/ap2.test.ts", "MA5-1"],
-      (ctx) => runFocusedVitest(ctx, "vbv-merchant-ap2", "@steelyard/merchant", "src/mandate/ap2.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vbv-merchant-ap2", "@steelyard-dev/merchant", "src/mandate/ap2.test.ts")
     ],
     [
       "VBV-02",
       "Buyer verifies AP2 merchant authorization before complete",
       ["packages/buyer/src/client/checkout-drivers.test.ts", "BV5"],
-      (ctx) => runFocusedVitest(ctx, "vbv-buyer-ucp-driver", "@steelyard/buyer", "src/client/checkout-drivers.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vbv-buyer-ucp-driver", "@steelyard-dev/buyer", "src/client/checkout-drivers.test.ts")
     ],
     [
       "VBV-03",
       "Merchant mounts AP2 merchant authorization on locked checkout responses",
       ["packages/merchant/src/checkout/server.test.ts", "MA5-2", "DI5-3"],
-      (ctx) => runFocusedVitest(ctx, "vbv-merchant-checkout", "@steelyard/merchant", "src/checkout/server.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vbv-merchant-checkout", "@steelyard-dev/merchant", "src/checkout/server.test.ts")
     ],
     [
       "VNO-01",
       "AP2 nonce store is single-use and file-backed",
       ["packages/merchant/src/mandate/nonce.test.ts", "NO5-1", "NO5-2"],
-      (ctx) => runFocusedVitest(ctx, "vno-merchant-nonce", "@steelyard/merchant", "src/mandate/nonce.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vno-merchant-nonce", "@steelyard-dev/merchant", "src/mandate/nonce.test.ts")
     ],
     [
       "VNO-02",
       "AP2 verifier consumes checkout nonces and rejects replay",
       ["packages/merchant/src/mandate/ap2-verifier.test.ts", "VE5-2", "NO5-2"],
-      (ctx) => runFocusedVitest(ctx, "vno-merchant-ap2-verifier", "@steelyard/merchant", "src/mandate/ap2-verifier.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vno-merchant-ap2-verifier", "@steelyard-dev/merchant", "src/mandate/ap2-verifier.test.ts")
     ],
     [
       "VNO-03",
@@ -403,7 +403,7 @@ function addV05Ap2ConformanceCases(cases: VerifyCase[]): void {
       (ctx) =>
         runCommandOnce(ctx, "vno-coffee-shop-ap2-smoke", "pnpm", [
           "--filter",
-          "@steelyard/example-coffee-shop",
+          "steelyard-example-coffee-shop",
           "tsx",
           "scripts/smoke-ap2.ts"
         ])
@@ -427,27 +427,27 @@ function addV041ConformanceCases(cases: VerifyCase[]): void {
       "VK1",
       "Canonical UCP discovery uses full capability keys",
       ["packages/protocol/src/ucp/ucp.test.ts"],
-      (ctx) => runFocusedVitest(ctx, "vk-protocol-ucp", "@steelyard/protocol", "src/ucp/ucp.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vk-protocol-ucp", "@steelyard-dev/protocol", "src/ucp/ucp.test.ts")
     ],
     [
       "VK2",
       "Legacy UCP bucket/id discovery still sniffs during migration",
       ["packages/buyer/src/client/client.test.ts"],
-      (ctx) => runFocusedVitest(ctx, "vk-buyer-client", "@steelyard/buyer", "src/client/client.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vk-buyer-client", "@steelyard-dev/buyer", "src/client/client.test.ts")
     ],
     [
       "VK3",
       "Vanilla UCP complete succeeds without a Steelyard mandate",
       ["packages/merchant/src/checkout/server.test.ts"],
-      (ctx) => runFocusedVitest(ctx, "vk-merchant-checkout", "@steelyard/merchant", "src/checkout/server.test.ts")
+      (ctx) => runFocusedVitest(ctx, "vk-merchant-checkout", "@steelyard-dev/merchant", "src/checkout/server.test.ts")
     ],
     [
       "VK4",
       "Steelyard-mode UCP complete still verifies mandates",
       ["packages/merchant/src/checkout/server.test.ts", "packages/buyer/src/client/checkout-drivers.test.ts"],
       async (ctx) => {
-        await runFocusedVitest(ctx, "vk-merchant-checkout", "@steelyard/merchant", "src/checkout/server.test.ts");
-        await runFocusedVitest(ctx, "vk-buyer-ucp-driver", "@steelyard/buyer", "src/client/checkout-drivers.test.ts");
+        await runFocusedVitest(ctx, "vk-merchant-checkout", "@steelyard-dev/merchant", "src/checkout/server.test.ts");
+        await runFocusedVitest(ctx, "vk-buyer-ucp-driver", "@steelyard-dev/buyer", "src/client/checkout-drivers.test.ts");
       }
     ]
   ];

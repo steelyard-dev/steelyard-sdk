@@ -4,17 +4,17 @@
 
 ```mermaid
 graph TD
-  core["@steelyard/core<br/><i>schema · types · ErrorCode · zod</i>"]
-  cm["@steelyard/protocol/commerce-manifest<br/><i>/.well-known/commerce.json</i>"]
-  http["@steelyard/protocol/http<br/><i>/commerce read API</i>"]
-  mcp["@steelyard/protocol/mcp<br/><i>tools + resources<br/>@modelcontextprotocol/sdk</i>"]
-  acp["@steelyard/protocol/acp<br/><i>ProductsResponse<br/>AJV spec validation</i>"]
-  ucp["@steelyard/protocol/ucp<br/><i>discovery + catalog<br/>AJV spec validation</i>"]
-  hms["@steelyard/core RFC 9421<br/><i>HMS base · digest · ECDSA</i>"]
-  merchant["@steelyard/merchant<br/><i>ACP/UCP checkout assembly</i>"]
-  client["@steelyard/buyer/client<br/><i>auto-detect buyer SDK</i>"]
-  agent["@steelyard/agent<br/><i>LLM-driven CLI</i>"]
-  cli["@steelyard/cli<br/><i>manifest · validate · doctor</i>"]
+  core["steelyard/core<br/><i>schema · types · ErrorCode · zod</i>"]
+  cm["steelyard/protocol/commerce-manifest<br/><i>/.well-known/commerce.json</i>"]
+  http["steelyard/protocol/http<br/><i>/commerce read API</i>"]
+  mcp["steelyard/protocol/mcp<br/><i>tools + resources<br/>@modelcontextprotocol/sdk</i>"]
+  acp["steelyard/protocol/acp<br/><i>ProductsResponse<br/>AJV spec validation</i>"]
+  ucp["steelyard/protocol/ucp<br/><i>discovery + catalog<br/>AJV spec validation</i>"]
+  hms["steelyard/core RFC 9421<br/><i>HMS base · digest · ECDSA</i>"]
+  merchant["steelyard/merchant<br/><i>ACP/UCP checkout assembly</i>"]
+  client["steelyard/buyer/client<br/><i>auto-detect buyer SDK</i>"]
+  agent["steelyard/agent<br/><i>LLM-driven CLI</i>"]
+  cli["steelyard/cli<br/><i>manifest · validate · doctor</i>"]
   example["examples/coffee-shop<br/><i>private; not published</i>"]
 
   core --> cm
@@ -43,7 +43,7 @@ graph TD
   ucp --> example
 ```
 
-A CI lint rule enforces that `@steelyard/core` does **not** import from any
+A CI lint rule enforces that `steelyard/core` does **not** import from any
 payment adapter, LLM provider, or framework. The dependency graph is
 acyclic and protocol-agnostic at the core.
 
@@ -51,8 +51,8 @@ acyclic and protocol-agnostic at the core.
 
 ```mermaid
 sequenceDiagram
-  participant Agent as @steelyard/agent
-  participant Client as @steelyard/buyer/client
+  participant Agent as steelyard/agent
+  participant Client as steelyard/buyer/client
   participant Merchant as Steelyard merchant
   participant LLM as Anthropic (optional)
 
@@ -84,14 +84,14 @@ emit time:
 
 | Adapter | Validator | Schema |
 |---------|-----------|--------|
-| `@steelyard/protocol/commerce-manifest` | AJV2020 | `packages/core/spec/commerce-manifest/0.1/commerce-manifest.schema.json` |
-| `@steelyard/protocol/http` | AJV2020 | `packages/core/spec/http/0.1/*.schema.json` |
-| `@steelyard/protocol/acp` | AJV2020 | `protocols/acp/spec/2026-04-17/json-schema/schema.feed.json` |
-| `@steelyard/protocol/ucp` (discovery) | AJV2020 | `protocols/ucp/source/schemas/ucp.json` + transitive deps |
-| `@steelyard/protocol/ucp` (catalog) | AJV2020 | `protocols/ucp/source/schemas/shopping/catalog_*.json` |
-| `@steelyard/protocol/{acp,ucp}/checkout` | AJV2020 | Vendored checkout schemas |
+| `steelyard/protocol/commerce-manifest` | AJV2020 | `packages/core/spec/commerce-manifest/0.1/commerce-manifest.schema.json` |
+| `steelyard/protocol/http` | AJV2020 | `packages/core/spec/http/0.1/*.schema.json` |
+| `steelyard/protocol/acp` | AJV2020 | `protocols/acp/spec/2026-04-17/json-schema/schema.feed.json` |
+| `steelyard/protocol/ucp` (discovery) | AJV2020 | `protocols/ucp/source/schemas/ucp.json` + transitive deps |
+| `steelyard/protocol/ucp` (catalog) | AJV2020 | `protocols/ucp/source/schemas/shopping/catalog_*.json` |
+| `steelyard/protocol/{acp,ucp}/checkout` | AJV2020 | Vendored checkout schemas |
 | UCP HTTP Message Signatures | RFC fixtures + package tests | RFC 9421, RFC 9530, RFC 8941, UCP `signatures.md` |
-| `@steelyard/protocol/mcp` | — | Uses the official `@modelcontextprotocol/sdk`; conformance is by construction |
+| `steelyard/protocol/mcp` | — | Uses the official `@modelcontextprotocol/sdk`; conformance is by construction |
 
 Bugs that would produce non-conformant output throw at emit time with the
 specific spec violation. **No fake / incomplete stuff.**

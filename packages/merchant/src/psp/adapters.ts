@@ -7,12 +7,12 @@ import {
   type EcJwk,
   type HmsAlgorithm,
   type PspCaptureResult
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import type {
   PaymentCapability,
   PspAdapter,
   PspCaptureArgs
-} from "@steelyard/psp";
+} from "@steelyard-dev/psp";
 import {
   STRIPE_LIVE_KEY_PREFIX,
   STRIPE_SPT_ID_PREFIX,
@@ -20,15 +20,15 @@ import {
   assertStripeTestSecretKey,
   chargeSharedPaymentToken,
   redactSecret
-} from "@steelyard/core/stripe";
-import { verifyAp2PaymentMandate } from "@steelyard/ucp-signing";
-export type { PspCaptureResult } from "@steelyard/core";
+} from "@steelyard-dev/core/stripe";
+import { verifyAp2PaymentMandate } from "@steelyard-dev/ucp-signing";
+export type { PspCaptureResult } from "@steelyard-dev/core";
 export type {
   PspAdapter,
   PspCaptureArgs,
   PspPaymentIntent,
   PspPaymentMandate
-} from "@steelyard/psp";
+} from "@steelyard-dev/psp";
 
 export type MockPspFailMode =
   | "declined"

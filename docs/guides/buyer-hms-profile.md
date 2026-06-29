@@ -21,8 +21,8 @@ and strips profile output to public EC fields.
 ## Generate The Profile
 
 ```ts
-import { Wallet } from "@steelyard/buyer";
-import { createUcpBuyerProfile } from "@steelyard/buyer/client";
+import { Wallet } from "steelyard/buyer";
+import { createUcpBuyerProfile } from "steelyard/buyer/client";
 
 const wallet = await Wallet.open();
 if (!(await wallet.hasUcpSigningKey())) {
@@ -42,8 +42,8 @@ For local development or a small wallet service, use the built-in handler:
 
 ```ts
 import { createServer } from "node:http";
-import { Wallet } from "@steelyard/buyer";
-import { createUcpBuyerProfileHandler } from "@steelyard/buyer/client";
+import { Wallet } from "steelyard/buyer";
+import { createUcpBuyerProfileHandler } from "steelyard/buyer/client";
 
 const wallet = await Wallet.open();
 const publicKey = await wallet.exportUcpSigningPublicKey();
@@ -61,7 +61,7 @@ and returns 405 for other methods.
 Pass the profile URL with the same `kid` and algorithm stored in the wallet:
 
 ```ts
-import { Steelyard } from "@steelyard/buyer/client";
+import { Steelyard } from "steelyard/buyer/client";
 
 const merchant = await Steelyard.connect("https://coffee.example/.well-known/ucp", {
   ucpAuth: {

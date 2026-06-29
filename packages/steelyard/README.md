@@ -52,7 +52,7 @@ This package re-exports the symbols 90% of integrators need:
 ## Power users
 
 This is a curated front door, not the whole surface. For anything not above, import
-the specific package directly — e.g. `@steelyard/protocol/ucp`,
-`@steelyard/buyer/vault`, `@steelyard/merchant`, `@steelyard/x402`,
-`@steelyard/core`. The umbrella never
+the specific package directly — e.g. `steelyard/protocol/ucp`,
+`steelyard/buyer/vault`, `steelyard/merchant`, `steelyard/x402`,
+`steelyard/core`. The umbrella never
 hides them; it just gives you a shorter path to the common case.

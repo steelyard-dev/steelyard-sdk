@@ -16,7 +16,7 @@ data, secrets, or internal operational state.
 ## Build one
 
 ```ts
-import { commerceManifest } from "@steelyard/core";
+import { commerceManifest } from "steelyard/core";
 
 const doc = commerceManifest(manifest, {
   generatedAt: "2026-06-14T00:00:00.000Z",
@@ -37,7 +37,7 @@ returning it.
 
 ```ts
 import { createServer } from "node:http";
-import { createCommerceManifestHandler } from "@steelyard/protocol/commerce-manifest";
+import { createCommerceManifestHandler } from "steelyard/protocol/commerce-manifest";
 
 const wellKnown = createCommerceManifestHandler(manifest, {
   peers: {

@@ -2,7 +2,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
-import { systemClock } from "@steelyard/core";
+import { systemClock } from "@steelyard-dev/core";
 import { lock } from "proper-lockfile";
 
 export interface IdempotencyResponse {

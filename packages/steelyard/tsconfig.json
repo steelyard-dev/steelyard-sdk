@@ -1,9 +1,144 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist"
+    "rootDir": "..",
+    "outDir": "dist",
+    "baseUrl": "../..",
+    "paths": {
+      "@steelyard-dev/agent": [
+        "packages/agent/src/index.ts"
+      ],
+      "@steelyard-dev/buyer": [
+        "packages/buyer/src/wallet/index.ts"
+      ],
+      "@steelyard-dev/buyer/client": [
+        "packages/buyer/src/client/index.ts"
+      ],
+      "@steelyard-dev/buyer/client/acp": [
+        "packages/buyer/src/client/acp.ts"
+      ],
+      "@steelyard-dev/buyer/client/ucp": [
+        "packages/buyer/src/client/ucp.ts"
+      ],
+      "@steelyard-dev/buyer/policy": [
+        "packages/buyer/src/policy/index.ts"
+      ],
+      "@steelyard-dev/buyer/vault": [
+        "packages/buyer/src/vault/index.ts"
+      ],
+      "@steelyard-dev/cli": [
+        "packages/cli/src/cli.ts"
+      ],
+      "@steelyard-dev/cli/commands/doctor": [
+        "packages/cli/src/commands/doctor.ts"
+      ],
+      "@steelyard-dev/cli/commands/manifest": [
+        "packages/cli/src/commands/manifest.ts"
+      ],
+      "@steelyard-dev/cli/commands/policy/audit-verify": [
+        "packages/cli/src/commands/policy/audit-verify.ts"
+      ],
+      "@steelyard-dev/cli/commands/policy/lint": [
+        "packages/cli/src/commands/policy/lint.ts"
+      ],
+      "@steelyard-dev/cli/commands/policy/run": [
+        "packages/cli/src/commands/policy/run.ts"
+      ],
+      "@steelyard-dev/cli/commands/validate": [
+        "packages/cli/src/commands/validate.ts"
+      ],
+      "@steelyard-dev/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@steelyard-dev/core/idempotency": [
+        "packages/core/src/idempotency/index.ts"
+      ],
+      "@steelyard-dev/core/order-state": [
+        "packages/core/src/order-state.ts"
+      ],
+      "@steelyard-dev/core/policy-yaml": [
+        "packages/core/src/policy-yaml/index.ts"
+      ],
+      "@steelyard-dev/core/purchase": [
+        "packages/core/src/purchase.ts"
+      ],
+      "@steelyard-dev/core/stripe": [
+        "packages/core/src/stripe/index.ts"
+      ],
+      "@steelyard-dev/core/stripe/constants": [
+        "packages/core/src/stripe/constants.ts"
+      ],
+      "@steelyard-dev/merchant": [
+        "packages/merchant/src/index.ts"
+      ],
+      "@steelyard-dev/merchant/checkout": [
+        "packages/merchant/src/checkout/index.ts"
+      ],
+      "@steelyard-dev/merchant/mandate": [
+        "packages/merchant/src/mandate/index.ts"
+      ],
+      "@steelyard-dev/merchant/policy": [
+        "packages/merchant/src/policy/index.ts"
+      ],
+      "@steelyard-dev/merchant/psp": [
+        "packages/merchant/src/psp/index.ts"
+      ],
+      "@steelyard-dev/next": [
+        "packages/next/src/index.ts"
+      ],
+      "@steelyard-dev/policy": [
+        "packages/policy/src/index.ts"
+      ],
+      "@steelyard-dev/policy-rail-card": [
+        "packages/policy-rail-card/src/index.ts"
+      ],
+      "@steelyard-dev/protocol/acp": [
+        "packages/protocol/src/acp/index.ts"
+      ],
+      "@steelyard-dev/protocol/acp/checkout": [
+        "packages/protocol/src/acp/checkout.ts"
+      ],
+      "@steelyard-dev/protocol/commerce-manifest": [
+        "packages/protocol/src/commerce-manifest/index.ts"
+      ],
+      "@steelyard-dev/protocol/http": [
+        "packages/protocol/src/http/index.ts"
+      ],
+      "@steelyard-dev/protocol/mcp": [
+        "packages/protocol/src/mcp/index.ts"
+      ],
+      "@steelyard-dev/protocol/ucp": [
+        "packages/protocol/src/ucp/index.ts"
+      ],
+      "@steelyard-dev/protocol/ucp/checkout": [
+        "packages/protocol/src/ucp/checkout.ts"
+      ],
+      "@steelyard-dev/psp": [
+        "packages/psp/src/index.ts"
+      ],
+      "@steelyard-dev/psp/conformance": [
+        "packages/psp/src/conformance.ts"
+      ],
+      "@steelyard-dev/stripe/buyer": [
+        "packages/stripe/src/buyer.ts"
+      ],
+      "@steelyard-dev/ucp-signing": [
+        "packages/ucp-signing/src/index.ts"
+      ],
+      "@steelyard-dev/x402": [
+        "packages/x402/src/index.ts"
+      ],
+      "@steelyard-dev/x402/server": [
+        "packages/x402/src/server.ts"
+      ]
+    }
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["dist", "coverage", "node_modules"]
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "dist",
+    "coverage",
+    "node_modules"
+  ]
 }

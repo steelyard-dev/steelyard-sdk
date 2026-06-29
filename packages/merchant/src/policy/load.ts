@@ -2,13 +2,13 @@
 import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Decision, PurchaseIntent, Rule, SpendLimits } from "@steelyard/core";
+import type { Decision, PurchaseIntent, Rule, SpendLimits } from "@steelyard-dev/core";
 import {
   evaluatePolicy,
   parsePolicyYaml,
   type ParsedPolicyDocument,
   type PolicySpendContext
-} from "@steelyard/core/policy-yaml";
+} from "@steelyard-dev/core/policy-yaml";
 
 export interface MerchantPolicyLoadOptions {
   path?: string;

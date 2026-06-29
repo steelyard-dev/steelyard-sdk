@@ -3,7 +3,7 @@ import {
   COMMERCE_MANIFEST_SCHEMA_VERSION,
   validateCommerceManifest,
   type CommerceManifestDoc
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import type { CommandResult, CliIO } from "../io.js";
 import { writeLine } from "../io.js";
 import { envClock, loadJsonSource, SourceError, type SourceOptions } from "../source.js";

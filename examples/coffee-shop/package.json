@@ -1,5 +1,5 @@
 {
-  "name": "@steelyard/example-coffee-shop",
+  "name": "steelyard-example-coffee-shop",
   "version": "0.2.0",
   "private": true,
   "description": "Coffee shop example merchant for Steelyard.",
@@ -28,10 +28,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@steelyard/buyer": "workspace:*",
-    "@steelyard/core": "workspace:*",
-    "@steelyard/merchant": "workspace:*",
-    "@steelyard/protocol": "workspace:*",
-    "@steelyard/stripe": "workspace:*"
+    "steelyard": "workspace:*"
   }
 }

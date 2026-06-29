@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { PurchaseIntent } from "@steelyard/core";
+import type { PurchaseIntent } from "@steelyard-dev/core";
 import type { BuyerVault } from "../vault/index.js";
 import { WalletRules, _resetPermissiveWarningForTests } from "./load.js";
 

@@ -36,13 +36,13 @@ export type PeerName = "acp" | "ucp" | "mcp" | "http";
 
 if (isCheck) {
   if (!existsSync(targetPath)) {
-    console.error(`${targetPath} does not exist; run pnpm --filter @steelyard/core generate:types`);
+    console.error(`${targetPath} does not exist; run pnpm --filter @steelyard-dev/core generate:types`);
     process.exit(1);
   }
 
   const current = readFileSync(targetPath, "utf8");
   if (current !== content) {
-    console.error(`${targetPath} is out of date; run pnpm --filter @steelyard/core generate:types`);
+    console.error(`${targetPath} is out of date; run pnpm --filter @steelyard-dev/core generate:types`);
     process.exit(1);
   }
 } else {

@@ -24,7 +24,8 @@ const receipt = await wallet.purchase(intent, {
 
 ## What changes
 
-- Use `wallet.purchase(intent, { merchant })` for real ACP/UCP checkout.
+- Use `wallet.purchase()` for real ACP/UCP checkout:
+  `wallet.purchase(intent, { merchant })`.
 - Configure `delegatePaymentUrl` when connecting to merchants that require
   direct delegate payment.
 - Use `wallet.createBrowserManualSession(intent)` only for integrations that

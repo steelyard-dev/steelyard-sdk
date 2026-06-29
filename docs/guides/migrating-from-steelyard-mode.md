@@ -109,12 +109,17 @@ const merchant = await Steelyard.connect("https://coffee.example/.well-known/ucp
 `merchant.supports("checkout:ap2")` is true only when the merchant profile, the
 buyer profile, and the wallet key are all AP2-ready.
 
+The buyer checkout call stays the same during the migration: use
+`wallet.purchase(intent, { merchant })`. Steelyard selects AP2 only when both
+sides advertise it; otherwise, partners that still need Steelyard mode continue
+through the legacy mandate path.
+
 ## Verify
 
 Run the AP2 smoke flow:
 
 ```sh
-pnpm --filter @steelyard/example-coffee-shop tsx scripts/smoke-ap2.ts
+pnpm --filter steelyard-example-coffee-shop tsx scripts/smoke-ap2.ts
 ```
 
 The smoke verifies merchant authorization, checkout mandate verification,

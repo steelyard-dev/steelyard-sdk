@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import Ajv2020, { type ErrorObject, type ValidateFunction } from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import acpFeedSchema from "../../spec/acp/2026-04-17/json-schema/schema.feed.json";
-import type { Manifest, Offer, Price } from "@steelyard/core";
+import type { Manifest, Offer, Price } from "@steelyard-dev/core";
 import type {
   AcpAvailability,
   AcpDescription,

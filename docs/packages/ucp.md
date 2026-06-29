@@ -1,10 +1,10 @@
-# `@steelyard/protocol/ucp`
+# `steelyard/protocol/ucp`
 
 Emit a UCP discovery document and a spec-validated shopping catalog API
 from a Steelyard manifest.
 
 ```bash
-npm install @steelyard/protocol @steelyard/core
+npm install steelyard
 ```
 
 The discovery doc and every catalog response (`search`, `lookup`, `get_product`)
@@ -58,10 +58,10 @@ import {
   type UcpProductResponse,
   type UcpHandlerOptions,
   type UcpValidationResult
-} from "@steelyard/protocol/ucp";
+} from "steelyard/protocol/ucp";
 ```
 
-Checkout validators are exported from `@steelyard/protocol/ucp/checkout`:
+Checkout validators are exported from `steelyard/protocol/ucp/checkout`:
 
 ```ts
 import {
@@ -69,7 +69,7 @@ import {
   applyUcpUpdate,
   applyUcpComplete,
   assertValidUcpCheckout
-} from "@steelyard/protocol/ucp/checkout";
+} from "steelyard/protocol/ucp/checkout";
 ```
 
 ### Discovery
@@ -109,4 +109,4 @@ tampering (drop `inputs` from a lookup variant — must throw). Coverage:
 
 - :material-protocol: [UCP protocol reference](../protocols/ucp.md).
 - :material-cart: [UCP checkout](../protocols/ucp-checkout.md).
-- :material-shopping-search: [`@steelyard/buyer/client`](client.md) — the unified buyer SDK.
+- :material-shopping-search: [`steelyard/buyer/client`](client.md) — the unified buyer SDK.

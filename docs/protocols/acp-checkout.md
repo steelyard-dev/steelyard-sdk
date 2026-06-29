@@ -1,7 +1,7 @@
 # ACP Checkout
 
 Steelyard v0.3 supports ACP checkout through
-`@steelyard/merchant/checkout` and `@steelyard/buyer/client/acp`.
+`steelyard/merchant/checkout` and `steelyard/buyer/client/acp`.
 
 The buyer flow is:
 

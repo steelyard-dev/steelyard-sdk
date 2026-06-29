@@ -24,10 +24,10 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -r build
-      - run: pnpm --filter @steelyard/example-coffee-shop test
+      - run: pnpm --filter steelyard-example-coffee-shop test
       - name: Boot coffee-shop merchant
         run: |
-          PORT=3000 pnpm --filter @steelyard/example-coffee-shop start >/tmp/steelyard-coffee.log 2>&1 &
+          PORT=3000 pnpm --filter steelyard-example-coffee-shop start >/tmp/steelyard-coffee.log 2>&1 &
           echo $! >/tmp/steelyard-coffee.pid
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3000/.well-known/ucp >/tmp/steelyard-ucp.json; then

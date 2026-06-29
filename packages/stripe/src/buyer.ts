@@ -5,12 +5,12 @@ import {
   type PaymentMandateIssuer,
   type PaymentMandateRequest,
   type SptHandle
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import {
   STRIPE_API_VERSION,
   assertStripeTestSecretKey,
   mintSharedPaymentToken
-} from "@steelyard/core/stripe";
+} from "@steelyard-dev/core/stripe";
 
 export const STRIPE_TEST_NETWORK_BUSINESS_PROFILE =
   "profile_test_61TU90nIeGjU7NNVXA6TU90m7ISQWsBxpcx9lASWWXTk";

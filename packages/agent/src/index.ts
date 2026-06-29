@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { Steelyard, type Merchant, type SteelyardError } from "@steelyard/buyer/client";
-import type { Offer, Policies } from "@steelyard/core";
+import { Steelyard, type Merchant, type SteelyardError } from "@steelyard-dev/buyer/client";
+import type { Offer, Policies } from "@steelyard-dev/core";
 
 export const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 

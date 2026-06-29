@@ -6,7 +6,7 @@ import type {
   PspAdapter,
   PspCaptureArgs,
   PspCaptureResult,
-} from "@steelyard/psp";
+} from "steelyard/psp";
 
 export const TEMPLATE_HANDLER_ID = "template";
 export const TEMPLATE_INSTRUMENT_TYPE = "template_payment_token";

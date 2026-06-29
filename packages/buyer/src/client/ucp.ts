@@ -8,8 +8,8 @@ import {
   type HmsAlgorithm,
   type PurchaseIntent,
   type Receipt
-} from "@steelyard/core";
-import { assertValidUcpCheckout, type Checkout } from "@steelyard/protocol/ucp/checkout";
+} from "@steelyard-dev/core";
+import { assertValidUcpCheckout, type Checkout } from "@steelyard-dev/protocol/ucp/checkout";
 import {
   UcpAp2EnvelopeValidationError,
   assertValidAp2EnvelopeOnResponse,
@@ -17,7 +17,7 @@ import {
   signUcpRequest,
   verifyUcpResponse,
   type UcpProfileDoc
-} from "@steelyard/protocol/ucp";
+} from "@steelyard-dev/protocol/ucp";
 import {
   issueAp2CheckoutMandate,
   issueAp2PaymentMandate,

@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Manifest } from "@steelyard/core";
+import type { Manifest } from "@steelyard-dev/core";
 import { getProduct, lookupCatalog, searchCatalog, type UcpProductResponse } from "./catalog.js";
 import {
   assertValidUcpDiscovery,

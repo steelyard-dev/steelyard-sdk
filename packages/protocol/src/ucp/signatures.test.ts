@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it } from "vitest";
-import { contentDigestHeader, ecdsaSignRaw, parseSf941Dict, type EcJwk, type HmsAlgorithm } from "@steelyard/core";
+import { contentDigestHeader, ecdsaSignRaw, parseSf941Dict, type EcJwk, type HmsAlgorithm } from "@steelyard-dev/core";
 import {
   UcpSignerMissingHeader,
   signUcpRequest,

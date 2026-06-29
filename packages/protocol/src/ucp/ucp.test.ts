@@ -2,7 +2,7 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createServer, request, type Server as NodeServer } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import { COMMERCE_MANIFEST_PATH, defineCommerce, type EcJwk, type PaymentCapability } from "@steelyard/core";
+import { COMMERCE_MANIFEST_PATH, defineCommerce, type EcJwk, type PaymentCapability } from "@steelyard-dev/core";
 import {
   UCP_CATALOG_LOOKUP_CAPABILITY,
   UCP_CATALOG_SEARCH_CAPABILITY,

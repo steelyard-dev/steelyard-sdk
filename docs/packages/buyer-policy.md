@@ -1,10 +1,10 @@
 # Policy (engine)
 
-`@steelyard/buyer/policy` evaluates purchase intents against strict YAML policy.
+`steelyard/buyer/policy` evaluates purchase intents against strict YAML policy.
 Wallet users normally do not need this page.
 
 ```ts
-import { WalletRules } from "@steelyard/buyer/policy";
+import { WalletRules } from "steelyard/buyer/policy";
 
 const policy = await WalletRules.load();
 const decision = await policy.evaluate(intent, { vault });

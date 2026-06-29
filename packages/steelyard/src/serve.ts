@@ -20,11 +20,11 @@ import {
   type Server,
   type ServerResponse
 } from "node:http";
-import { createAcpFeedHandler } from "@steelyard/protocol/acp";
-import { createCommerceManifestHandler } from "@steelyard/protocol/commerce-manifest";
-import { HTTP_API_DEFAULT_PREFIX, createHttpApiHandler } from "@steelyard/protocol/http";
-import { createMcpHttpHandler, type McpHttpHandlerOptions } from "@steelyard/protocol/mcp";
-import { createUcpHandler, type UcpHandlerOptions } from "@steelyard/protocol/ucp";
+import { createAcpFeedHandler } from "@steelyard-dev/protocol/acp";
+import { createCommerceManifestHandler } from "@steelyard-dev/protocol/commerce-manifest";
+import { HTTP_API_DEFAULT_PREFIX, createHttpApiHandler } from "@steelyard-dev/protocol/http";
+import { createMcpHttpHandler, type McpHttpHandlerOptions } from "@steelyard-dev/protocol/mcp";
+import { createUcpHandler, type UcpHandlerOptions } from "@steelyard-dev/protocol/ucp";
 import {
   COMMERCE_MANIFEST_PATH,
   COMMERCE_READ_VERSION,
@@ -32,7 +32,7 @@ import {
   type CommerceManifestPeer,
   type Manifest,
   type PeerName
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 
 /** A read surface that {@link serveCommerce} can mount. */
 export type CommerceProtocol = "commerce" | "http" | "mcp" | "acp" | "ucp";

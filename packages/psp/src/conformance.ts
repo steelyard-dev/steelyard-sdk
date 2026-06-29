@@ -3,7 +3,7 @@ import type {
   PaymentMandateIssuer,
   PaymentMandate,
   PaymentMandateRequest
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import type { PspAdapter, PspCaptureArgs } from "./index.js";
 
 export type ConformanceCaseStatus = "passed" | "failed";

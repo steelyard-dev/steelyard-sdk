@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Wallet } from "@steelyard/buyer";
-import { Steelyard } from "@steelyard/buyer/client";
-import type { Offer, Price, PurchaseIntent } from "@steelyard/core";
+import { Wallet } from "steelyard/buyer";
+import { Steelyard } from "steelyard/buyer/client";
+import type { Offer, Price, PurchaseIntent } from "steelyard/core";
 import {
   startCoffeeShopCheckoutServer,
   startMockDelegatePaymentServer

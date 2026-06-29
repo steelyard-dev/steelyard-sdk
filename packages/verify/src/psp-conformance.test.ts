@@ -1,14 +1,14 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import type { EcJwk, PaymentMandateRequest } from "@steelyard/core";
-import { createReferencePaymentMandateIssuer } from "@steelyard/buyer";
-import { mockPsp, referencePsp, stripePsp, type PspCaptureArgs } from "@steelyard/merchant/psp";
-import { runMandateIssuerConformance, runPspConformance } from "@steelyard/psp/conformance";
+import type { EcJwk, PaymentMandateRequest } from "@steelyard-dev/core";
+import { createReferencePaymentMandateIssuer } from "@steelyard-dev/buyer";
+import { mockPsp, referencePsp, stripePsp, type PspCaptureArgs } from "@steelyard-dev/merchant/psp";
+import { runMandateIssuerConformance, runPspConformance } from "@steelyard-dev/psp/conformance";
 import { describe, expect, it } from "vitest";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const expiresAt = new Date(now.getTime() + 15 * 60_000).toISOString();
 
-describe("@steelyard/psp conformance", () => {
+describe("@steelyard-dev/psp conformance", () => {
   it("passes the first-party mock and Stripe merchant adapters", async () => {
     const mockReport = await runPspConformance(mockPsp({ handlerIds: ["mock"], seed: "conformance" }), {
       success: captureArgs({ handler_id: "mock", instrument_type: "vault_token", idempotencyKey: "idem_mock_ok" }),

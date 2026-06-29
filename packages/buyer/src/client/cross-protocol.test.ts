@@ -3,16 +3,16 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defineCommerce, type Manifest, type PurchaseIntent, type PaymentMandateIssuer } from "@steelyard/core";
-import { buildAcpFeed } from "@steelyard/protocol/acp";
-import { buildUcpDiscovery } from "@steelyard/protocol/ucp";
+import { defineCommerce, type Manifest, type PurchaseIntent, type PaymentMandateIssuer } from "@steelyard-dev/core";
+import { buildAcpFeed } from "@steelyard-dev/protocol/acp";
+import { buildUcpDiscovery } from "@steelyard-dev/protocol/ucp";
 import {
   createCheckoutServer,
   memoryCheckoutSessionStore,
   memoryIdempotencyStore
-} from "@steelyard/merchant/checkout";
-import { mockMandateVerifier, type MandateVerifier } from "@steelyard/merchant/mandate";
-import { mockPsp, mockVaultToken } from "@steelyard/merchant/psp";
+} from "@steelyard-dev/merchant/checkout";
+import { mockMandateVerifier, type MandateVerifier } from "@steelyard-dev/merchant/mandate";
+import { mockPsp, mockVaultToken } from "@steelyard-dev/merchant/psp";
 import { afterEach, describe, expect, it } from "vitest";
 import { Wallet } from "../wallet/index.js";
 import { Steelyard } from "./index.js";

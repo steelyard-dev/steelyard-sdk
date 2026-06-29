@@ -1,11 +1,11 @@
 {
-  "name": "@steelyard/cli",
-  "version": "0.2.0",
+  "name": "@steelyard-dev/cli",
+  "version": "0.11.0",
   "description": "Command-line tools for Steelyard commerce manifests.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "steelyard": "./bin/steelyard"
+    "steelyard": "bin/steelyard"
   },
   "exports": {
     ".": {
@@ -48,9 +48,9 @@
     "clean": "rm -rf dist .turbo coverage"
   },
   "dependencies": {
-    "@steelyard/core": "workspace:^",
-    "@steelyard/next": "workspace:^",
-    "@steelyard/policy": "workspace:*",
+    "@steelyard-dev/core": "workspace:^",
+    "@steelyard-dev/next": "workspace:^",
+    "@steelyard-dev/policy": "workspace:*",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "cac": "^7.0.0",
@@ -61,5 +61,6 @@
   },
   "devDependencies": {
     "@types/prompts": "^2.4.9"
-  }
+  },
+  "private": true
 }

@@ -7,7 +7,7 @@ export {
   signingMaterialFromUcpSigner,
   verifyUcpRequest,
   verifyUcpResponse
-} from "@steelyard/ucp-signing";
+} from "@steelyard-dev/ucp-signing";
 export type {
   SignUcpRequestArgs,
   SignUcpResponseArgs,
@@ -19,4 +19,4 @@ export type {
   UcpSigner,
   VerifyUcpRequestArgs,
   VerifyUcpResponseArgs
-} from "@steelyard/ucp-signing";
+} from "@steelyard-dev/ucp-signing";

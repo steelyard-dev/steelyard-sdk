@@ -1,22 +1,22 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { createUcpBuyerProfileHandler } from "@steelyard/buyer/client";
-import type { EcJwk } from "@steelyard/core";
-import { buildAcpFeed } from "@steelyard/protocol/acp";
-import { buildUcpDiscovery } from "@steelyard/protocol/ucp";
+import { createUcpBuyerProfileHandler } from "steelyard/buyer/client";
+import type { EcJwk } from "steelyard/core";
+import { buildAcpFeed } from "steelyard/protocol/acp";
+import { buildUcpDiscovery } from "steelyard/protocol/ucp";
 import {
   createCheckoutServer,
   memoryCheckoutSessionStore,
   memoryIdempotencyStore,
   type MerchantCheckoutOpts
-} from "@steelyard/merchant/checkout";
-import type { MandateVerifier } from "@steelyard/merchant/mandate";
+} from "steelyard/merchant/checkout";
+import type { MandateVerifier } from "steelyard/merchant/mandate";
 import {
   ap2MerchantAuthorizationSigner,
   memoryNonceStore,
   mockMandateVerifier,
   sdJwtKbVerifier
-} from "@steelyard/merchant/mandate";
-import { mockPsp, mockVaultToken, type PspAdapter } from "@steelyard/merchant/psp";
+} from "steelyard/merchant/mandate";
+import { mockPsp, mockVaultToken, type PspAdapter } from "steelyard/merchant/psp";
 import { coffeeShopManifest } from "./catalog.js";
 import {
   buyerDemoUcpPublicKey,

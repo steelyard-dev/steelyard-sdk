@@ -4,7 +4,7 @@
 // The catch-all forwards to the same handler that serves /.well-known/ucp; the
 // handler internally routes by request URL.
 
-import { createCommerceRoutes, resolveManifestModule } from "@steelyard/next";
+import { createCommerceRoutes, resolveManifestModule } from "steelyard/next";
 import manifestModule from "@/commerce";
 
 const routes = createCommerceRoutes(await resolveManifestModule(manifestModule));

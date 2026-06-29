@@ -23,7 +23,7 @@ UCP discovery surfaces):
 }
 ```
 
-`@steelyard/buyer/client.connect()` reads this on the handshake and applies the
+`steelyard/buyer/client.connect()` reads this on the handshake and applies the
 following compatibility rule:
 
 | Client | Server | Result | Reason |
@@ -51,12 +51,12 @@ versions can move independently. The two are not the same thing:
 The capability version stays at `0.1` until the read-side surface stabilizes.
 It will bump to `0.2` if any of these change in a backward-incompatible way:
 
-- The tool names emitted by `@steelyard/protocol/mcp`
-- The `commerce.json` schema emitted by `@steelyard/protocol/commerce-manifest`
-- The `/commerce` response schemas emitted by `@steelyard/protocol/http`
-- The `ProductsResponse` shape emitted by `@steelyard/protocol/acp`
+- The tool names emitted by `steelyard/protocol/mcp`
+- The `commerce.json` schema emitted by `steelyard/protocol/commerce-manifest`
+- The `/commerce` response schemas emitted by `steelyard/protocol/http`
+- The `ProductsResponse` shape emitted by `steelyard/protocol/acp`
 - The UCP discovery + catalog response shape
-- The closed error taxonomy in `@steelyard/core`
+- The closed error taxonomy in `steelyard/core`
 
 A release that only adds a new capability can bump the package version without
 bumping the read-side capability. New capabilities are additive.

@@ -42,18 +42,18 @@ async function main(): Promise<void> {
     }
   }
 
-  await run("pnpm", ["--filter", "@steelyard/example-coffee-shop", "smoke:stripe:ucp"], {
+  await run("pnpm", ["--filter", "steelyard-example-coffee-shop", "smoke:stripe:ucp"], {
     ...process.env,
     STEELYARD_MOCK_STRIPE: "1",
     STRIPE_TEST_SECRET_KEY: "sk_test_mock"
   });
-  await run("pnpm", ["--filter", "@steelyard/example-coffee-shop", "smoke:ucp:dual"], {
+  await run("pnpm", ["--filter", "steelyard-example-coffee-shop", "smoke:ucp:dual"], {
     ...process.env,
     STEELYARD_MOCK_STRIPE: "1",
     STEELYARD_ALLOW_REFERENCE_PSP: "1",
     STRIPE_TEST_SECRET_KEY: "sk_test_mock"
   });
-  await run("pnpm", ["--filter", "@steelyard/example-coffee-shop", "smoke:stripe:acp"], {
+  await run("pnpm", ["--filter", "steelyard-example-coffee-shop", "smoke:stripe:acp"], {
     ...process.env,
     STEELYARD_MOCK_STRIPE: "1",
     STRIPE_TEST_SECRET_KEY: "sk_test_mock"

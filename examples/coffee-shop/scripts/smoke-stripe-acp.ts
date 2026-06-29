@@ -1,5 +1,5 @@
-import { Steelyard, verifyAcpWebhook } from "@steelyard/buyer/client";
-import { ACP_API_VERSION_HEADER, ACP_VERSION, ACP_WEBHOOK_SIGNATURE_HEADER, signAcpWebhook } from "@steelyard/protocol/acp";
+import { Steelyard, verifyAcpWebhook } from "steelyard/buyer/client";
+import { ACP_API_VERSION_HEADER, ACP_VERSION, ACP_WEBHOOK_SIGNATURE_HEADER, signAcpWebhook } from "steelyard/protocol/acp";
 import {
   assertStripeReceipt,
   installFetchRecorder,

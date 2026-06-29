@@ -1,7 +1,7 @@
 {
-  "name": "@steelyard/policy-rail-card",
-  "version": "0.0.0",
-  "description": "Virtual-card rail adapter (Stripe Issuing) for @steelyard/policy.",
+  "name": "@steelyard-dev/policy-rail-card",
+  "version": "0.11.0",
+  "description": "Virtual-card rail adapter (Stripe Issuing) for @steelyard-dev/policy.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
@@ -21,7 +21,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@steelyard/policy": "workspace:*",
+    "@steelyard-dev/policy": "workspace:*",
     "stripe": "^17"
-  }
+  },
+  "private": true
 }

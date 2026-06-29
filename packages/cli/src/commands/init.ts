@@ -7,7 +7,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
-import { loadInspectorPageTemplate } from "@steelyard/next";
+import { loadInspectorPageTemplate } from "@steelyard-dev/next";
 import type { CliIO, CommandResult } from "../io.js";
 import { renderBanner, shouldShowBanner } from "../init/banner.js";
 import { createUi } from "../init/ui.js";
@@ -129,7 +129,7 @@ export async function runInit(options: InitOptions, io: CliIO, deps: InitDeps = 
     ui.success(path);
   }
 
-  const depsToInstall = ["steelyard", "@steelyard/next"];
+  const depsToInstall = ["steelyard"];
   if (!options.skipInstall && shouldRunInstall(io.env)) {
     const installCmd = installCommand(project.packageManager, depsToInstall);
     const spin = ui.spinner(

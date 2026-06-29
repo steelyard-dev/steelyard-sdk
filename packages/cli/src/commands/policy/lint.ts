@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { resolve } from "node:path";
-import { loadPolicyFromFile } from "@steelyard/policy";
+import { loadPolicyFromFile } from "@steelyard-dev/policy";
 import type { CliIO, CommandResult } from "../../io.js";
 import { writeLine } from "../../io.js";
 

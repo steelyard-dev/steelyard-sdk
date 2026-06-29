@@ -58,7 +58,7 @@ What does not differ is the source of truth.
   are AJV-validated against the official `catalog_search.json` and
   `catalog_lookup.json` schemas. The v0.4 commerce manifest and HTTP API are
   validated against authored Steelyard JSON Schemas. MCP uses the official SDK.
-- **A unified buyer SDK.** `@steelyard/buyer/client` connects to a merchant, sniffs
+- **A unified buyer SDK.** `steelyard/buyer/client` connects to a merchant, sniffs
   which protocol it speaks, and returns the **same** `Merchant` handle
   regardless. Methods like `search()` and `getOffer()` return identical
   results across all three, and ACP/UCP merchants can also expose checkout.
@@ -78,5 +78,5 @@ What does not differ is the source of truth.
   shape of the config.
 - :material-protocol: [Protocols](../protocols/commerce-manifest.md) — what each
   surface looks like on the wire.
-- :material-shopping-search: [`@steelyard/buyer/client`](../packages/client.md) —
+- :material-shopping-search: [`steelyard/buyer/client`](../packages/client.md) —
   the buyer SDK that consumes any of the three.

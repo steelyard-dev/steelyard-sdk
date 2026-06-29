@@ -41,14 +41,14 @@ UCP + AP2 + Stripe SPT:
 
 ```sh
 STRIPE_TEST_SECRET_KEY=sk_test_... \
-pnpm --filter @steelyard/example-coffee-shop smoke:stripe:ucp
+pnpm --filter steelyard-example-coffee-shop smoke:stripe:ucp
 ```
 
 ACP + direct SPT `payment_data`:
 
 ```sh
 STRIPE_TEST_SECRET_KEY=sk_test_... \
-pnpm --filter @steelyard/example-coffee-shop smoke:stripe:acp
+pnpm --filter steelyard-example-coffee-shop smoke:stripe:acp
 ```
 
 CI and local offline validation use the same scripts with `STEELYARD_MOCK_STRIPE=1`.

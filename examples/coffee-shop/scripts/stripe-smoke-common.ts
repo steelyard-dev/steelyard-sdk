@@ -1,11 +1,11 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Wallet } from "@steelyard/buyer";
-import type { Merchant } from "@steelyard/buyer/client";
-import type { Offer, Price, PurchaseIntent, Receipt } from "@steelyard/core";
-import { stripePsp, type PspAdapter, type PspCaptureResult } from "@steelyard/merchant/psp";
-import { createStripeSptPaymentMandateIssuer } from "@steelyard/stripe/buyer";
+import { Wallet } from "steelyard/buyer";
+import type { Merchant } from "steelyard/buyer/client";
+import type { Offer, Price, PurchaseIntent, Receipt } from "steelyard/core";
+import { stripePsp, type PspAdapter, type PspCaptureResult } from "steelyard/merchant/psp";
+import { createStripeSptPaymentMandateIssuer } from "steelyard/stripe/buyer";
 import {
   startCoffeeShopCheckoutServer,
   type CoffeeShopUcpAuthMode,

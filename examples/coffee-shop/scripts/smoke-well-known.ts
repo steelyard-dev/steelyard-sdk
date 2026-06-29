@@ -4,7 +4,7 @@ import {
   canonicalCommerceManifestHash,
   validateCommerceManifest,
   type CommerceManifestDoc
-} from "@steelyard/core";
+} from "steelyard/core";
 import { createCoffeeShopHandler } from "../src/server.js";
 
 const server = createServer(createCoffeeShopHandler({

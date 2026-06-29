@@ -10,7 +10,7 @@ import {
   type EcJwk,
   type HmsAlgorithm,
   type PurchaseIntent
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ap2MerchantAuthorizationSigner, checkoutWithoutAp2, memoryNonceStore, mockMandateVerifier } from "../mandate/index.js";
 import type { MerchantPolicy } from "../policy/index.js";
@@ -22,7 +22,7 @@ import {
   MerchantCheckoutConfigError,
   UnknownPaymentHandlerError
 } from "./index.js";
-import { signUcpRequest, UCP_AP2_CAPABILITY, verifyUcpResponse } from "@steelyard/protocol/ucp";
+import { signUcpRequest, UCP_AP2_CAPABILITY, verifyUcpResponse } from "@steelyard-dev/protocol/ucp";
 
 const now = new Date("2026-06-14T12:00:00.000Z");
 const manifest = defineCommerce({

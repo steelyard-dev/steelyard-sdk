@@ -12,7 +12,7 @@ import {
   type Receipt,
   type Total,
   type WalletDriverPort
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 
 export interface DriverBaseOpts {
   port: WalletDriverPort;

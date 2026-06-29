@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { describe, expect, it } from "vitest";
-import { StripeLiveDisabledError } from "@steelyard/core/stripe";
+import { StripeLiveDisabledError } from "@steelyard-dev/core/stripe";
 import {
   Ap2MandateScopeIncomplete,
   STRIPE_TEST_NETWORK_BUSINESS_PROFILE,

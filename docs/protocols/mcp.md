@@ -1,6 +1,6 @@
 # MCP
 
-Steelyard's MCP adapter (`@steelyard/protocol/mcp`) emits a real
+Steelyard's MCP adapter (`steelyard/protocol/mcp`) emits a real
 [Model Context Protocol](https://modelcontextprotocol.io/) server from a
 `defineCommerce()` manifest. The runtime is the official
 `@modelcontextprotocol/sdk` (≥ 1.29) — not a reimplementation.
@@ -57,7 +57,7 @@ Both are readable without auth.
 ## Transports
 
 ```typescript
-import { createMcpServer, createMcpHttpHandler, runMcpStdio } from "@steelyard/protocol/mcp";
+import { createMcpServer, createMcpHttpHandler, runMcpStdio } from "steelyard/protocol/mcp";
 
 // HTTP (streamable, used by the example coffee shop)
 const handler = createMcpHttpHandler(manifest);
@@ -91,4 +91,4 @@ support, but MCP checkout is intentionally absent from this release:
 ## What's next
 
 - :material-protocol: [ACP](acp.md) — the spec-validated feed/catalog.
-- :material-package-variant-closed: [`@steelyard/protocol/mcp` package API](../packages/mcp.md).
+- :material-package-variant-closed: [`steelyard/protocol/mcp` package API](../packages/mcp.md).

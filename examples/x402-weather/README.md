@@ -8,8 +8,8 @@ object so the whole example runs without live chain access, funded wallets, or
 raw private key strings.
 
 ```sh
-pnpm --filter @steelyard/example-x402-weather test
-pnpm --filter @steelyard/example-x402-weather build
+pnpm --filter steelyard-example-x402-weather test
+pnpm --filter steelyard-example-x402-weather build
 ```
 
 In a real buyer app, replace the offline wallet object with `Wallet.open(...)`

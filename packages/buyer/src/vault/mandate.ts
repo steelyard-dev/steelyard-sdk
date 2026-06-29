@@ -1,4 +1,4 @@
-import { systemClock, type JsonWebKey } from "@steelyard/core";
+import { systemClock, type JsonWebKey } from "@steelyard-dev/core";
 import type { JsonWebKey as NodeJsonWebKey } from "node:crypto";
 import {
   createHash,

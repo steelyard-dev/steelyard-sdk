@@ -1,4 +1,4 @@
-# `@steelyard/core/idempotency`
+# `steelyard/core/idempotency`
 
 `newIdempotencyKey()` returns an RFC 9562 UUIDv7 string.
 

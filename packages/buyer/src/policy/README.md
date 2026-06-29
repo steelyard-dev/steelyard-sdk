@@ -1,11 +1,11 @@
-# `@steelyard/buyer/policy`
+# `steelyard/buyer/policy`
 
 YAML-driven authorization for agent purchases. This is the engine behind the
 root `Wallet` facade and is exported for power users who need custom policy
 loading.
 
 ```ts
-import { WalletRules } from "@steelyard/buyer/policy";
+import { WalletRules } from "steelyard/buyer/policy";
 
 const policy = await WalletRules.load();
 const decision = await policy.evaluate(intent, { vault });

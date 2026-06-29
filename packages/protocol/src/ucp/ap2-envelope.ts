@@ -5,9 +5,9 @@ export {
   assertValidAp2EnvelopeOnResponse,
   isValidAp2EnvelopeOnRequest,
   isValidAp2EnvelopeOnResponse
-} from "@steelyard/ucp-signing";
+} from "@steelyard-dev/ucp-signing";
 export type {
   Ap2EnvelopeValidationErrorObject,
   Ap2WithCheckoutMandate,
   Ap2WithMerchantAuthorization
-} from "@steelyard/ucp-signing";
+} from "@steelyard-dev/ucp-signing";

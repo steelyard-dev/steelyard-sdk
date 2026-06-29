@@ -7,7 +7,7 @@ import {
   type X402PaywallOptions,
   type X402SettleResult,
   type X402VerifyResult
-} from "@steelyard/x402/server";
+} from "steelyard/x402/server";
 
 export function createMockWeatherFacilitator(): X402FacilitatorClient {
   const settled = new Map<string, X402SettleResult>();

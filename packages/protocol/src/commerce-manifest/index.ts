@@ -6,7 +6,7 @@ import {
   commerceManifest,
   type CommerceManifestOpts,
   type Manifest
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import {
   type CorsOpts,
   type Fallthrough,

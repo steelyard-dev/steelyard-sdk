@@ -16,7 +16,7 @@ const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Belt-and-braces: also externalize via webpack so the transitive native
-      // require from @steelyard/buyer/wallet stays a runtime `require()`.
+      // require from steelyard/buyer/wallet stays a runtime `require()`.
       const existing = config.externals ?? [];
       config.externals = [
         ...(Array.isArray(existing) ? existing : [existing]),

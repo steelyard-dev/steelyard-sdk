@@ -1,9 +1,9 @@
-import type { Offer, Price, PurchaseIntent } from "@steelyard/core";
+import type { Offer, Price, PurchaseIntent } from "steelyard/core";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Wallet } from "@steelyard/buyer";
-import { Steelyard } from "@steelyard/buyer/client";
+import { Wallet } from "steelyard/buyer";
+import { Steelyard } from "steelyard/buyer/client";
 
 const merchantUrl = process.env.MERCHANT_URL ?? "http://127.0.0.1:3000/protocol/mcp";
 

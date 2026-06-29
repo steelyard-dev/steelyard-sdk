@@ -1,14 +1,65 @@
 import { defineConfig } from "tsup";
+import { cpSync, mkdirSync, rmSync } from "node:fs";
 
 export default defineConfig({
   entry: {
-    index: "src/index.ts"
+    index: "src/index.ts",
+    serve: "src/serve.ts",
+    core: "src/core.ts",
+    "core/policy-yaml": "src/core/policy-yaml.ts",
+    "core/order-state": "src/core/order-state.ts",
+    "core/idempotency": "src/core/idempotency.ts",
+    "core/purchase": "src/core/purchase.ts",
+    "core/stripe": "src/core/stripe.ts",
+    "core/stripe/constants": "src/core/stripe/constants.ts",
+    "protocol/mcp": "src/protocol/mcp.ts",
+    "protocol/commerce-manifest": "src/protocol/commerce-manifest.ts",
+    "protocol/http": "src/protocol/http.ts",
+    "protocol/acp": "src/protocol/acp.ts",
+    "protocol/acp/checkout": "src/protocol/acp/checkout.ts",
+    "protocol/ucp": "src/protocol/ucp.ts",
+    "protocol/ucp/checkout": "src/protocol/ucp/checkout.ts",
+    buyer: "src/buyer.ts",
+    "buyer/client": "src/buyer/client.ts",
+    "buyer/client/acp": "src/buyer/client/acp.ts",
+    "buyer/client/ucp": "src/buyer/client/ucp.ts",
+    "buyer/vault": "src/buyer/vault.ts",
+    "buyer/policy": "src/buyer/policy.ts",
+    merchant: "src/merchant.ts",
+    "merchant/checkout": "src/merchant/checkout.ts",
+    "merchant/policy": "src/merchant/policy.ts",
+    "merchant/psp": "src/merchant/psp.ts",
+    "merchant/mandate": "src/merchant/mandate.ts",
+    psp: "src/psp.ts",
+    "psp/conformance": "src/psp/conformance.ts",
+    policy: "src/policy.ts",
+    "policy-rail-card": "src/policy-rail-card.ts",
+    "stripe/buyer": "src/stripe/buyer.ts",
+    "ucp-signing": "src/ucp-signing.ts",
+    next: "src/next.ts",
+    x402: "src/x402.ts",
+    "x402/server": "src/x402/server.ts",
+    agent: "src/agent.ts",
+    "agent-cli": "src/agent-cli.ts",
+    cli: "src/cli.ts",
+    "cli/commands/validate": "src/cli/commands/validate.ts",
+    "cli/commands/manifest": "src/cli/commands/manifest.ts",
+    "cli/commands/doctor": "src/cli/commands/doctor.ts",
+    "cli/commands/policy/lint": "src/cli/commands/policy/lint.ts",
+    "cli/commands/policy/run": "src/cli/commands/policy/run.ts",
+    "cli/commands/policy/audit-verify": "src/cli/commands/policy/audit-verify.ts"
   },
-  format: ["esm", "cjs"],
+  format: ["esm"],
   dts: true,
   clean: true,
-  sourcemap: true,
+  sourcemap: false,
   target: "node20",
   shims: false,
-  splitting: false
+  splitting: false,
+  noExternal: [/^@steelyard-dev\//],
+  onSuccess: async () => {
+    rmSync("spec/policy", { recursive: true, force: true });
+    mkdirSync("spec", { recursive: true });
+    cpSync("../policy/spec/policy", "spec/policy", { recursive: true });
+  }
 });

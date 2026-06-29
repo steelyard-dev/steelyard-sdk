@@ -1,6 +1,6 @@
 # Error taxonomy
 
-`@steelyard/buyer/client` surfaces connection and read failures as a closed
+`steelyard/buyer/client` surfaces connection and read failures as a closed
 error set. The shape:
 
 ```typescript
@@ -12,7 +12,7 @@ type ErrorPayload = {
 
 ## The closed set
 
-Exported from `@steelyard/core` as `ERROR_CODES`:
+Exported from `steelyard/core` as `ERROR_CODES`:
 
 | Code | When it fires |
 |------|---------------|
@@ -41,7 +41,7 @@ string for human-readable specifics, but consumers branch on the
 ## Usage
 
 ```typescript
-import { Steelyard, type Merchant } from "@steelyard/buyer/client";
+import { Steelyard, type Merchant } from "steelyard/buyer/client";
 
 const result = await Steelyard.connect("https://merchant.example/mcp");
 
@@ -74,5 +74,5 @@ const merchant: Merchant = result;
 
 - :material-tag: [Versioning](versioning.md) — how `version_mismatch` is
   resolved.
-- :material-package-variant-closed: [`@steelyard/buyer/client`](../packages/client.md) —
+- :material-package-variant-closed: [`steelyard/buyer/client`](../packages/client.md) —
   the full buyer SDK reference.

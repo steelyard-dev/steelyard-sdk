@@ -1,5 +1,5 @@
 {
-  "name": "steelyard",
+  "name": "steelyard-workspace",
   "version": "0.0.0",
   "private": true,
   "description": "TypeScript SDK for defining read-side commerce once and serving it over MCP, ACP, and UCP.",
@@ -14,7 +14,7 @@
     "typecheck": "turbo run typecheck",
     "validate-examples": "tsx scripts/validate-examples.mts",
     "smoke": "turbo run smoke",
-    "verify": "pnpm --filter @steelyard/protocol regen:acp-types && git diff --exit-code -- packages/protocol/src/acp/types.generated.ts && tsx packages/verify/src/cli.ts",
+    "verify": "pnpm --filter @steelyard-dev/protocol regen:acp-types && git diff --exit-code -- packages/protocol/src/acp/types.generated.ts && tsx packages/verify/src/cli.ts",
     "lint": "biome lint --files-ignore-unknown=true .",
     "clean": "turbo run clean && rm -rf node_modules"
   },

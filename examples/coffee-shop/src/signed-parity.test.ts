@@ -2,9 +2,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { Wallet } from "@steelyard/buyer";
-import { Steelyard, type Merchant } from "@steelyard/buyer/client";
-import type { Offer, Price, PurchaseIntent, Receipt } from "@steelyard/core";
+import { Wallet } from "steelyard/buyer";
+import { Steelyard, type Merchant } from "steelyard/buyer/client";
+import type { Offer, Price, PurchaseIntent, Receipt } from "steelyard/core";
 import {
   startCoffeeShopCheckoutServer,
   startMockDelegatePaymentServer,

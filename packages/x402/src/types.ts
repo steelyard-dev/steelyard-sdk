@@ -5,7 +5,7 @@ import type {
   PaymentMandate,
   PaymentMandateIssuer,
   PurchaseIntent
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 
 export type X402Scheme = "exact" | "upto" | "batch-settlement" | (string & {});
 export type X402Network = string;

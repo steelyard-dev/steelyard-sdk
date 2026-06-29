@@ -1,8 +1,8 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
-import type { EcJwk } from "@steelyard/core";
-import { assertValidUcpProfile, UCP_AP2_CAPABILITY, UcpProfileCache } from "@steelyard/protocol/ucp";
+import type { EcJwk } from "@steelyard-dev/core";
+import { assertValidUcpProfile, UCP_AP2_CAPABILITY, UcpProfileCache } from "@steelyard-dev/protocol/ucp";
 import { createUcpBuyerProfile, createUcpBuyerProfileHandler } from "./index.js";
 
 let server: Server | undefined;

@@ -1,4 +1,4 @@
-import { systemClock, type CardMetadata } from "@steelyard/core";
+import { systemClock, type CardMetadata } from "@steelyard-dev/core";
 import { inspect } from "node:util";
 import { domainMatches } from "../policy/glob.js";
 import { normalizeMerchantDomain } from "../policy/normalize.js";

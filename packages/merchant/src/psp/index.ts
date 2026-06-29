@@ -12,7 +12,7 @@ export {
   referencePsp,
   stripePsp
 } from "./adapters.js";
-export { StripeLiveDisabledError } from "@steelyard/core/stripe";
+export { StripeLiveDisabledError } from "@steelyard-dev/core/stripe";
 export type {
   MockPspFailMode,
   MockPspOptions,
@@ -25,4 +25,4 @@ export type {
   PspPaymentIntent,
   PspPaymentMandate,
   PspCaptureResult
-} from "@steelyard/psp";
+} from "@steelyard-dev/psp";

@@ -1,7 +1,7 @@
 # UCP Checkout
 
-Steelyard supports UCP checkout through `@steelyard/merchant/checkout` and
-`@steelyard/buyer/client/ucp`.
+Steelyard supports UCP checkout through `steelyard/merchant/checkout` and
+`steelyard/buyer/client/ucp`.
 
 UCP checkout is advertised from the discovery document with the full capability
 key `dev.ucp.shopping.checkout`. AP2 mandate support is advertised separately

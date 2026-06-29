@@ -1,6 +1,6 @@
-# @steelyard/core Keep/Drop Audit
+# @steelyard-dev/core Keep/Drop Audit
 
-This is the first `@steelyard/core` artifact. It documents what is lifted from
+This is the first `@steelyard-dev/core` artifact. It documents what is lifted from
 Mercato before any Steelyard core source code lands.
 
 Mercato reference:

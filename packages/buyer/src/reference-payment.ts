@@ -9,7 +9,7 @@ import {
   type HmsAlgorithm,
   type PaymentMandate,
   type PaymentMandateRequest,
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 
 export const REFERENCE_PAYMENT_HANDLER_ID = "reference";
 export const REFERENCE_PAYMENT_INSTRUMENT_TYPE = "delegated_payment_token";

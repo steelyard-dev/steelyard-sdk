@@ -14,7 +14,7 @@ import {
   type PaymentCapability,
   type PurchaseIntent,
   type Total
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import {
   ACP_API_VERSION_HEADER,
   ACP_VERSION,
@@ -29,7 +29,7 @@ import {
   type CheckoutSessionUpdateRequest,
   type AcpPaymentData,
   type CheckoutSession
-} from "@steelyard/protocol/acp/checkout";
+} from "@steelyard-dev/protocol/acp/checkout";
 import {
   applyUcpCancel,
   applyUcpComplete,
@@ -38,7 +38,7 @@ import {
   assertValidUcpCheckout,
   type Checkout as UcpCheckout,
   type SelectedPaymentInstrument
-} from "@steelyard/protocol/ucp/checkout";
+} from "@steelyard-dev/protocol/ucp/checkout";
 import {
   UCP_AP2_CAPABILITY,
   STEELYARD_PAYMENT_HANDLER_NAMESPACE,
@@ -51,7 +51,7 @@ import {
   type UcpProfileDoc,
   type UcpRequestVerificationFailureReason,
   type UcpSigningMaterial
-} from "@steelyard/protocol/ucp";
+} from "@steelyard-dev/protocol/ucp";
 import type {
   MandateVerificationResult,
   MandateVerifier,

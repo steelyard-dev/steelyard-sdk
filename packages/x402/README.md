@@ -1,15 +1,15 @@
-# `@steelyard/x402`
+# `steelyard/x402`
 
 x402 paid HTTP resource support for Steelyard.
 
 ```sh
-npm install @steelyard/x402
+npm install steelyard
 ```
 
 Buyer:
 
 ```ts
-import { x402Fetch, x402Payments } from "@steelyard/x402";
+import { x402Fetch, x402Payments } from "steelyard/x402";
 
 await wallet.addInstrument(x402Payments({
   signer,
@@ -29,7 +29,7 @@ console.log(response.x402?.receipt.transaction);
 Server:
 
 ```ts
-import { exactUsdc, x402Paywall } from "@steelyard/x402/server";
+import { exactUsdc, x402Paywall } from "steelyard/x402/server";
 
 const paywall = x402Paywall({
   facilitator,

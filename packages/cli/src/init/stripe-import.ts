@@ -6,7 +6,7 @@
 // at the end of `init`.
 
 import type Stripe from "stripe";
-import type { Manifest, Offer, Price } from "@steelyard/core";
+import type { Manifest, Offer, Price } from "@steelyard-dev/core";
 
 export interface StripeLike {
   products: { list: (params?: any) => Promise<{ data: Stripe.Product[]; has_more: boolean }> };

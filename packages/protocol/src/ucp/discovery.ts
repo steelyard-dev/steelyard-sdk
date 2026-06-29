@@ -17,7 +17,7 @@ import {
   type EcJwk,
   type Manifest,
   type PaymentCapability
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 
 export { UCP_AP2_CAPABILITY };
 export const UCP_WELL_KNOWN_PATH = "/.well-known/ucp";

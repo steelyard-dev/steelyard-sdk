@@ -10,7 +10,7 @@ import {
   type PaymentMandateRequest,
   type PurchaseIntent,
   type WalletDriverPort
-} from "@steelyard/core";
+} from "@steelyard-dev/core";
 import {
   applyCompleteRequest,
   applyCreateRequest,
@@ -18,14 +18,14 @@ import {
   type CheckoutSessionCompleteRequest,
   type CheckoutSessionCreateRequest,
   type CheckoutSession
-} from "@steelyard/protocol/acp/checkout";
+} from "@steelyard-dev/protocol/acp/checkout";
 import {
   applyUcpComplete,
   applyUcpCreate,
   applyUcpUpdate,
   type Checkout as UcpCheckout
-} from "@steelyard/protocol/ucp/checkout";
-import { signUcpResponse, verifyUcpRequest } from "@steelyard/protocol/ucp";
+} from "@steelyard-dev/protocol/ucp/checkout";
+import { signUcpResponse, verifyUcpRequest } from "@steelyard-dev/protocol/ucp";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   AcpCanceled,

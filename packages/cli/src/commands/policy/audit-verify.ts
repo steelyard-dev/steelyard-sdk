@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
 import { join, resolve } from "node:path";
-import { verifyChain } from "@steelyard/policy";
+import { verifyChain } from "@steelyard-dev/policy";
 import type { CliIO, CommandResult } from "../../io.js";
 import { writeLine } from "../../io.js";
 

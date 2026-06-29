@@ -1,4 +1,4 @@
-import { Steelyard } from "@steelyard/buyer/client";
+import { Steelyard } from "steelyard/buyer/client";
 import {
   assertStripeReceipt,
   assertUcpStripeHandler,

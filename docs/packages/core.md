@@ -1,9 +1,9 @@
-# `@steelyard/core`
+# `steelyard/core`
 
 The schema, types, and constants every other package depends on.
 
 ```bash
-npm install @steelyard/core
+npm install steelyard
 ```
 
 ## Exports
@@ -15,9 +15,9 @@ npm install @steelyard/core
 - `commerceManifest(manifest, opts?)` — build a schema-valid v0.4 `commerce.json` document.
 - `validateCommerceManifest(doc)` — validate schema conformance and `content_hash`.
 - `canonicalCommerceManifestHash(doc)` — recompute the v0.4 manifest checksum.
-- `newIdempotencyKey()` from `@steelyard/core/idempotency` — creates a purchase-safe idempotency key.
-- `mapAcpToOrderState()` and `mapUcpCheckoutStatus()` from `@steelyard/core/order-state` — normalize protocol states into buyer receipt states.
-- `totalAmount()` and `canonicalMerchantAudience()` from `@steelyard/core/purchase` — shared checkout helpers.
+- `newIdempotencyKey()` from `steelyard/core/idempotency` — creates a purchase-safe idempotency key.
+- `mapAcpToOrderState()` and `mapUcpCheckoutStatus()` from `steelyard/core/order-state` — normalize protocol states into buyer receipt states.
+- `totalAmount()` and `canonicalMerchantAudience()` from `steelyard/core/purchase` — shared checkout helpers.
 
 ### Types
 
@@ -42,16 +42,16 @@ Runtime dependencies stay protocol-agnostic: `zod` for the core manifest,
 `ajv`/`ajv-formats` for authored JSON Schema validation, `canonicalize` for
 RFC 8785 hashing, plus small utility dependencies. There is **no** runtime
 dependency on Stripe, the Anthropic SDK, the AI SDK, or any payment-adapter
-code. A CI lint rule enforces this — `@steelyard/core` is protocol-agnostic by
+code. A CI lint rule enforces this — `steelyard/core` is protocol-agnostic by
 construction.
 
 ## Subpaths
 
-- `@steelyard/core/policy-yaml`
-- `@steelyard/core/order-state`
-- `@steelyard/core/idempotency`
-- `@steelyard/core/purchase`
+- `steelyard/core/policy-yaml`
+- `steelyard/core/order-state`
+- `steelyard/core/idempotency`
+- `steelyard/core/purchase`
 
 ## What's next
 
-- :material-package-variant-closed: [`@steelyard/protocol/mcp`](mcp.md), [`@steelyard/protocol/acp`](acp.md), [`@steelyard/protocol/ucp`](ucp.md) — the protocol adapters that consume a `Manifest`.
+- :material-package-variant-closed: [`steelyard/protocol/mcp`](mcp.md), [`steelyard/protocol/acp`](acp.md), [`steelyard/protocol/ucp`](ucp.md) — the protocol adapters that consume a `Manifest`.

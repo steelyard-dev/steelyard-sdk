@@ -1,4 +1,4 @@
-# `@steelyard/buyer/vault`
+# `steelyard/buyer/vault`
 
 Local-first encrypted vault for billing identity, addresses, payment card
 metadata, and raw PANs. This subpath is exported for power users; the primary
@@ -11,7 +11,7 @@ opened. The master key is stored in the OS keychain by default, or derived with
 Argon2id when the caller explicitly supplies `passwordKeystore({ password })`.
 
 ```ts
-import { BuyerVault, passwordKeystore } from "@steelyard/buyer/vault";
+import { BuyerVault, passwordKeystore } from "steelyard/buyer/vault";
 
 const vault = await BuyerVault.open({
   path: "~/.steelyard/vault.box",

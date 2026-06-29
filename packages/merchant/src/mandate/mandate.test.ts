@@ -8,7 +8,7 @@ import {
   steelyardJwsVerifier,
   type MandateVerifier
 } from "./index.js";
-import type { Checkout, JsonWebKey } from "@steelyard/core";
+import type { Checkout, JsonWebKey } from "@steelyard-dev/core";
 import type { JsonWebKey as NodeJsonWebKey } from "node:crypto";
 
 const now = new Date("2026-06-14T12:00:00Z");

@@ -20,8 +20,8 @@ import type {
   SimpleLimits,
   SpendReceipt,
   WalletDriverPort
-} from "@steelyard/core";
-import { newIdempotencyKey, systemClock } from "@steelyard/core";
+} from "@steelyard-dev/core";
+import { newIdempotencyKey, systemClock } from "@steelyard-dev/core";
 import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";

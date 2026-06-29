@@ -7,9 +7,11 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-06-28
+
 ### Added
 
-- `@steelyard/next` adapter package: `toNextHandler`, `toNextApiHandler`,
+- Public `steelyard/next` adapter surface: `toNextHandler`, `toNextApiHandler`,
   `createCommerceRoutes`, `resolveManifestModule`, dev inspector page template.
 - `steelyard init` command: interactive scaffolder for Next.js App Router
   apps with Stripe auto-detection, ASCII banner, transactional codegen, and
@@ -18,13 +20,13 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
   verification.
 - `examples/nextjs` demo app: human Stripe Checkout + agent surfaces in one
   Next.js 15 App Router project, generated via the CLI.
-- `@steelyard/policy`: buyer-side policy engine for agent-initiated payments, including YAML policy loading, first-match policy evaluation with deny precedence, reservation ledger, hash-chained audit log, and local IPC server (EN1-EN9, AU1-AU3, LE1-LE5, AD1-AD5, IP1-IP8).
-- `@steelyard/policy-rail-card`: Stripe Issuing virtual-card rail adapter implementing the public `PolicyRailAdapter` contract with explicit card-rail caveats and sandbox/prod separation (RA1-RA6).
+- `steelyard/policy`: buyer-side policy engine for agent-initiated payments, including YAML policy loading, first-match policy evaluation with deny precedence, reservation ledger, hash-chained audit log, and local IPC server (EN1-EN9, AU1-AU3, LE1-LE5, AD1-AD5, IP1-IP8).
+- `steelyard/policy-rail-card`: Stripe Issuing virtual-card rail adapter implementing the public `PolicyRailAdapter` contract with explicit card-rail caveats and sandbox/prod separation (RA1-RA6).
 - `steelyard policy lint`, `steelyard policy run`, and `steelyard policy audit verify` CLI commands for policy validation, foreground engine operation, and audit-chain verification (CL1-CL3).
 - Webhook approval channel with HMAC-signed callbacks, nonce replay protection, policy-snapshot checks, and rolling-window anti-fatigue budget (AP1-AP5).
 - Public policy-engine docs, package READMEs, example policies, lint snapshots, and replayable Stripe Issuing E2E coverage (DX1-DX6).
 - Developer-facing payment names: `PaymentInstrument`, `PaymentMandate`, `PaymentMandateIssuer`, `vaultedCard`, `BrowserManualSession`, `stripeSpt`, `referenceMandate`, and wallet instrument management helpers (`addInstrument`, `listInstruments`, `chooseInstrument`, `prepareMandate`, `purchase`).
-- `@steelyard/x402` package with `x402Fetch`, `x402Payments`, advanced
+- `steelyard/x402` package with `x402Fetch`, `x402Payments`, advanced
   `x402Exact`, strict `PAYMENT-*` header helpers, deterministic requirement
   selection, typed buyer errors, and x402 mandate issuance through the Wallet
   policy path (PK1-PK3, PT1-PT3, BI1-BI5, PY1-PY5).
@@ -36,17 +38,17 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ### Changed
 
-- `@steelyard/cli` now depends on `prompts`, `ora`, `picocolors`, `stripe`,
-  `@steelyard/next`, and `@steelyard/policy` for the init, checkout, and policy
+- The `steelyard` CLI now depends on `prompts`, `ora`, `picocolors`, `stripe`,
+  the Next.js adapter surface, and the policy engine for the init, checkout, and policy
   command families.
 - Checkout/read/policy names now prefer `createCheckoutServer`, `createCommerceReadHandler`, `PolicyEngine`, `createPolicyEngine`, `PolicyRailAdapter`, `virtualCardRail`, and `VirtualCardPolicyRailAdapter`; the old policy rail aliases were removed before public release.
 - PSP adapters now use `capabilities` as the single capability declaration; the temporary `acceptedInstruments` alias was removed before public release.
 - The `steelyard` umbrella package now re-exports the curated x402 names
   `x402Fetch`, `x402Payments`, `x402Paywall`, and `exactUsdc`; protocol-specific
-  helpers remain in `@steelyard/x402` (PK4).
+  helpers remain in `steelyard/x402` (PK4).
 - `PaymentMandateRequest` can carry optional opaque issuer context so protocols
   such as x402 can bind selected challenge metadata without adding
-  protocol-specific types to `@steelyard/core` (BI3, PY2).
+  protocol-specific types to `steelyard/core` (BI3, PY2).
 
 ## [0.10.0] - 2026-06-26
 

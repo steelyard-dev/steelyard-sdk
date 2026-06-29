@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { parsePaymentRequiredHeader } from "@steelyard/x402";
+import { parsePaymentRequiredHeader } from "steelyard/x402";
 import { startWeatherServer } from "./server.js";
 
 const servers: Array<{ close: (cb: (error?: Error) => void) => void }> = [];

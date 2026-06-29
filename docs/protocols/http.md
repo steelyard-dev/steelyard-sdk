@@ -6,7 +6,7 @@ It is intended for clients that want ordinary HTTP fetches rather than MCP,
 ACP, or UCP protocol bindings.
 
 ```ts
-import { createHttpApiHandler } from "@steelyard/protocol/http";
+import { createHttpApiHandler } from "steelyard/protocol/http";
 
 const commerce = createHttpApiHandler(manifest);
 ```

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { ACP_API_VERSION_HEADER, ACP_VERSION } from "@steelyard/protocol/acp";
-import type { PspAdapter, PspCaptureArgs } from "@steelyard/merchant/psp";
+import { ACP_API_VERSION_HEADER, ACP_VERSION } from "steelyard/protocol/acp";
+import type { PspAdapter, PspCaptureArgs } from "steelyard/merchant/psp";
 import {
   startCoffeeShopCheckoutServer,
   type RunningCoffeeShopCheckout

@@ -5,7 +5,7 @@ Stripe test-mode credentials instead of the mock PSP. v0.6 rejects `sk_live_*`
 at runtime.
 
 ```ts
-import { stripePsp } from "@steelyard/merchant/psp";
+import { stripePsp } from "steelyard/merchant/psp";
 
 const psp = stripePsp({
   apiKey: process.env.STRIPE_SECRET_KEY! // sk_test_...
@@ -20,7 +20,7 @@ The coffee-shop example includes a manual script:
 
 ```bash
 STRIPE_SECRET_KEY=sk_test_... \
-pnpm --filter @steelyard/example-coffee-shop smoke:stripe
+pnpm --filter steelyard-example-coffee-shop smoke:stripe
 ```
 
 The script is not part of CI and should use Stripe test-mode credentials only.

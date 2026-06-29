@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PolicyRailAdapter } from "@steelyard/policy";
+import type { PolicyRailAdapter } from "@steelyard-dev/policy";
 import { VirtualCardPolicyRailAdapter } from "../src/adapter.js";
 import { WebhookEventBus } from "../src/observe.js";
 import { mintCard } from "../src/mint.js";

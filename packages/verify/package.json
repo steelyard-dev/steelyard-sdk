@@ -1,5 +1,5 @@
 {
-  "name": "@steelyard/verify",
+  "name": "@steelyard-dev/verify",
   "version": "0.2.0",
   "private": true,
   "description": "Mechanical verification harness for Steelyard release criteria.",
@@ -17,11 +17,11 @@
     "verify": "tsx src/cli.ts"
   },
   "dependencies": {
-    "@steelyard/buyer": "workspace:^",
-    "@steelyard/core": "workspace:^",
-    "@steelyard/merchant": "workspace:^",
-    "@steelyard/psp": "workspace:^",
-    "@steelyard/protocol": "workspace:^"
+    "@steelyard-dev/buyer": "workspace:^",
+    "@steelyard-dev/core": "workspace:^",
+    "@steelyard-dev/merchant": "workspace:^",
+    "@steelyard-dev/psp": "workspace:^",
+    "@steelyard-dev/protocol": "workspace:^"
   },
   "devDependencies": {}
 }

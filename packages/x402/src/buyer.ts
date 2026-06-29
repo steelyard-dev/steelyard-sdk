@@ -1,4 +1,4 @@
-import type { AgentNativeInstrument, PaymentMandate, PaymentMandateRequest, PurchaseIntent } from "@steelyard/core";
+import type { AgentNativeInstrument, PaymentMandate, PaymentMandateRequest, PurchaseIntent } from "@steelyard-dev/core";
 import {
   X402PaymentNotAllowed,
   X402PaymentRequiredParseError,

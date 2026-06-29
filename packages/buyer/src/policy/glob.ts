@@ -1,1 +1,1 @@
-export { domainMatches } from "@steelyard/core/policy-yaml";
+export { domainMatches } from "@steelyard-dev/core/policy-yaml";

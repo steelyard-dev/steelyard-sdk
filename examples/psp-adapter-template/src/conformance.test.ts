@@ -1,6 +1,6 @@
 // Copyright (c) Steelyard contributors. MIT License.
-import type { PaymentMandateRequest, PspCaptureArgs } from "@steelyard/psp";
-import { runMandateIssuerConformance, runPspConformance } from "@steelyard/psp/conformance";
+import type { PaymentMandateRequest, PspCaptureArgs } from "steelyard/psp";
+import { runMandateIssuerConformance, runPspConformance } from "steelyard/psp/conformance";
 import { describe, expect, it } from "vitest";
 import {
   TEMPLATE_HANDLER_ID,

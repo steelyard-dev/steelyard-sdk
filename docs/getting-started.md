@@ -58,14 +58,14 @@ Read-only by default — no PSP or keys required. Add checkout later with
 Prefer to poke at a working multi-protocol shop with an LLM agent first?
 
 **Prerequisites:** Node ≥ 20, pnpm ≥ 9, *(optional)* `ANTHROPIC_API_KEY` for the
-LLM path of `@steelyard/agent` (without it, a naive parser still answers).
+LLM path of `steelyard/agent` (without it, a naive parser still answers).
 
 ```bash
 git clone https://github.com/steelyard-dev/steelyard-sdk.git steelyard
 cd steelyard
 pnpm install
 pnpm -r build
-pnpm --filter @steelyard/example-coffee-shop start   # → http://127.0.0.1:3000
+pnpm --filter steelyard-example-coffee-shop start   # → http://127.0.0.1:3000
 ```
 
 ## Send the buyer agent to explore
@@ -75,11 +75,11 @@ In a second terminal:
 ```bash
 # With Anthropic (best answers)
 export ANTHROPIC_API_KEY=sk-ant-...
-npx @steelyard/agent --merchant http://127.0.0.1:3000/mcp \
+npx -p steelyard steelyard-agent --merchant http://127.0.0.1:3000/mcp \
   "what does this shop sell"
 
 # Without an LLM key — naive parser still answers
-npx @steelyard/agent --merchant http://127.0.0.1:3000/mcp \
+npx -p steelyard steelyard-agent --merchant http://127.0.0.1:3000/mcp \
   "what does this shop sell"
 ```
 
@@ -94,7 +94,7 @@ Either way, the agent connects, fetches the offers, and prints an answer.
 
 - :material-cogs: Read about the [unification thesis](concepts/unification.md)
   and why three protocol surfaces from one config matters.
-- :material-package: Drop `@steelyard/buyer/client` into your own agent runtime —
+- :material-package: Drop `steelyard/buyer/client` into your own agent runtime —
   see the [buyer SDK guide](packages/client.md).
 - :material-tools: Build your own multi-protocol merchant — see
   [`defineCommerce`](concepts/define-commerce.md).

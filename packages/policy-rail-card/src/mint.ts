@@ -1,5 +1,5 @@
 import type Stripe from "stripe";
-import type { CredentialConstraints, IssuedCredential } from "@steelyard/policy";
+import type { CredentialConstraints, IssuedCredential } from "@steelyard-dev/policy";
 
 export interface MintArgs {
   stripe: Pick<Stripe, "issuing">;

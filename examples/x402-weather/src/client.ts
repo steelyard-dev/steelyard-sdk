@@ -1,4 +1,4 @@
-import type { PaymentMandate, PaymentMandateRequest, PurchaseIntent } from "@steelyard/core";
+import type { PaymentMandate, PaymentMandateRequest, PurchaseIntent } from "steelyard/core";
 import {
   createX402PaymentMandateIssuer,
   x402Fetch,
@@ -6,7 +6,7 @@ import {
   type X402PaymentPayload,
   type X402Signer,
   type X402WalletLike
-} from "@steelyard/x402";
+} from "steelyard/x402";
 
 export function createMockX402Signer(): X402Signer {
   return {

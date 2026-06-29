@@ -1,5 +1,5 @@
 {
-  "name": "@steelyard/example-nextjs",
+  "name": "steelyard-example-nextjs",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,20 +11,19 @@
     "smoke": "tsx scripts/smoke-surfaces.ts"
   },
   "dependencies": {
+    "@stripe/stripe-js": "^4.10.0",
+    "next": "15.5.19",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "next": "15.5.19",
     "steelyard": "workspace:*",
-    "@steelyard/next": "workspace:*",
-    "stripe": "^17.4.0",
-    "@stripe/stripe-js": "^4.10.0"
+    "stripe": "^17.4.0"
   },
   "devDependencies": {
-    "typescript": "^5",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "steelyard": "workspace:*",
     "tsx": "^4.19.2",
-    "@steelyard/core": "workspace:*"
+    "typescript": "^5"
   }
 }

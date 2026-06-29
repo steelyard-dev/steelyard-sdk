@@ -1,6 +1,6 @@
 {
-  "name": "@steelyard/buyer",
-  "version": "0.2.0",
+  "name": "@steelyard-dev/buyer",
+  "version": "0.11.0",
   "description": "Buyer-side primitives for Steelyard: unified client, policy engine, local vault. Subpath imports.",
   "license": "MIT",
   "type": "module",
@@ -51,17 +51,18 @@
     "@noble/hashes": "^1.8.0",
     "@sd-jwt/core": "^0.19.0",
     "@sd-jwt/sd-jwt-vc": "^0.19.0",
-    "@steelyard/core": "workspace:^",
-    "@steelyard/protocol": "workspace:^",
-    "@steelyard/ucp-signing": "workspace:^",
+    "@steelyard-dev/core": "workspace:^",
+    "@steelyard-dev/protocol": "workspace:^",
+    "@steelyard-dev/ucp-signing": "workspace:^",
     "picomatch": "^4.0.4",
     "proper-lockfile": "^4.1.2",
     "yaml": "^2.9.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@steelyard/merchant": "workspace:^",
+    "@steelyard-dev/merchant": "workspace:^",
     "@types/picomatch": "^4.0.3",
     "@types/proper-lockfile": "^4.1.4"
-  }
+  },
+  "private": true
 }

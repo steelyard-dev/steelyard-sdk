@@ -1,16 +1,16 @@
-# `@steelyard/buyer/client`
+# `steelyard/buyer/client`
 
 The unified buyer SDK. Connect to any Steelyard merchant — MCP, ACP, or UCP —
 through a single API.
 
 ```bash
-npm install @steelyard/buyer @steelyard/core
+npm install steelyard
 ```
 
 ## The shape
 
 ```typescript
-import { Steelyard, type Merchant } from "@steelyard/buyer/client";
+import { Steelyard, type Merchant } from "steelyard/buyer/client";
 
 const result = await Steelyard.connect("https://acme.example/mcp");
 
@@ -86,7 +86,7 @@ See [Configuring UCP auth](../guides/configuring-ucp-auth.md).
 `connect()` enforces the [pre-1.0 minor-match rule](../concepts/versioning.md):
 
 ```typescript
-import { isCompatibleReadVersion } from "@steelyard/buyer/client";
+import { isCompatibleReadVersion } from "steelyard/buyer/client";
 
 isCompatibleReadVersion("0.1");    // true
 isCompatibleReadVersion("0.1.9");  // true (patch)
@@ -112,5 +112,5 @@ protocols. Coverage: ≥ 95% line, 100% on `connect()` paths.
 ## What's next
 
 - :material-rocket: [Quickstart](../getting-started.md) — see the full demo.
-- :material-account-tie: [`@steelyard/agent`](agent.md) — the LLM-driven CLI
+- :material-account-tie: [`steelyard/agent`](agent.md) — the LLM-driven CLI
   that wraps this SDK.

@@ -1,8 +1,8 @@
 import { access, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import type { Decision, PurchaseIntent, Rule, SpendLimits } from "@steelyard/core";
-import type { PolicySpendContext } from "@steelyard/core/policy-yaml";
+import type { Decision, PurchaseIntent, Rule, SpendLimits } from "@steelyard-dev/core";
+import type { PolicySpendContext } from "@steelyard-dev/core/policy-yaml";
 import type { BuyerVault } from "../vault/index.js";
 import { evaluatePolicy } from "./evaluate.js";
 import { parsePolicyYaml, type ParsedPolicyDocument } from "./schema.js";
