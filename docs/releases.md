@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.11.1 - 2026-06-29
+
+This patch prepares the next publishable `steelyard` npm release after
+`steelyard@0.11.0`. The private workspace root no longer shares the public
+package name, so `pnpm --filter steelyard` resolves to the publishable package
+instead of the repo root.
+
+The docs and release notes also now distinguish package-manager workspace names
+from public import subpaths. Public examples continue to import from
+`steelyard/*`, internal filters use `@steelyard-dev/*`, and historical release
+entries preserve their original `@steelyard/*` package names.
+
 ## 0.11.0 - 2026-06-28
 
 Next.js developer experience, buyer policy engine, payment naming cleanup, and

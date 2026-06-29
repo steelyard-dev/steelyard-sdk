@@ -1,6 +1,6 @@
 {
   "name": "steelyard",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "The Steelyard SDK: define commerce once, serve it over commerce.json, HTTP, MCP, ACP, UCP, and x402, and run agentic payments from one package.",
   "license": "MIT",
   "type": "module",

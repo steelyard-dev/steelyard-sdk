@@ -7,6 +7,19 @@ and this project adheres to pre-1.0 semantic versioning (minor bumps may break).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-06-29
+
+### Fixed
+
+- Prepared a publishable patch release after `steelyard@0.11.0` by removing
+  the private workspace root's package-name collision with the public
+  `steelyard` package.
+- Corrected public docs and release notes so package-manager filters use the
+  current workspace names, public imports use `steelyard/*`, and historical
+  release entries keep their original `@steelyard/*` package names.
+- Restored migration-guide coverage for the `wallet.purchase()` API required by
+  the verifier.
+
 ## [0.11.0] - 2026-06-28
 
 ### Added
